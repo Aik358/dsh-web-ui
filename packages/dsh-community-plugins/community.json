@@ -130,5 +130,15 @@
     "descriptionEn": "DSH cloud sync for WebDAV, S3, Alibaba Cloud OSS, Tencent Cloud COS and MinIO, syncing profiles, plugin settings and local plugin source archives.",
     "repo": "https://github.com/dickpy/dsh-cloud-sync",
     "npm": "@dickpy/dsh-cloud-sync"
+  },
+  {
+    "id": "dsh-auto-memory",
+    "name": "自动记忆",
+    "nameEn": "Auto Memory",
+    "author": "Aik358",
+    "description": "三层自动记忆插件：用户级/项目笔记/每日日志自动注入与检索、每轮自动沉淀、AI 时段问候、智能检索、日历与工作区思维导图，支持继承 WorkBuddy/CodeBuddy/Claude Code/Codex 等其他 AI 工具的记忆。",
+    "descriptionEn": "Three-layer auto memory for DSH: user-level/project-notes/daily-logs with automatic injection and retrieval, per-turn auto-consolidation, AI greetings, smart search, calendar, workspace mind map, and inheritance from WorkBuddy/CodeBuddy/Claude Code/Codex.",
+    "repo": "https://github.com/Aik358/dsh-auto-memory",
+    "npm": "@a9i5k4/dsh-auto-memory"
   }
 ]
