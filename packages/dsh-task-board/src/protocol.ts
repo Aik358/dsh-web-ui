@@ -2,7 +2,9 @@ import type { TaskUpdatePatch } from './core/use-cases/task-update.ts'
 import { isTaskPermission, isTaskStatus, type NewTaskInput, type TaskRecord, type TaskStatus } from './core/tasks.ts'
 import { parseLedger } from './core/store.ts'
 
-export const TASK_BOARD_SCHEMA_VERSION = 2 as const
+export const TASK_BOARD_SCHEMA_VERSION = 3 as const
+/** Ledger documents written before v3; loaded once and migrated on startup. */
+export const TASK_BOARD_LEGACY_SCHEMA_VERSION = 2 as const
 export const TASK_BOARD_API_PREFIX = '/api/task-board'
 
 export type PowerPhase = 'disabled' | 'idle' | 'acquiring' | 'active' | 'error' | 'unsupported'

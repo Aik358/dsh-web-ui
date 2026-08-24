@@ -3,7 +3,7 @@ import { nextRunAtMs } from './core/schedule.ts'
 import { HostTaskLedger, type OpenedRun, type OpenExecutionReference } from './host-ledger.ts'
 import { HostExecutionRunner, SessionLaunchError, type SessionCommandDispatcher, type SessionSummary } from './host-runner.ts'
 import { PowerInhibitor } from './power-inhibitor.ts'
-import type { TaskBoardAction, TaskBoardEventPayload, TaskBoardSnapshot } from './protocol.ts'
+import { TASK_BOARD_SCHEMA_VERSION, type TaskBoardAction, type TaskBoardEventPayload, type TaskBoardSnapshot } from './protocol.ts'
 
 const SESSION_POLL_MS = 5_000
 const SCHEDULE_TICK_MS = 30_000
@@ -81,7 +81,7 @@ export class TaskBoardHostService {
   snapshot(): TaskBoardSnapshot {
     const state = this.ledger.state()
     return {
-      schemaVersion: 2,
+      schemaVersion: TASK_BOARD_SCHEMA_VERSION,
       revision: state.revision,
       tasks: state.tasks,
       scheduler: state.scheduler,
@@ -105,7 +105,7 @@ export class TaskBoardHostService {
     const result = this.ledger.applyRequest(requestId, action)
     if (result.run !== undefined) this.scheduleLaunch(result.run)
     return {
-      schemaVersion: 2,
+      schemaVersion: TASK_BOARD_SCHEMA_VERSION,
       revision: result.state.revision,
       tasks: result.state.tasks,
       scheduler: result.state.scheduler,
