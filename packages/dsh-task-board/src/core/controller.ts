@@ -83,7 +83,7 @@ export interface ControllerSnapshot {
   executionOptions: ExecutionOptionsSnapshot
   pendingTaskIds: readonly string[]
   transportError?: string
-  host?: Pick<TaskBoardSnapshot, 'revision' | 'scheduler' | 'power'>
+  host?: Pick<TaskBoardSnapshot, 'revision' | 'scheduler' | 'power' | 'sessionDefaultPermission'>
 }
 
 /** The selected task (resolved from the ledger), or undefined. */
@@ -134,7 +134,7 @@ export class BoardController {
   private readonly pendingTaskIds = new Set<string>()
   private readonly taskQueues = new Map<string, Promise<void>>()
   private transportError: string | undefined
-  private hostState: Pick<TaskBoardSnapshot, 'revision' | 'scheduler' | 'power'> | undefined
+  private hostState: Pick<TaskBoardSnapshot, 'revision' | 'scheduler' | 'power' | 'sessionDefaultPermission'> | undefined
   private remoteSubscribed = false
   private remoteInitialization: Promise<boolean> | undefined
 
@@ -416,6 +416,23 @@ export class BoardController {
     if (task === undefined || task.archivedAt !== undefined || task.status === 'running') return false
     if (this.deps.transport === undefined) return false
     return await this.commitRemote({ kind: 'run', taskId: id }, id)
+  }
+
+  /**
+   * Confirm a card's above-default permission binding through the Host
+   * (resolves the pending-confirmation transaction; no-op otherwise).
+   */
+  async confirmPermission(id: string): Promise<boolean> {
+    const task = this.tasks.find(candidate => candidate.id === id)
+    if (task === undefined) return false
+    if (this.deps.transport === undefined) {
+      this.tasks = this.tasks.map(candidate => candidate.id === id
+        ? { ...candidate, permissionConfirmedAt: this.now(), updatedAt: this.now() }
+        : candidate)
+      this.persistAndNotify()
+      return true
+    }
+    return await this.commitRemote({ kind: 'confirm-permission', taskId: id }, id)
   }
 
   /** Re-run a settled task through the Host (the Host replans and executes). */

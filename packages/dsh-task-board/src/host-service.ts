@@ -4,6 +4,7 @@ import { HostTaskLedger, type OpenedRun, type OpenExecutionReference } from './h
 import { HostExecutionRunner, SessionLaunchError, type SessionCommandDispatcher, type SessionSummary } from './host-runner.ts'
 import { PowerInhibitor } from './power-inhibitor.ts'
 import { TASK_BOARD_SCHEMA_VERSION, type TaskBoardAction, type TaskBoardEventPayload, type TaskBoardSnapshot } from './protocol.ts'
+import type { TaskPermission } from './core/handover.ts'
 
 const SESSION_POLL_MS = 5_000
 const SCHEDULE_TICK_MS = 30_000
@@ -29,8 +30,9 @@ export class TaskBoardHostService {
     power?: PowerInhibitor
     now?: () => number
     commandDispatcher?: SessionCommandDispatcher
+    sessionDefaultPermission?: TaskPermission
   } = {}) {
-    this.ledger = options.ledger ?? new HostTaskLedger()
+    this.ledger = options.ledger ?? new HostTaskLedger(undefined, undefined, { sessionDefaultPermission: options.sessionDefaultPermission })
     this.runner = new HostExecutionRunner(api, options.commandDispatcher)
     this.power = options.power ?? new PowerInhibitor()
     this.now = options.now ?? Date.now
@@ -86,6 +88,7 @@ export class TaskBoardHostService {
       tasks: state.tasks,
       scheduler: state.scheduler,
       power: this.power.snapshot(),
+      sessionDefaultPermission: this.ledger.sessionDefaultPermission,
     }
   }
 

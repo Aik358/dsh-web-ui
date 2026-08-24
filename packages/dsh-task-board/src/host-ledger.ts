@@ -12,6 +12,7 @@ import { applyDeleteTask } from './core/use-cases/task-delete.ts'
 import { applySetSchedule, applyScheduleNextRun } from './core/use-cases/task-schedule.ts'
 import { applyUpdateTask, canEditTaskContent, hasContentPatch } from './core/use-cases/task-update.ts'
 import { TASK_BOARD_LEGACY_SCHEMA_VERSION, TASK_BOARD_SCHEMA_VERSION, type TaskBoardAction, type TaskBoardSchedulerSnapshot } from './protocol.ts'
+import { DEFAULT_SESSION_PERMISSION, requiresPermissionConfirmation, type TaskPermission } from './core/handover.ts'
 
 interface PersistedScheduler extends TaskBoardSchedulerSnapshot {
   importedSources?: string[]
@@ -276,7 +277,11 @@ export class HostTaskLedger {
   /** Small sidecar for the 30 s scheduler heartbeat (lastTickAt only). */
   readonly schedulerFile: string
 
-  constructor(dir: string = join(dshHome(), 'task-board'), private readonly now: () => number = Date.now) {
+  /** Session-default permission the confirmation gate compares against. */
+  readonly sessionDefaultPermission: TaskPermission
+
+  constructor(dir: string = join(dshHome(), 'task-board'), private readonly now: () => number = Date.now, options: { sessionDefaultPermission?: TaskPermission } = {}) {
+    this.sessionDefaultPermission = options.sessionDefaultPermission ?? DEFAULT_SESSION_PERMISSION
     mkdirSync(dir, { recursive: true })
     this.file = join(dir, 'ledger-v2.json')
     this.lockFile = join(dir, 'ledger-v2.lock')
@@ -396,6 +401,14 @@ export class HostTaskLedger {
   openScheduled(taskId: string, nextRunAt: number | undefined, triggeredAt: number): OpenedRun | undefined {
     const task = this.document.tasks.find(item => item.id === taskId)
     if (task === undefined || task.archivedAt !== undefined) return undefined
+    if (requiresPermissionConfirmation(task, this.sessionDefaultPermission)) {
+      // An unconfirmed above-default permission must never run unattended:
+      // cron refuses the card and rolls to the next occurrence, exactly
+      // like the already-running refusal.
+      this.document.tasks = [...applyScheduleNextRun(this.document.tasks, taskId, nextRunAt, task.schedule?.lastTriggeredAt, triggeredAt)]
+      this.commit()
+      return undefined
+    }
     if (task.status === 'running' || hasOpenExecution(task)) {
       this.document.tasks = [...applyScheduleNextRun(this.document.tasks, taskId, nextRunAt, task.schedule?.lastTriggeredAt, triggeredAt)]
       this.commit()
@@ -525,6 +538,15 @@ export class HostTaskLedger {
         this.document.tasks = [...result.tasks]
         break
       }
+      case 'confirm-permission': {
+        const task = this.document.tasks.find(item => item.id === action.taskId)
+        if (task === undefined) throw new Error('task not found')
+        if (task.permissionConfirmedAt !== undefined) break
+        this.document.tasks = this.document.tasks.map(item => item.id === action.taskId
+          ? { ...item, permissionConfirmedAt: now, updatedAt: now }
+          : item)
+        break
+      }
       case 'set-schedule': {
         const task = this.document.tasks.find(task => task.id === action.taskId)
         if (task?.archivedAt !== undefined) throw new Error('archived task is read-only')
@@ -538,6 +560,9 @@ export class HostTaskLedger {
         const task = this.document.tasks.find(item => item.id === action.taskId)
         if (task?.archivedAt !== undefined) throw new Error('archived task is read-only')
         if (task === undefined || task.status === 'running' || hasOpenExecution(task)) throw new Error('task is already running or missing')
+        if (requiresPermissionConfirmation(task, this.sessionDefaultPermission)) {
+          throw new Error(`confirmation-required: the effective permission is above the session default (${this.sessionDefaultPermission}); confirm the card's permission binding first`)
+        }
         const base = action.kind === 'rerun' ? withStatus(task, 'todo', now) : task
         run = startExecution(base, now, crypto.randomUUID())
         this.document.tasks = this.document.tasks.map(item => item.id === task.id ? run!.task : item)

@@ -7,8 +7,8 @@
 import { useEffect, useState } from 'react'
 import type { BoardController } from '../../core/controller.ts'
 import { isValidCron } from '../../core/schedule.ts'
-import { MANUAL_STATUSES, TASK_PERMISSIONS, type ExecutionRecord, type TaskPermission, type TaskRecord } from '../../core/tasks.ts'
 import { canEditTaskContent } from '../../core/use-cases/task-update.ts'
+import { requiresPermissionConfirmation } from '../../core/handover.ts'
 import { t, type TaskBoardKey } from '../locales.ts'
 import { SCHEDULE_PRESETS } from '../schedule-presets.ts'
 import css from '../board.module.css'
@@ -248,6 +248,7 @@ export function TaskDetail({ controller, task }: { controller: BoardController; 
   const pending = snapshot.pendingTaskIds.includes(current.id)
   const transportError = snapshot.transportError
   const timeZone = snapshot.host?.scheduler.timeZone
+  const permissionPending = requiresPermissionConfirmation(current, snapshot.host?.sessionDefaultPermission)
 
   return (
     <div className={css.modalBackdrop} onMouseDown={event => { if (event.target === event.currentTarget) controller.closeTask() }}>
@@ -293,6 +294,36 @@ export function TaskDetail({ controller, task }: { controller: BoardController; 
               <pre className={css.promptBlock}>{current.freeze.next}</pre>
               <p className={css.detailMeta}>{t('detail.freeze.frozenAt', { time: formatHostTimestamp(current.freeze.frozenAt, timeZone) })}</p>
             </section>
+          )}
+
+          {current.handover !== undefined && (
+            <section className={css.detailSection} data-dsh-part="handover">
+              <h4>{t('detail.handover')}</h4>
+              <p className={css.detailText}>
+                {t('new.workspace')}: {current.handover.workspaceId ?? t('exec.workspace.recent')}
+                {' · '}{t('new.mode')}: {current.handover.mode ?? t('exec.mode.default')}
+                {' · '}{t('new.permission')}: {current.handover.permission === undefined ? t('exec.permission.default') : t(`exec.permission.${current.handover.permission}` as TaskBoardKey)}
+              </p>
+              <p className={css.detailText}><strong>{t('detail.handover.references')}</strong></p>
+              <ul className={css.executionList}>
+                {current.handover.references.map(reference => (
+                  <li key={reference} className={css.executionRow}><code>{reference}</code></li>
+                ))}
+              </ul>
+              <p className={css.detailMeta}>{t('detail.handover.bundledAt', { time: formatHostTimestamp(current.handover.bundledAt, timeZone) })}</p>
+            </section>
+          )}
+
+          {permissionPending && (
+            <section className={css.detailSection} data-dsh-part="permission-gate">
+              <p className={css.formError}>{t('detail.permissionPending', { permission: t(`exec.permission.${current.handover?.permission ?? current.permission}` as TaskBoardKey) })}</p>
+              <button type="button" className={css.primaryButton} disabled={pending} onClick={() => { void controller.confirmPermission(current.id) }}>
+                {t('detail.permissionConfirm')}
+              </button>
+            </section>
+          )}
+          {current.permissionConfirmedAt !== undefined && (
+            <p className={css.detailMeta}>{t('detail.permissionConfirmed', { time: formatHostTimestamp(current.permissionConfirmedAt, timeZone) })}</p>
           )}
 
           <section className={css.detailSection}>

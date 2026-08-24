@@ -5,6 +5,7 @@
  * unit-testable in isolation.
  */
 import type { FreezeSnapshot } from './freeze-snapshot.ts'
+import type { TaskHandover, TaskHandoverInput } from './handover.ts'
 
 /** Task lifecycle status, one per kanban column. */
 export type TaskStatus = 'backlog' | 'todo' | 'running' | 'done' | 'failed'
@@ -122,6 +123,19 @@ export interface TaskRecord {
    */
   freeze?: TaskFreeze
   /**
+   * Handover bundle carried by a continuation card (issue #5): the pinned
+   * execution triplet plus doc/script references. Sanitized before it
+   * enters the ledger by the protocol gate and re-normalized on load; the
+   * bundle's triplet overrides the legacy pin fields at execution time.
+   */
+  handover?: TaskHandover
+  /**
+   * Human confirmation stamp for an above-default effective permission
+   * (ms epoch). Absent while the binding awaits confirmation; any permission
+   * or handover change re-arms the gate by clearing it.
+   */
+  permissionConfirmedAt?: number
+  /**
    * When the task was archived (ms epoch). Archived tasks keep their status
    * and execution history, leave the main board, and cannot run until restored;
    * absent means on-board.
@@ -166,6 +180,11 @@ export interface NewTaskInput {
    * protocol gate) turning the new task into a continuation card.
    */
   freeze?: FreezeSnapshot & { redacted?: boolean }
+  /**
+   * Optional handover bundle (pinned triplet + doc/script references,
+   * sanitized by the protocol gate) attached at creation.
+   */
+  handover?: TaskHandoverInput
 }
 
 /** The five kanban columns, in display order. */
@@ -236,6 +255,7 @@ export function createTask(input: NewTaskInput, now: number, id: string): TaskRe
     mode: normalizeTargetId(input.mode),
     permission: isTaskPermission(input.permission) ? input.permission : undefined,
     ...(input.freeze === undefined ? {} : { freeze: freezeOf(input.freeze, now) }),
+    ...(input.handover === undefined ? {} : { handover: { ...input.handover, bundledAt: now } }),
   }
 }
 

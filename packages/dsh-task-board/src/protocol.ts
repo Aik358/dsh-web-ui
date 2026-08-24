@@ -1,7 +1,8 @@
 import type { TaskUpdatePatch } from './core/use-cases/task-update.ts'
-import { isTaskPermission, isTaskStatus, type NewTaskInput, type TaskRecord, type TaskStatus } from './core/tasks.ts'
+import { isTaskPermission, isTaskStatus, type NewTaskInput, type TaskPermission, type TaskRecord, type TaskStatus } from './core/tasks.ts'
 import { parseLedger } from './core/store.ts'
 import { sanitizeFreezeSnapshot, type FreezeSnapshot } from './core/freeze-snapshot.ts'
+import { sanitizeHandover, type TaskHandoverInput } from './core/handover.ts'
 
 /** Freeze payload carried by create/update actions after the gate (redacted in place). */
 type FreezePayload = FreezeSnapshot & { redacted?: boolean }
@@ -37,6 +38,8 @@ export interface TaskBoardSnapshot {
   tasks: TaskRecord[]
   scheduler: TaskBoardSchedulerSnapshot
   power: TaskBoardPowerSnapshot
+  /** Session-default permission the confirmation gate compares against. */
+  sessionDefaultPermission?: TaskPermission
 }
 
 /** SSE event frame: revision/scheduler/power only, never the task list. */
@@ -57,6 +60,7 @@ export type TaskBoardAction =
   | { kind: 'set-schedule'; taskId: string; patch: { enabled?: boolean; cron?: string } }
   | { kind: 'run'; taskId: string }
   | { kind: 'rerun'; taskId: string }
+  | { kind: 'confirm-permission'; taskId: string }
 
 export interface TaskBoardActionEnvelope {
   requestId: string
@@ -143,6 +147,8 @@ function importedTask(value: unknown): TaskRecord | undefined {
     ...(task.permission === undefined ? {} : { permission: task.permission }),
     ...(task.archivedAt === undefined ? {} : { archivedAt: task.archivedAt }),
     ...(task.freeze === undefined ? {} : { freeze: task.freeze }),
+    ...(task.handover === undefined ? {} : { handover: task.handover }),
+    ...(task.permissionConfirmedAt === undefined ? {} : { permissionConfirmedAt: task.permissionConfirmedAt }),
   }
 }
 
@@ -157,13 +163,23 @@ function freezePayload(value: unknown): FreezePayload | undefined {
   return { ...result.snapshot, ...(result.redacted || result.extras.redacted === true ? { redacted: true } : {}) }
 }
 
+/**
+ * Gate a handover bundle from the wire: exact keys, bounded string targets,
+ * a known permission, and a bounded references list. Returns the sanitized
+ * bundle, or undefined when rejected.
+ */
+function handoverPayload(value: unknown): TaskHandoverInput | undefined {
+  return sanitizeHandover(value)
+}
+
 function createInput(value: unknown): value is NewTaskInput {
   const input = record(value)
-  if (input === undefined || !exactKeys(input, ['title', 'description', 'prompt', 'workspaceId', 'mode', 'permission', 'schedule', 'freeze'])) return false
+  if (input === undefined || !exactKeys(input, ['title', 'description', 'prompt', 'workspaceId', 'mode', 'permission', 'schedule', 'freeze', 'handover'])) return false
   if (typeof input.title !== 'string' || typeof input.description !== 'string' || typeof input.prompt !== 'string') return false
   if (!optionalString(input.workspaceId) || !optionalString(input.mode)) return false
   if (input.permission !== undefined && !isTaskPermission(input.permission)) return false
   if (input.freeze !== undefined && freezePayload(input.freeze) === undefined) return false
+  if (input.handover !== undefined && handoverPayload(input.handover) === undefined) return false
   if (input.schedule !== undefined) {
     const schedule = record(input.schedule)
     if (schedule === undefined || !exactKeys(schedule, ['enabled', 'cron'])) return false
@@ -174,13 +190,15 @@ function createInput(value: unknown): value is NewTaskInput {
 
 function updatePatch(value: unknown): boolean {
   const patch = record(value)
-  if (patch === undefined || !exactKeys(patch, ['title', 'description', 'prompt', 'workspaceId', 'mode', 'permission', 'freeze'])) return false
+  if (patch === undefined || !exactKeys(patch, ['title', 'description', 'prompt', 'workspaceId', 'mode', 'permission', 'freeze', 'handover'])) return false
   for (const key of ['title', 'description', 'prompt', 'workspaceId', 'mode'] as const) {
     if (!optionalString(patch[key])) return false
   }
   if (patch.permission !== undefined && !isTaskPermission(patch.permission)) return false
   // null clears the snapshot; an object must pass the freeze gate.
-  return patch.freeze === undefined || patch.freeze === null || freezePayload(patch.freeze) !== undefined
+  if (patch.freeze !== undefined && patch.freeze !== null && freezePayload(patch.freeze) === undefined) return false
+  // Same convention for the handover bundle.
+  return patch.handover === undefined || patch.handover === null || handoverPayload(patch.handover) !== undefined
 }
 
 function schedulePatch(value: unknown): boolean {
@@ -213,7 +231,8 @@ export function parseActionEnvelope(value: unknown): TaskBoardActionEnvelope | u
       if (typeof action.id !== 'string' || action.id === '' || !createInput(action.input)) return undefined
       const input = action.input as NewTaskInput
       const freeze = input.freeze === undefined ? undefined : freezePayload(input.freeze)
-      const sanitized = freeze === undefined ? input : { ...input, freeze }
+      const handover = input.handover === undefined ? undefined : handoverPayload(input.handover)
+      const sanitized = freeze === undefined && handover === undefined ? input : { ...input, ...(freeze === undefined ? {} : { freeze }), ...(handover === undefined ? {} : { handover }) }
       return { requestId: envelope.requestId, action: { kind: 'create', id: action.id as string, input: sanitized } }
     }
     case 'update': {
@@ -221,7 +240,10 @@ export function parseActionEnvelope(value: unknown): TaskBoardActionEnvelope | u
       if (taskId === undefined || !updatePatch(action.patch)) return undefined
       const patch = action.patch as TaskUpdatePatch
       const freeze = patch.freeze === undefined || patch.freeze === null ? patch.freeze : freezePayload(patch.freeze)
-      const sanitized = 'freeze' in patch && freeze !== patch.freeze ? { ...patch, freeze } : patch
+      const handover = patch.handover === undefined || patch.handover === null ? patch.handover : handoverPayload(patch.handover)
+      const sanitized = ('freeze' in patch && freeze !== patch.freeze) || ('handover' in patch && handover !== patch.handover)
+        ? { ...patch, ...(freeze === patch.freeze ? {} : { freeze }), ...(handover === patch.handover ? {} : { handover }) }
+        : patch
       return { requestId: envelope.requestId, action: { kind: 'update', taskId, patch: sanitized } }
     }
     case 'set-schedule':
@@ -234,6 +256,7 @@ export function parseActionEnvelope(value: unknown): TaskBoardActionEnvelope | u
       return taskId !== undefined && isTaskStatus(action.status)
         ? { requestId: envelope.requestId, action: action as unknown as Extract<TaskBoardAction, { kind: 'move' }> }
         : undefined
+    case 'confirm-permission':
     case 'delete':
     case 'archive':
     case 'restore':

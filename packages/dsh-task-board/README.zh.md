@@ -12,6 +12,7 @@
 
 - **任务看板 UI**：新会话按钮下方的侧边栏入口在宽栏显示图标和文字、在折叠 rail 显示图标；看板提供五列布局、搜索、任务详情、归档/恢复、执行历史和执行会话跳转。归档任务除恢复、删除和查看 transcript 外保持只读，恢复前不能手动或定时执行。
 - **续接卡片（数据面）**：新建任务时可粘贴会话输出的 `<<<FREEZE … >>>FREEZE` 冻结块，解析为「目标/进度/下一步」快照随任务持久化（v3 账本）；卡片带冻结徽标，详情页可读完整快照与冻结时间，搜索覆盖快照文本，归档/恢复与普通任务一致。快照在协议层复用冻结安全门：敏感模式自动替换为 `[REDACTED]` 并标记、以 `/` 开头的命令行整体拒绝、每字段 8 KiB 上限。
+- **交接包与权限确认门**：续接卡片可附交接包——钉住三元组（工作区/agent 预设/权限）加文档与脚本引用。执行时交接包三元组覆盖普通钉住字段，引用以交接前言随 Prompt 下发。有效权限高于 `sessionDefaultPermission`（默认 `read-only`）的绑定处于待确认状态：手动执行被拒绝、cron 跳过该卡并滚动到下一触发点，任务详情中的确认按钮完成人工确认；此后任何权限或交接包变更都会重新武装确认门。
 - **Host 权威账本**：任务、计划和执行记录存于 `$DSH_HOME/task-board/ledger-v2.json`；浏览器动作只有经 Host 确认后才成为 UI 状态。
 - **有界执行历史**：每个任务只保留最近 20 条执行记录；新运行开始时截掉最旧的记录，使账本大小与每次写入成本不随任务历史无限增长。
 - **真实执行**：手动运行和定时运行共用 Host runner，新建独立会话、重命名、应用 agent 预设和 `/permission <id>`，再以 queue 模式发送任务 Prompt。
@@ -58,6 +59,7 @@ dsh plugin --profile web add link:$(pwd)/packages/dsh-task-board
 | `preventIdleSleep` | `false` | 存在运行中的 DSH 会话、已启用计划或未知会话状态时，持有一个系统空闲睡眠断言。 |
 | `trustedProxyHosts` | `[]` | 仅通过已认证 loopback 反向代理路径接受的规范 `host[:port]` authority 白名单。 |
 | `proxyTokenEnv` | `DSH_TASK_BOARD_PROXY_TOKEN` | 保存反向代理 token 的环境变量名；token 本身不会写入插件配置。 |
+| `sessionDefaultPermission` | `read-only` | 部署的会话默认权限。卡片有效权限（交接包或钉住字段）高于该值时，运行前必须经人工确认；cron 拒绝调度待确认卡片。 |
 
 浏览器直接访问仍限制为 DSH loopback origin。若使用同机认证反向代理，应让 DSH Web 绑定 loopback，配置 `trustedProxyHosts`，在 `proxyTokenEnv` 指定的环境变量中放置高熵 token，并让代理在完成认证后替换（不能透传客户端提供的）`X-Dsh-Task-Board-Proxy-Token`。代理 Host 必须在白名单内，浏览器 `Origin` 必须与其 authority 相同。修改这些 composition 级代理设置后需重启 Host。
 
@@ -77,6 +79,7 @@ macOS 后端启动 `/usr/bin/caffeinate -i -w <host-pid>`，绝不请求 `-d`。
 - 插件仍处在 DSH Web 既有部署与网络边界内，不返回宽松 CORS 头。state、action 与 SSE 共用同一访问栅栏；裸本地命令行请求不会被当作浏览器请求接受。
 - 所有变更载荷使用严格、版本化的判别联合；浏览器不能写入 scheduler 独占时间戳或 execution 结果。
 - 工作区、预设、权限、cron、任务状态和导入记录都会在 Host 再校验。
+- 卡片有效权限高于配置的会话默认值时进入待确认状态：人工确认该确切绑定之前，Host 拒绝手动执行与 cron 触发；变更钉住权限或交接包会清除确认（封死先确认后替换的提权路径）。
 - 任务 Prompt 是发给 DSH agent 会话的数据。协议不接受 shell 命令、PowerShell 正文、可执行路径或可配置 helper 参数。
 - 电源 helper 使用固定可执行路径、固定参数、`shell: false`，失败后按 1、2、5、10、30 秒有界退避。Linux helper 通过 Host stdin 生命周期退出，使 systemd inhibitor 随 Host 异常退出自动释放。
 

@@ -11,7 +11,9 @@
  */
 import { isValidCron } from './schedule.ts'
 import { isTaskPermission, isTaskStatus, normalizeTargetId, type ScheduleRule, type TaskFreeze, type TaskRecord, type TaskPermission, type TaskStatus } from './tasks.ts'
+import type { TaskHandover } from './handover.ts'
 import { sanitizeFreezeSnapshot } from './freeze-snapshot.ts'
+import { sanitizeHandover } from './handover.ts'
 
 /** Persistence seam for the task ledger. */
 export interface TaskStore {
@@ -129,6 +131,20 @@ function normalizeFreeze(value: unknown): TaskFreeze | undefined {
   }
 }
 
+/**
+ * Repair a persisted handover bundle: shape re-check through the same gate
+ * as the wire path; a malformed bundle is dropped rather than dropping the
+ * task row (mirroring the schedule/freeze repair policy).
+ */
+function normalizeHandover(value: unknown): TaskHandover | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+  const { bundledAt, ...rest } = value as Record<string, unknown> & { bundledAt: unknown }
+  const bundle = sanitizeHandover(rest)
+  if (bundle === undefined) return undefined
+  if (typeof bundledAt !== 'number' || !Number.isFinite(bundledAt)) return undefined
+  return { ...bundle, bundledAt }
+}
+
 /** Parse + validate a persisted ledger document; invalid rows are dropped. */
 export function parseLedger(raw: string | null): TaskRecord[] {
   if (raw === null) return []
@@ -164,6 +180,8 @@ export function parseLedger(raw: string | null): TaskRecord[] {
     task.archivedAt = typeof row.archivedAt === 'number' && Number.isFinite(row.archivedAt) ? row.archivedAt : undefined
     task.permission = isTaskPermission(row.permission) ? row.permission as TaskPermission : undefined
     task.freeze = normalizeFreeze(row.freeze)
+    task.handover = normalizeHandover(row.handover)
+    task.permissionConfirmedAt = typeof row.permissionConfirmedAt === 'number' && Number.isFinite(row.permissionConfirmedAt) ? row.permissionConfirmedAt : undefined
     tasks.push(task)
   }
   return tasks

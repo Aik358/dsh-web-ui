@@ -24,6 +24,7 @@ export function NewTaskModal({ controller, onClose }: { controller: BoardControl
   const [scheduleError, setScheduleError] = useState<string | undefined>(undefined)
   const [freezeText, setFreezeText] = useState('')
   const [freezeError, setFreezeError] = useState<string | undefined>(undefined)
+  const [handoverText, setHandoverText] = useState('')
   const [error, setError] = useState<string | undefined>(undefined)
   const [pending, setPending] = useState(false)
   const [options, setOptions] = useState(controller.getSnapshot().executionOptions)
@@ -55,12 +56,22 @@ export function NewTaskModal({ controller, onClose }: { controller: BoardControl
       }
       freeze = { ...parsed.snapshot, ...(parsed.warnings.includes('redacted') ? { redacted: true } : {}) }
     }
+    // Optional handover bundle: non-empty reference lines attach the picked
+    // triplet (workspace/mode/permission above) plus the references.
+    const references = handoverText.split('\n').map(line => line.trim()).filter(line => line !== '')
+    const handover = references.length === 0 ? undefined : {
+      references,
+      workspaceId: workspaceId === '' ? undefined : workspaceId,
+      mode: mode === '' ? undefined : mode,
+      permission: permission === '' ? undefined : permission as TaskPermission,
+    }
     setPending(true)
     const task = await controller.createTaskConfirmed({
       title,
       description,
       prompt,
       freeze,
+      handover,
       workspaceId: workspaceId === '' ? undefined : workspaceId,
       mode: mode === '' ? undefined : mode,
       permission: permission === '' ? undefined : permission as TaskPermission,
@@ -134,6 +145,18 @@ export function NewTaskModal({ controller, onClose }: { controller: BoardControl
           />
         </label>
         {freezeError !== undefined && <p className={css.formError}>{freezeError}</p>}
+
+        <label className={css.field}>
+          <span className={css.fieldLabel}>{t('new.handover')}</span>
+          <textarea
+            className={css.input}
+            rows={3}
+            value={handoverText}
+            placeholder={t('new.handoverPlaceholder')}
+            spellCheck={false}
+            onChange={event => { setHandoverText(event.target.value) }}
+          />
+        </label>
 
         <label className={css.field}>
           <span className={css.fieldLabel}>{t('new.workspace')}</span>
