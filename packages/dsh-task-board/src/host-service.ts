@@ -103,9 +103,9 @@ export class TaskBoardHostService {
     return () => { this.listeners.delete(listener) }
   }
 
-  apply(requestId: string, action: TaskBoardAction): TaskBoardSnapshot {
+  apply(requestId: string, action: TaskBoardAction, initiator?: string): TaskBoardSnapshot {
     if (!this.active) throw new Error('task board is disabled')
-    const result = this.ledger.applyRequest(requestId, action)
+    const result = this.ledger.applyRequest(requestId, action, initiator)
     if (result.run !== undefined) this.scheduleLaunch(result.run)
     return {
       schemaVersion: TASK_BOARD_SCHEMA_VERSION,

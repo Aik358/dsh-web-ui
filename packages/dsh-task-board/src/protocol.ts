@@ -5,7 +5,7 @@ import { sanitizeFreezeSnapshot, type FreezeSnapshot } from './core/freeze-snaps
 import { sanitizeHandover, type TaskHandoverInput } from './core/handover.ts'
 
 /** Freeze payload carried by create/update actions after the gate (redacted in place). */
-type FreezePayload = FreezeSnapshot & { redacted?: boolean }
+type FreezePayload = FreezeSnapshot & { redacted?: boolean; frozenBy?: string }
 
 export const TASK_BOARD_SCHEMA_VERSION = 3 as const
 /** Ledger documents written before v3; loaded once and migrated on startup. */
@@ -65,6 +65,12 @@ export type TaskBoardAction =
 export interface TaskBoardActionEnvelope {
   requestId: string
   action: TaskBoardAction
+  /**
+   * Session id of the DSH session issuing the action, for the execution audit
+   * trail (issue #6). Client-asserted, not a trust boundary; parsed only as a
+   * bounded non-empty string and recorded on opened executions / freeze stamps.
+   */
+  initiator?: string
 }
 
 function record(value: unknown): Record<string, unknown> | undefined {
@@ -108,6 +114,9 @@ function validImportedKnownFields(value: Record<string, unknown>): boolean {
       if (typeof execution.startedAt !== 'number' || !Number.isFinite(execution.startedAt)) return false
       if (!optionalFiniteNumber(execution.endedAt) || !optionalString(execution.error)) return false
       if (execution.result !== undefined && !['succeeded', 'failed', 'cancelled'].includes(String(execution.result))) return false
+      if (execution.initiatedBy !== undefined && typeof execution.initiatedBy !== 'string') return false
+      if (execution.frozenBy !== undefined && typeof execution.frozenBy !== 'string') return false
+      if (execution.frozenAt !== undefined && typeof execution.frozenAt !== 'number') return false
     }
   }
   return true
@@ -133,6 +142,9 @@ function importedTask(value: unknown): TaskRecord | undefined {
       endedAt: execution.endedAt,
       result: execution.result,
       error: execution.error,
+      ...(execution.initiatedBy === undefined ? {} : { initiatedBy: execution.initiatedBy }),
+      ...(execution.frozenAt === undefined ? {} : { frozenAt: execution.frozenAt }),
+      ...(execution.frozenBy === undefined ? {} : { frozenBy: execution.frozenBy }),
     })),
     ...(task.schedule === undefined ? {} : {
       schedule: {
@@ -158,9 +170,15 @@ function importedTask(value: unknown): TaskRecord | undefined {
  * per-field cap). Returns the sanitized payload, or undefined when rejected.
  */
 function freezePayload(value: unknown): FreezePayload | undefined {
-  const result = sanitizeFreezeSnapshot(value, ['redacted'])
+  const result = sanitizeFreezeSnapshot(value, ['redacted', 'frozenBy'])
   if (!result.ok) return undefined
-  return { ...result.snapshot, ...(result.redacted || result.extras.redacted === true ? { redacted: true } : {}) }
+  const frozenBy = result.extras.frozenBy
+  if (frozenBy !== undefined && (typeof frozenBy !== 'string' || frozenBy === '')) return undefined
+  return {
+    ...result.snapshot,
+    ...(result.redacted || result.extras.redacted === true ? { redacted: true } : {}),
+    ...(frozenBy === undefined ? {} : { frozenBy }),
+  }
 }
 
 /**
@@ -210,9 +228,24 @@ function schedulePatch(value: unknown): boolean {
 }
 
 export function parseActionEnvelope(value: unknown): TaskBoardActionEnvelope | undefined {
+  const parsed = parseEnvelopeAction(value)
+  if (parsed === undefined) return undefined
+  // Attach the audit-only initiator stamp (already validated above) to every accepted action.
+  const initiator = initiatorOf(value)
+  return initiator === undefined ? parsed : { ...parsed, initiator }
+}
+
+function initiatorOf(value: unknown): string | undefined {
   const envelope = record(value)
-  if (envelope === undefined || !exactKeys(envelope, ['requestId', 'action'])) return undefined
+  const id = envelope?.initiator
+  return typeof id === 'string' && id.trim() !== '' && id.length <= 256 ? id : undefined
+}
+
+function parseEnvelopeAction(value: unknown): TaskBoardActionEnvelope | undefined {
+  const envelope = record(value)
+  if (envelope === undefined || !exactKeys(envelope, ['requestId', 'action', 'initiator'])) return undefined
   if (typeof envelope.requestId !== 'string' || envelope.requestId.trim() === '' || envelope.requestId.length > 256) return undefined
+  if (envelope.initiator !== undefined && initiatorOf(value) === undefined) return undefined
   const action = record(envelope.action)
   if (action === undefined || typeof action.kind !== 'string') return undefined
   const taskId = typeof action.taskId === 'string' && action.taskId !== '' ? action.taskId : undefined

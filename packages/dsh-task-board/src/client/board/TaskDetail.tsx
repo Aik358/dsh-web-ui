@@ -36,6 +36,11 @@ function ExecutionRow({ execution, timeZone, onOpen }: { execution: ExecutionRec
         {t('detail.executionStarted')} {formatTime(execution.startedAt, timeZone)}
         {execution.endedAt !== undefined && ` · ${t('detail.executionEnded')} ${formatTime(execution.endedAt, timeZone)}`}
       </span>
+      {execution.initiatedBy !== undefined && (
+        <span className={css.executionTimes} title={execution.initiatedBy}>
+          {t('detail.execution.initiator', { session: execution.initiatedBy })}
+        </span>
+      )}
       {execution.sessionId !== undefined && (
         <button
           type="button"
@@ -293,6 +298,9 @@ export function TaskDetail({ controller, task }: { controller: BoardController; 
               <p className={css.detailText}><strong>{t('detail.freeze.next')}</strong></p>
               <pre className={css.promptBlock}>{current.freeze.next}</pre>
               <p className={css.detailMeta}>{t('detail.freeze.frozenAt', { time: formatHostTimestamp(current.freeze.frozenAt, timeZone) })}</p>
+              {current.freeze.frozenBy !== undefined && (
+                <p className={css.detailMeta}>{t('detail.freeze.frozenBy', { session: current.freeze.frozenBy })}</p>
+              )}
             </section>
           )}
 

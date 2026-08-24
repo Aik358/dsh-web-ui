@@ -1,0 +1,76 @@
+// 领卡 prompt 来源声明包裹（issue #6）：续接卡片（freeze 存在）执行时，
+// 任务指令被来源声明模板强制包裹（冻结时间/来源会话/未经审查提示），
+// 并与 T4 交接包前言组合而非冲突。
+import type { ApiProxy } from '@deepseek-ai/dsh-host-apiproxy'
+import { describe, expect, it } from 'vitest'
+import { createTask, type TaskRecord } from '../src/core/tasks.ts'
+import { HostExecutionRunner } from '../src/host-runner.ts'
+
+function ok<T>(request: { rpcId: unknown }, value: T) {
+  return { rpcId: request.rpcId, result: { ok: true as const, value } }
+}
+
+function card(overrides: Partial<TaskRecord> = {}): TaskRecord {
+  return {
+    ...createTask({ title: '续接卡', description: '', prompt: '继续干活' }, 1_000, 'card-a'),
+    ...overrides,
+  }
+}
+
+function apiOf(promptPayloads: unknown[]) {
+  return {
+    workspace: { list: async (request: { rpcId: unknown }) => ok(request, { items: [{ workspaceId: 'ws-1' }] }) },
+    agentPresets: { list: async (request: { rpcId: unknown }) => ok(request, { presets: [] }) },
+    sessions: {
+      create: async (request: { rpcId: unknown }) => ok(request, { sessionId: 'session-a' }),
+      rename: async (request: { rpcId: unknown }) => ok(request, { title: '续接卡', seq: 1 }),
+      prompt: async (request: { rpcId: unknown; payload: unknown }) => { promptPayloads.push(request.payload); return ok(request, { accepted: true }) },
+    },
+  }
+}
+
+function promptTextOf(payloads: unknown[]): string {
+  return (payloads[0] as { content: Array<{ text: string }> }).content[0].text
+}
+
+describe('HostExecutionRunner provenance wrapper (issue #6)', () => {
+  it('always wraps a continuation card prompt in the provenance template', async () => {
+    const prompts: unknown[] = []
+    const frozenAt = Date.UTC(2026, 7, 24, 1, 2, 3)
+    const task = card({ freeze: { goal: '目标', progress: '进度', next: '下一步', frozenAt, frozenBy: 'session-source' } })
+    await new HostExecutionRunner(apiOf(prompts) as unknown as ApiProxy).launch(task)
+    const text = promptTextOf(prompts)
+    expect(text).toContain('来源声明')
+    expect(text).toContain(new Date(frozenAt).toISOString())
+    expect(text).toContain('session-source')
+    expect(text).toContain('未经人工审查')
+    expect(text).toContain('继续干活')
+    // 指令必须在包裹内部：声明开始先于指令，结束标记在其后。
+    expect(text.indexOf('继续干活')).toBeGreaterThan(text.indexOf('来源声明'))
+    expect(text.lastIndexOf('继续干活')).toBeLessThan(text.lastIndexOf('结束'))
+  })
+
+  it('composes the handover preamble with the provenance wrapper without conflict', async () => {
+    const prompts: unknown[] = []
+    const frozenAt = Date.UTC(2026, 7, 24, 1, 2, 3)
+    const task = card({
+      freeze: { goal: '目标', progress: '进度', next: '下一步', frozenAt },
+      handover: { workspaceId: 'ws-1', mode: undefined, permission: undefined, references: ['docs/a.md'], bundledAt: 2_000 },
+    })
+    await new HostExecutionRunner(apiOf(prompts) as unknown as ApiProxy).launch(task)
+    const text = promptTextOf(prompts)
+    expect(text).toContain('交接包引用')
+    expect(text).toContain('docs/a.md')
+    expect(text).toContain('来源声明')
+    expect(text).toContain('未记录') // 无来源会话时明确标注
+    // 前言在前，来源声明包裹随后包住指令。
+    expect(text.indexOf('交接包引用')).toBeLessThan(text.indexOf('来源声明'))
+    expect(text.indexOf('继续干活')).toBeGreaterThan(text.indexOf('来源声明'))
+  })
+
+  it('leaves plain tasks without a freeze unwrapped', async () => {
+    const prompts: unknown[] = []
+    await new HostExecutionRunner(apiOf(prompts) as unknown as ApiProxy).launch(card())
+    expect(promptTextOf(prompts)).toBe('继续干活')
+  })
+})

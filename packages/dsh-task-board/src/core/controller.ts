@@ -23,7 +23,11 @@ import type { TaskBoardAction, TaskBoardEventPayload, TaskBoardSnapshot } from '
 export interface TaskBoardTransport {
   bootstrap(legacy: readonly TaskRecord[]): Promise<TaskBoardSnapshot>
   state(): Promise<TaskBoardSnapshot>
-  action(action: TaskBoardAction): Promise<TaskBoardSnapshot>
+  /**
+   * Submit one action; the optional initiator is the current DSH session id
+   * (issue #6 audit origin), asserted by the client and recorded by the Host.
+   */
+  action(action: TaskBoardAction, initiator?: string): Promise<TaskBoardSnapshot>
   subscribe(listener: (event?: TaskBoardEventPayload) => void): () => void
 }
 
@@ -415,7 +419,7 @@ export class BoardController {
     const task = this.tasks.find(candidate => candidate.id === id)
     if (task === undefined || task.archivedAt !== undefined || task.status === 'running') return false
     if (this.deps.transport === undefined) return false
-    return await this.commitRemote({ kind: 'run', taskId: id }, id)
+    return await this.commitRemote({ kind: 'run', taskId: id }, id, currentOf(this.deps.sessions))
   }
 
   /**
@@ -440,7 +444,7 @@ export class BoardController {
     const task = this.tasks.find(candidate => candidate.id === id)
     if (task === undefined || task.archivedAt !== undefined) return
     if (this.deps.transport === undefined) return
-    await this.commitRemote({ kind: 'rerun', taskId: id }, id)
+    await this.commitRemote({ kind: 'rerun', taskId: id }, id, currentOf(this.deps.sessions))
   }
 
   // --- internals ---------------------------------------------------------------
@@ -460,12 +464,12 @@ export class BoardController {
     this.notify()
   }
 
-  private async commitRemote(action: TaskBoardAction, taskId?: string): Promise<boolean> {
+  private async commitRemote(action: TaskBoardAction, taskId?: string, initiator?: string): Promise<boolean> {
     const transport = this.deps.transport
     if (transport === undefined) return true
-    if (taskId === undefined) return await this.performRemote(action)
+    if (taskId === undefined) return await this.performRemote(action, initiator)
     const previous = this.taskQueues.get(taskId) ?? Promise.resolve()
-    const operation = previous.catch(() => {}).then(async () => await this.performRemote(action))
+    const operation = previous.catch(() => {}).then(async () => await this.performRemote(action, initiator))
     const tail = operation.then(() => {}, () => {})
     this.taskQueues.set(taskId, tail)
     this.pendingTaskIds.add(taskId)
@@ -481,13 +485,13 @@ export class BoardController {
     }
   }
 
-  private async performRemote(action: TaskBoardAction): Promise<boolean> {
+  private async performRemote(action: TaskBoardAction, initiator?: string): Promise<boolean> {
     const transport = this.deps.transport
     if (transport === undefined) return true
     this.transportError = undefined
     this.notify()
     try {
-      const accepted = this.acceptRemote(await transport.action(action))
+      const accepted = this.acceptRemote(await transport.action(action, initiator))
       return accepted || await this.refreshRemote()
     } catch (error) {
       await this.refreshRemote(messageOf(error))

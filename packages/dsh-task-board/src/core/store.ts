@@ -75,6 +75,9 @@ function isTaskRecordShape(value: unknown): value is Omit<TaskRecord, 'status'> 
     if (entry.endedAt !== undefined && typeof entry.endedAt !== 'number') return false
     if (entry.result !== undefined && entry.result !== 'succeeded' && entry.result !== 'failed' && entry.result !== 'cancelled') return false
     if (entry.error !== undefined && typeof entry.error !== 'string') return false
+    if (entry.initiatedBy !== undefined && typeof entry.initiatedBy !== 'string') return false
+    if (entry.frozenBy !== undefined && typeof entry.frozenBy !== 'string') return false
+    if (entry.frozenAt !== undefined && typeof entry.frozenAt !== 'number') return false
   }
   return true
 }
@@ -117,17 +120,20 @@ function normalizeSchedule(schedule: unknown): ScheduleRule | undefined {
  * the schedule repair policy.
  */
 function normalizeFreeze(value: unknown): TaskFreeze | undefined {
-  const result = sanitizeFreezeSnapshot(value, ['frozenAt', 'redacted'])
+  const result = sanitizeFreezeSnapshot(value, ['frozenAt', 'redacted', 'frozenBy'])
   if (!result.ok) return undefined
   const frozenAt = result.extras.frozenAt
   if (typeof frozenAt !== 'number' || !Number.isFinite(frozenAt)) return undefined
   if (result.extras.redacted !== undefined && result.extras.redacted !== true) return undefined
+  const frozenBy = result.extras.frozenBy
+  if (frozenBy !== undefined && (typeof frozenBy !== 'string' || frozenBy === '')) return undefined
   return {
     goal: result.snapshot.goal,
     progress: result.snapshot.progress,
     next: result.snapshot.next,
     frozenAt,
     ...(result.redacted || result.extras.redacted === true ? { redacted: true } : {}),
+    ...(frozenBy === undefined ? {} : { frozenBy }),
   }
 }
 

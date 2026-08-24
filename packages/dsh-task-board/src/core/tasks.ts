@@ -28,6 +28,16 @@ export interface ExecutionRecord {
   result: 'succeeded' | 'failed' | 'cancelled' | undefined
   /** Human failure text when the run failed (prompt rejection or agent error). */
   error: string | undefined
+  /**
+   * Session id of the DSH session that issued the run/rerun action (issue #6
+   * audit origin). Client-asserted, not a trust boundary; absent when the run
+   * was triggered by cron (source unknown).
+   */
+  initiatedBy?: string
+  /** Freeze instant captured from the card snapshot when the run opened. */
+  frozenAt?: number
+  /** Freeze source session captured from the card snapshot when the run opened. */
+  frozenBy?: string
 }
 
 /**
@@ -76,6 +86,12 @@ export interface TaskFreeze extends FreezeSnapshot {
   frozenAt: number
   /** True when the freeze gates redacted sensitive patterns out of the text. */
   redacted?: boolean
+  /**
+   * Session id of the DSH session that authored the frozen snapshot (issue #6
+   * provenance): stamped by the Host ledger from the create/update action's
+   * initiator, or kept from the wire payload when no initiator was asserted.
+   */
+  frozenBy?: string
 }
 
 /** One task on the board. */
@@ -179,7 +195,7 @@ export interface NewTaskInput {
    * Optional frozen context snapshot (goal/progress/next, sanitized by the
    * protocol gate) turning the new task into a continuation card.
    */
-  freeze?: FreezeSnapshot & { redacted?: boolean }
+  freeze?: FreezeSnapshot & { redacted?: boolean; frozenBy?: string }
   /**
    * Optional handover bundle (pinned triplet + doc/script references,
    * sanitized by the protocol gate) attached at creation.
@@ -228,7 +244,7 @@ export function normalizeTargetId(value: string | undefined): string | undefined
  * freeze instant (shared by the create and update use cases).
  */
 export function freezeOf(
-  input: FreezeSnapshot & { redacted?: boolean },
+  input: FreezeSnapshot & { redacted?: boolean; frozenBy?: string },
   now: number,
 ): TaskFreeze {
   return {
@@ -237,6 +253,7 @@ export function freezeOf(
     next: input.next,
     frozenAt: now,
     ...(input.redacted === true ? { redacted: true } : {}),
+    ...(input.frozenBy === undefined || input.frozenBy === '' ? {} : { frozenBy: input.frozenBy }),
   }
 }
 
@@ -297,6 +314,7 @@ export function startExecution(
   task: TaskRecord,
   now: number,
   executionId: string,
+  initiatedBy?: string,
 ): { task: TaskRecord; execution: ExecutionRecord } {
   const execution: ExecutionRecord = {
     id: executionId,
@@ -305,6 +323,13 @@ export function startExecution(
     endedAt: undefined,
     result: undefined,
     error: undefined,
+    ...(initiatedBy === undefined || initiatedBy === '' ? {} : { initiatedBy }),
+    // Capture the card's freeze provenance on the execution record so the
+    // audit trail stays queryable even if the snapshot is replaced later.
+    ...(task.freeze === undefined ? {} : {
+      frozenAt: task.freeze.frozenAt,
+      ...(task.freeze.frozenBy === undefined ? {} : { frozenBy: task.freeze.frozenBy }),
+    }),
   }
   return {
     task: {

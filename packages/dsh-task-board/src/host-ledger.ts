@@ -376,7 +376,11 @@ export class HostTaskLedger {
     }
   }
 
-  applyRequest(requestId: string, action: TaskBoardAction): { state: LedgerState; run?: OpenedRun } {
+  applyRequest(
+    requestId: string,
+    action: TaskBoardAction,
+    initiator?: string,
+  ): { state: LedgerState; run?: OpenedRun } {
     const fingerprint = createHash('sha256').update(JSON.stringify(action)).digest('hex')
     const cached = this.requestCache.get(requestId)
     if (cached !== undefined) {
@@ -390,7 +394,7 @@ export class HostTaskLedger {
     while (this.requestCache.size > MAX_REQUEST_CACHE) this.requestCache.delete(this.requestCache.keys().next().value as string)
     this.syncRecentRequests()
     try {
-      return this.apply(action)
+      return this.apply(action, initiator)
     } catch (error) {
       this.requestCache.delete(requestId)
       this.syncRecentRequests()
@@ -462,7 +466,7 @@ export class HostTaskLedger {
     this.commit()
   }
 
-  private apply(action: TaskBoardAction): { state: LedgerState; run?: OpenedRun } {
+  private apply(action: TaskBoardAction, initiator?: string): { state: LedgerState; run?: OpenedRun } {
     const now = this.now()
     let run: OpenedRun | undefined
     switch (action.kind) {
@@ -489,15 +493,16 @@ export class HostTaskLedger {
         if (action.input.schedule?.enabled === true && (!isValidCron(action.input.schedule.cron) || nextRunAtMs(action.input.schedule.cron, now) === undefined)) {
           throw new Error('invalid schedule')
         }
-        const result = applyCreateTask(this.document.tasks, action.input, now, action.id)
+        const input = action.input.freeze === undefined || initiator === undefined || initiator === ''
+          ? action.input
+          : { ...action.input, freeze: { ...action.input.freeze, frozenBy: initiator } }
+        const result = applyCreateTask(this.document.tasks, input, now, action.id)
         if (result.task === undefined) throw new Error('invalid task')
         this.document.tasks = [...result.tasks]
         break
       }
       case 'update': {
         const task = this.document.tasks.find(task => task.id === action.taskId)
-        if (task === undefined) throw new Error('task not found')
-        if (task.archivedAt !== undefined) throw new Error('archived task is read-only')
         // The task content (title/description/prompt) is the record of what
         // was planned; once an execution started it must not change under a
         // running session or an executed history. Execution targets stay
@@ -506,11 +511,12 @@ export class HostTaskLedger {
           throw new Error('task has already been executed')
         }
         if ('title' in action.patch && action.patch.title?.trim() === '') throw new Error('title is required')
-        this.document.tasks = [...applyUpdateTask(this.document.tasks, action.taskId, action.patch, now)]
-        break
-      }
-      case 'delete':
-        {
+        // A replaced snapshot is re-stamped with the updating session (the
+        // initiator), so a swapped freeze cannot keep the old author stamp.
+        const patch = action.patch.freeze === null || action.patch.freeze === undefined || initiator === undefined || initiator === ''
+          ? action.patch
+          : { ...action.patch, freeze: { ...action.patch.freeze, frozenBy: initiator } }
+        this.document.tasks = [...applyUpdateTask(this.document.tasks, action.taskId, patch, now)]
           const task = this.document.tasks.find(task => task.id === action.taskId)
           if (task === undefined) throw new Error('task not found')
           if (task.status === 'running' || hasOpenExecution(task)) throw new Error('running task cannot be deleted')
@@ -564,7 +570,7 @@ export class HostTaskLedger {
           throw new Error(`confirmation-required: the effective permission is above the session default (${this.sessionDefaultPermission}); confirm the card's permission binding first`)
         }
         const base = action.kind === 'rerun' ? withStatus(task, 'todo', now) : task
-        run = startExecution(base, now, crypto.randomUUID())
+        run = startExecution(base, now, crypto.randomUUID(), initiator)
         this.document.tasks = this.document.tasks.map(item => item.id === task.id ? run!.task : item)
         break
       }
