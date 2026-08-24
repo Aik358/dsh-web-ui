@@ -10,6 +10,12 @@
     ],
     "ai": false
   },
+  "issueDefaultRoute": {
+    "label": "Issue 默认负责人：未匹配类别时的兜底，指向协作者 Aa728848",
+    "assignees": [
+      "Aa728848"
+    ]
+  },
   "routes": [
     {
       "name": "renderer",

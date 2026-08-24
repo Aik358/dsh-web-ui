@@ -24,7 +24,7 @@ jobs:
             }
 
             let routes = [];
-            let defaultRoute = null;
+            let issueDefaultRoute = null;
             try {
               const meta = await github.rest.repos.get({
                 owner: context.repo.owner,
@@ -40,7 +40,7 @@ jobs:
                 Buffer.from(config.data.content, 'base64').toString('utf8')
               );
               routes = Array.isArray(parsed.routes) ? parsed.routes : [];
-              defaultRoute = parsed.defaultRoute || null;
+              issueDefaultRoute = parsed.issueDefaultRoute || null;
             } catch (error) {
               console.log(
                 'routing config unavailable, falling back to default assignee'
@@ -64,7 +64,8 @@ jobs:
                     (pluginText.includes(t) || t.includes(pluginText))
                 )
             );
-            const route = matched[0] || defaultRoute || { assignees: ['Aa728848'] };
+            const route =
+              matched[0] || issueDefaultRoute || { assignees: ['Aa728848'] };
             const assignees = [...new Set(route.assignees || [])].filter(
               (user) => user !== issue.user.login
             );

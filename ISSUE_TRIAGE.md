@@ -68,9 +68,14 @@ gh issue list -R zhu1090093659/dsh-web --state open \
 
 ## 自动化
 
-自动化工作流在 Issue 创建时自动初筛并可直接关闭，无需人工确认；作者可
+自动化工作流在 Issue 创建时自动初筛、分配并可直接关闭，无需人工确认；作者可
 通过评论请求重开，由维护者评估：
 
+- `.github/workflows/auto-assign-issues.yml`：新建 Issue 触发，按「涉及插件」分类路由；
+  未匹配分类时使用 `.github/pr-review-routes.json` 的 `issueDefaultRoute`，默认负责人为
+  `Aa728848`。该字段独立于 PR 使用的 `defaultRoute`，不会改变 PR 的默认分配；
+- `.github/workflows/stale-assignment.yml`：每天检查开放项目；分配给 `Aa728848` 且超过
+  14 天没有其评论或审查活动的项目自动转给仓库所有者；
 - `.github/workflows/issue-dedup.yml`：对疑似重复的 Issue 自动打 `duplicate`
   标签，评论附原 Issue 链接并关闭（`not_planned`）；作者可回复说明差异请求
   重开；
