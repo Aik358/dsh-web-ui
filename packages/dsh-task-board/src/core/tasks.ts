@@ -4,6 +4,7 @@
  * Framework-free (no cordis, no runtime imports) so the state machine is
  * unit-testable in isolation.
  */
+import type { FreezeSnapshot } from './freeze-snapshot.ts'
 
 /** Task lifecycle status, one per kanban column. */
 export type TaskStatus = 'backlog' | 'todo' | 'running' | 'done' | 'failed'
@@ -64,6 +65,18 @@ export interface ScheduleRule {
   lastTriggeredAt: number | undefined
 }
 
+/**
+ * Frozen context snapshot carried by a continuation card (issue #4): the
+ * goal/progress/next text (already sanitized by the freeze gates) plus the
+ * freeze instant and the redaction warning flag.
+ */
+export interface TaskFreeze extends FreezeSnapshot {
+  /** When the snapshot was frozen (ms epoch, stamped by the create/update use case). */
+  frozenAt: number
+  /** True when the freeze gates redacted sensitive patterns out of the text. */
+  redacted?: boolean
+}
+
 /** One task on the board. */
 export interface TaskRecord {
   /** Stable task id (uuid). */
@@ -102,6 +115,12 @@ export interface TaskRecord {
    * `/permission <id>` slash command; absent leaves the session default.
    */
   permission?: TaskPermission
+  /**
+   * Frozen context snapshot for a continuation card; absent on plain tasks.
+   * Sanitized before it enters the ledger (redaction, slash-command taint,
+   * 8 KiB per-field cap) by the protocol gate and re-normalized on load.
+   */
+  freeze?: TaskFreeze
   /**
    * When the task was archived (ms epoch). Archived tasks keep their status
    * and execution history, leave the main board, and cannot run until restored;
@@ -142,6 +161,11 @@ export interface NewTaskInput {
    * case arms it only when enabled and the expression is valid.
    */
   schedule?: { enabled: boolean; cron: string }
+  /**
+   * Optional frozen context snapshot (goal/progress/next, sanitized by the
+   * protocol gate) turning the new task into a continuation card.
+   */
+  freeze?: FreezeSnapshot & { redacted?: boolean }
 }
 
 /** The five kanban columns, in display order. */
@@ -180,6 +204,23 @@ export function normalizeTargetId(value: string | undefined): string | undefined
   return trimmed === undefined || trimmed === '' ? undefined : trimmed
 }
 
+/**
+ * Build the persisted freeze snapshot from a sanitized input, stamping the
+ * freeze instant (shared by the create and update use cases).
+ */
+export function freezeOf(
+  input: FreezeSnapshot & { redacted?: boolean },
+  now: number,
+): TaskFreeze {
+  return {
+    goal: input.goal,
+    progress: input.progress,
+    next: input.next,
+    frozenAt: now,
+    ...(input.redacted === true ? { redacted: true } : {}),
+  }
+}
+
 /** Create a task from user input. */
 export function createTask(input: NewTaskInput, now: number, id: string): TaskRecord {
   return {
@@ -194,6 +235,7 @@ export function createTask(input: NewTaskInput, now: number, id: string): TaskRe
     workspaceId: normalizeTargetId(input.workspaceId),
     mode: normalizeTargetId(input.mode),
     permission: isTaskPermission(input.permission) ? input.permission : undefined,
+    ...(input.freeze === undefined ? {} : { freeze: freezeOf(input.freeze, now) }),
   }
 }
 

@@ -93,6 +93,56 @@ export function hasSlashCommandLines(text: string): boolean {
 }
 
 /**
+ * Sanitize a structured freeze snapshot (the create/update action payload):
+ * shape check, slash-command taint rejection, sensitive redaction, and the
+ * per-field byte cap - the same gate parseFreezeRequest applies to
+ * free-text freeze requests, exposed for the action data plane (issue #4).
+ * @param value - the freeze object carried by an action or read back from disk.
+ * @param extraKeys - keys allowed alongside goal/progress/next (e.g. the
+ *   protocol redacted flag, the ledger frozenAt stamp) and preserved verbatim
+ *   when present; their validation stays with the caller.
+ */
+export function sanitizeFreezeSnapshot(
+  value: unknown,
+  extraKeys: readonly string[] = [],
+): { ok: true; snapshot: FreezeSnapshot; redacted: boolean; extras: Record<string, unknown> } | { ok: false; error: { code: string; message: string } } {
+  const bad = (code: string, message: string) => ({ ok: false as const, error: { code, message } })
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return bad('invalid-freeze', '冻结快照必须是 goal/progress/next 字符串对象')
+  }
+  const record = value as Record<string, unknown>
+  const allowed = ['goal', 'progress', 'next', ...extraKeys]
+  if (!Object.keys(record).every(key => allowed.includes(key))) {
+    return bad('invalid-freeze', '冻结快照包含未知字段')
+  }
+  for (const key of SECTION_ORDER) {
+    if (typeof record[key] !== 'string') {
+      return bad('invalid-freeze', '冻结快照字段 ' + SECTION_NAMES[key] + ' 必须是字符串')
+    }
+  }
+  for (const key of SECTION_ORDER) {
+    if (hasSlashCommandLines(record[key] as string)) {
+      return bad('dsh-command-line', '冻结文本的' + SECTION_NAMES[key] + '包含以 / 开头的命令行，整体拒绝')
+    }
+  }
+  let redacted = false
+  const snapshot: Record<SectionKey, string> = { goal: '', progress: '', next: '' }
+  for (const key of SECTION_ORDER) {
+    const result = redactSensitive(record[key] as string)
+    snapshot[key] = result.text
+    redacted = redacted || result.redacted
+  }
+  for (const key of SECTION_ORDER) {
+    if (utf8Bytes(snapshot[key]) > FREEZE_FIELD_BYTE_LIMIT) {
+      return bad('field-too-large', '冻结快照字段 ' + SECTION_NAMES[key] + ' 超过 8 KiB 上限')
+    }
+  }
+  const extras: Record<string, unknown> = {}
+  for (const key of extraKeys) if (key in record) extras[key] = record[key]
+  return { ok: true, snapshot: { goal: snapshot.goal, progress: snapshot.progress, next: snapshot.next }, redacted, extras }
+}
+
+/**
  * Parse the freeze-request format: a <<<FREEZE ... >>>FREEZE block whose body
  * is 目标: / 进度: / 下一步: section headers, each followed by body lines.
  * The gate applies before returning: slash-command taint rejects the whole

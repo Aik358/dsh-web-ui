@@ -281,6 +281,20 @@ export function TaskDetail({ controller, task }: { controller: BoardController; 
             <p className={css.detailText}>{current.description !== '' ? current.description : '—'}</p>
           </section>
 
+          {current.freeze !== undefined && (
+            <section className={css.detailSection} data-dsh-part="freeze">
+              <h4>{t('detail.freeze')}</h4>
+              {current.freeze.redacted === true && <p className={css.formError}>{t('detail.freeze.redacted')}</p>}
+              <p className={css.detailText}><strong>{t('detail.freeze.goal')}</strong></p>
+              <pre className={css.promptBlock}>{current.freeze.goal}</pre>
+              <p className={css.detailText}><strong>{t('detail.freeze.progress')}</strong></p>
+              <pre className={css.promptBlock}>{current.freeze.progress}</pre>
+              <p className={css.detailText}><strong>{t('detail.freeze.next')}</strong></p>
+              <pre className={css.promptBlock}>{current.freeze.next}</pre>
+              <p className={css.detailMeta}>{t('detail.freeze.frozenAt', { time: formatHostTimestamp(current.freeze.frozenAt, timeZone) })}</p>
+            </section>
+          )}
+
           <section className={css.detailSection}>
             <h4>{t('detail.prompt')}</h4>
             <pre className={css.promptBlock}>{current.prompt !== '' ? current.prompt : current.title}</pre>

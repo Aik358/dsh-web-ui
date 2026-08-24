@@ -1,6 +1,10 @@
 import type { TaskUpdatePatch } from './core/use-cases/task-update.ts'
 import { isTaskPermission, isTaskStatus, type NewTaskInput, type TaskRecord, type TaskStatus } from './core/tasks.ts'
 import { parseLedger } from './core/store.ts'
+import { sanitizeFreezeSnapshot, type FreezeSnapshot } from './core/freeze-snapshot.ts'
+
+/** Freeze payload carried by create/update actions after the gate (redacted in place). */
+type FreezePayload = FreezeSnapshot & { redacted?: boolean }
 
 export const TASK_BOARD_SCHEMA_VERSION = 3 as const
 /** Ledger documents written before v3; loaded once and migrated on startup. */
@@ -138,15 +142,28 @@ function importedTask(value: unknown): TaskRecord | undefined {
     ...(task.mode === undefined ? {} : { mode: task.mode }),
     ...(task.permission === undefined ? {} : { permission: task.permission }),
     ...(task.archivedAt === undefined ? {} : { archivedAt: task.archivedAt }),
+    ...(task.freeze === undefined ? {} : { freeze: task.freeze }),
   }
+}
+
+/**
+ * Gate a freeze payload from the wire: same T2 security gates as the parser
+ * (slash-command taint rejects, sensitive patterns redact in place, 8 KiB
+ * per-field cap). Returns the sanitized payload, or undefined when rejected.
+ */
+function freezePayload(value: unknown): FreezePayload | undefined {
+  const result = sanitizeFreezeSnapshot(value, ['redacted'])
+  if (!result.ok) return undefined
+  return { ...result.snapshot, ...(result.redacted || result.extras.redacted === true ? { redacted: true } : {}) }
 }
 
 function createInput(value: unknown): value is NewTaskInput {
   const input = record(value)
-  if (input === undefined || !exactKeys(input, ['title', 'description', 'prompt', 'workspaceId', 'mode', 'permission', 'schedule'])) return false
+  if (input === undefined || !exactKeys(input, ['title', 'description', 'prompt', 'workspaceId', 'mode', 'permission', 'schedule', 'freeze'])) return false
   if (typeof input.title !== 'string' || typeof input.description !== 'string' || typeof input.prompt !== 'string') return false
   if (!optionalString(input.workspaceId) || !optionalString(input.mode)) return false
   if (input.permission !== undefined && !isTaskPermission(input.permission)) return false
+  if (input.freeze !== undefined && freezePayload(input.freeze) === undefined) return false
   if (input.schedule !== undefined) {
     const schedule = record(input.schedule)
     if (schedule === undefined || !exactKeys(schedule, ['enabled', 'cron'])) return false
@@ -157,11 +174,13 @@ function createInput(value: unknown): value is NewTaskInput {
 
 function updatePatch(value: unknown): boolean {
   const patch = record(value)
-  if (patch === undefined || !exactKeys(patch, ['title', 'description', 'prompt', 'workspaceId', 'mode', 'permission'])) return false
+  if (patch === undefined || !exactKeys(patch, ['title', 'description', 'prompt', 'workspaceId', 'mode', 'permission', 'freeze'])) return false
   for (const key of ['title', 'description', 'prompt', 'workspaceId', 'mode'] as const) {
     if (!optionalString(patch[key])) return false
   }
-  return patch.permission === undefined || isTaskPermission(patch.permission)
+  if (patch.permission !== undefined && !isTaskPermission(patch.permission)) return false
+  // null clears the snapshot; an object must pass the freeze gate.
+  return patch.freeze === undefined || patch.freeze === null || freezePayload(patch.freeze) !== undefined
 }
 
 function schedulePatch(value: unknown): boolean {
@@ -189,16 +208,22 @@ export function parseActionEnvelope(value: unknown): TaskBoardActionEnvelope | u
           ? { requestId: envelope.requestId, action: { kind: 'import', sourceId: action.sourceId, tasks } }
           : undefined
       }
-    case 'create':
+    case 'create': {
       if (!exactKeys(action, ['kind', 'id', 'input'])) return undefined
-      return typeof action.id === 'string' && action.id !== '' && createInput(action.input)
-        ? { requestId: envelope.requestId, action: action as unknown as Extract<TaskBoardAction, { kind: 'create' }> }
-        : undefined
-    case 'update':
+      if (typeof action.id !== 'string' || action.id === '' || !createInput(action.input)) return undefined
+      const input = action.input as NewTaskInput
+      const freeze = input.freeze === undefined ? undefined : freezePayload(input.freeze)
+      const sanitized = freeze === undefined ? input : { ...input, freeze }
+      return { requestId: envelope.requestId, action: { kind: 'create', id: action.id as string, input: sanitized } }
+    }
+    case 'update': {
       if (!exactKeys(action, ['kind', 'taskId', 'patch'])) return undefined
-      return taskId !== undefined && updatePatch(action.patch)
-        ? { requestId: envelope.requestId, action: action as unknown as Extract<TaskBoardAction, { kind: 'update' }> }
-        : undefined
+      if (taskId === undefined || !updatePatch(action.patch)) return undefined
+      const patch = action.patch as TaskUpdatePatch
+      const freeze = patch.freeze === undefined || patch.freeze === null ? patch.freeze : freezePayload(patch.freeze)
+      const sanitized = 'freeze' in patch && freeze !== patch.freeze ? { ...patch, freeze } : patch
+      return { requestId: envelope.requestId, action: { kind: 'update', taskId, patch: sanitized } }
+    }
     case 'set-schedule':
       if (!exactKeys(action, ['kind', 'taskId', 'patch'])) return undefined
       return taskId !== undefined && schedulePatch(action.patch)

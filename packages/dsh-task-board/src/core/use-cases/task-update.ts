@@ -9,10 +9,16 @@
  * and never cleared. An unknown permission string is ignored so stale UI
  * can never persist a value the execution service rejects.
  */
-import { isTaskPermission, normalizeTargetId, type TaskRecord, type TaskPermission } from '../tasks.ts'
+import { freezeOf, isTaskPermission, normalizeTargetId, type TaskRecord, type TaskPermission } from '../tasks.ts'
+import type { FreezeSnapshot } from '../freeze-snapshot.ts'
 
-/** Editable fields on a task (the update patch surface). */
-export type TaskUpdatePatch = Partial<Pick<TaskRecord, 'title' | 'description' | 'prompt' | 'workspaceId' | 'mode' | 'permission'>>
+/**
+ * Editable fields on a task (the update patch surface). `freeze` replaces the
+ * continuation-card snapshot (restamping frozenAt); an explicit null clears it.
+ */
+export type TaskUpdatePatch = Partial<Pick<TaskRecord, 'title' | 'description' | 'prompt' | 'workspaceId' | 'mode' | 'permission'>> & {
+  freeze?: FreezeSnapshot & { redacted?: boolean } | null
+}
 
 /**
  * The fields that edit the task's content (what the user reads and what the
@@ -61,10 +67,11 @@ export function applyUpdateTask(
 ): readonly TaskRecord[] {
   return tasks.map(task => {
     if (task.id !== id) return task
+    const { freeze: freezePatch, ...rest } = patch
     const workspaceId = 'workspaceId' in patch ? normalizeTargetId(patch.workspaceId) : undefined
     const mode = 'mode' in patch ? normalizeTargetId(patch.mode) : undefined
     const permission = 'permission' in patch ? normalizePermission(task.permission, patch.permission) : undefined
-    const next: TaskRecord = { ...task, ...patch, updatedAt: now }
+    const next: TaskRecord = { ...task, ...rest, updatedAt: now }
     // Content fields normalize like creation does (trimmed); an explicit
     // undefined keeps the current value — content cannot be cleared.
     for (const field of TASK_CONTENT_FIELDS) {
@@ -72,7 +79,9 @@ export function applyUpdateTask(
       const value = patch[field]
       next[field] = value === undefined ? task[field] : value.trim()
     }
-    if (workspaceId !== undefined || 'workspaceId' in patch) next.workspaceId = workspaceId
+    // null (or a vanished key value) clears the snapshot; a present object
+    // replaces it with a fresh frozenAt stamp.
+    next.freeze = freezePatch == null ? undefined : freezeOf(freezePatch, now)
     if (mode !== undefined || 'mode' in patch) next.mode = mode
     if (permission !== undefined || 'permission' in patch) next.permission = permission
     return next

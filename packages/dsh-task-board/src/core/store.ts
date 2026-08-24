@@ -10,7 +10,8 @@
  * localStorage backend.
  */
 import { isValidCron } from './schedule.ts'
-import { isTaskPermission, isTaskStatus, normalizeTargetId, type ScheduleRule, type TaskRecord, type TaskPermission, type TaskStatus } from './tasks.ts'
+import { isTaskPermission, isTaskStatus, normalizeTargetId, type ScheduleRule, type TaskFreeze, type TaskRecord, type TaskPermission, type TaskStatus } from './tasks.ts'
+import { sanitizeFreezeSnapshot } from './freeze-snapshot.ts'
 
 /** Persistence seam for the task ledger. */
 export interface TaskStore {
@@ -107,6 +108,27 @@ function normalizeSchedule(schedule: unknown): ScheduleRule | undefined {
   }
 }
 
+/**
+ * Repair a persisted freeze snapshot: shape + gate re-check (slash taint,
+ * redaction idempotence, byte cap); a malformed or tainted snapshot is
+ * dropped (undefined) rather than dropping the whole task row, mirroring
+ * the schedule repair policy.
+ */
+function normalizeFreeze(value: unknown): TaskFreeze | undefined {
+  const result = sanitizeFreezeSnapshot(value, ['frozenAt', 'redacted'])
+  if (!result.ok) return undefined
+  const frozenAt = result.extras.frozenAt
+  if (typeof frozenAt !== 'number' || !Number.isFinite(frozenAt)) return undefined
+  if (result.extras.redacted !== undefined && result.extras.redacted !== true) return undefined
+  return {
+    goal: result.snapshot.goal,
+    progress: result.snapshot.progress,
+    next: result.snapshot.next,
+    frozenAt,
+    ...(result.redacted || result.extras.redacted === true ? { redacted: true } : {}),
+  }
+}
+
 /** Parse + validate a persisted ledger document; invalid rows are dropped. */
 export function parseLedger(raw: string | null): TaskRecord[] {
   if (raw === null) return []
@@ -141,6 +163,7 @@ export function parseLedger(raw: string | null): TaskRecord[] {
     task.mode = normalizeTargetId(row.mode)
     task.archivedAt = typeof row.archivedAt === 'number' && Number.isFinite(row.archivedAt) ? row.archivedAt : undefined
     task.permission = isTaskPermission(row.permission) ? row.permission as TaskPermission : undefined
+    task.freeze = normalizeFreeze(row.freeze)
     tasks.push(task)
   }
   return tasks
