@@ -31,6 +31,17 @@
     "category": "ui"
   },
   {
+    "id": "dsh-context",
+    "name": "上下文可视化",
+    "nameEn": "Context Visualizer",
+    "author": "bowenliang123",
+    "description": "一站式 DeepSeek Harness 上下文洞察与可视化插件：Context 面板与浏览器加 /context 命令，透视上下文构成、历史演进与压缩/剪枝等事件，并展示消息与图片的 token 占用。",
+    "descriptionEn": "A one-stop DeepSeek Harness context insight and visualization plugin: a Context dashboard and browser plus /context command that reveal composition, history evolution, compaction/prune events, and token cost per message and image.",
+    "repo": "https://github.com/bowenliang123/dsh-context",
+    "npm": "dsh-context",
+    "category": "tools"
+  },
+  {
     "id": "dsh-builtin-toggles",
     "name": "内置能力检查器",
     "nameEn": "Built-in Capability Inspector",
