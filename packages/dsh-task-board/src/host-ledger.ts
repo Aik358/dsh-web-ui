@@ -10,7 +10,7 @@ import { applyArchiveTask, applyRestoreTask } from './core/use-cases/task-archiv
 import { applyCreateTask } from './core/use-cases/task-create.ts'
 import { applyDeleteTask } from './core/use-cases/task-delete.ts'
 import { applySetSchedule, applyScheduleNextRun } from './core/use-cases/task-schedule.ts'
-import { applyUpdateTask } from './core/use-cases/task-update.ts'
+import { applyUpdateTask, canEditTaskContent, hasContentPatch } from './core/use-cases/task-update.ts'
 import { TASK_BOARD_SCHEMA_VERSION, type TaskBoardAction, type TaskBoardSchedulerSnapshot } from './protocol.ts'
 
 interface PersistedScheduler extends TaskBoardSchedulerSnapshot {
@@ -482,6 +482,14 @@ export class HostTaskLedger {
         const task = this.document.tasks.find(task => task.id === action.taskId)
         if (task === undefined) throw new Error('task not found')
         if (task.archivedAt !== undefined) throw new Error('archived task is read-only')
+        // The task content (title/description/prompt) is the record of what
+        // was planned; once an execution started it must not change under a
+        // running session or an executed history. Execution targets stay
+        // editable (they only affect future runs).
+        if (hasContentPatch(action.patch) && !canEditTaskContent(task)) {
+          throw new Error('task has already been executed')
+        }
+        if ('title' in action.patch && action.patch.title?.trim() === '') throw new Error('title is required')
         this.document.tasks = [...applyUpdateTask(this.document.tasks, action.taskId, action.patch, now)]
         break
       }

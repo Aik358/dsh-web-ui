@@ -109,7 +109,7 @@ function cardProps(
 const REMOTE = {
   items: {
     skin: [
-      { id: 'whale-song', name: '鲸吟', nameEn: 'Whale Song', author: 'dsh-web', rank: 1, preview: { light: 'a.png' }, description: '深海' },
+      { id: 'whale-song', name: '鲸吟', nameEn: 'Whale Song', author: 'dsh-web', rank: 1, preview: { light: 'a.png' }, description: '深海', repo: 'https://github.com/zhu1090093659/dsh-web/tree/dev/packages/skins/skin-center/skins/whale-song' },
     ],
     pet: [
       { id: 'whale-girl', displayName: '鲸鱼娘（原版）', author: '', rank: 1, previews: ['idle.gif'] },
@@ -126,6 +126,35 @@ describe('MarketCard', () => {
     render(<MarketCard {...cardProps(new FakeScope({}), { remote: REMOTE, gateway: null, pluginManager: null })} />)
     expect(screen.getByText('鲸吟')).toBeTruthy()
     expect(screen.getByText(/赞 3/)).toBeTruthy()
+  })
+
+  it('links skin and plugin names plus source-repository addresses to GitHub (issue 1120)', () => {
+    render(<MarketCard {...cardProps(new FakeScope({}), { remote: REMOTE, gateway: null, pluginManager: null })} />)
+    const skinName = screen.getByRole('link', { name: /鲸吟/ })
+    expect(skinName.getAttribute('href')).toBe('https://github.com/zhu1090093659/dsh-web/tree/dev/packages/skins/skin-center/skins/whale-song')
+    expect(screen.getByRole('link', { name: /源码仓库/ }).getAttribute('href')).toBe('https://github.com/zhu1090093659/dsh-web/tree/dev/packages/skins/skin-center/skins/whale-song')
+    fireEvent.click(screen.getByRole('tab', { name: /插件/ }))
+    expect(screen.getByRole('link', { name: /dsh-TUI/ }).getAttribute('href')).toBe('https://github.com/ccch1mneyyy/dsh-TUI')
+  })
+
+  it('makes the dsh-market.com domain in the header description clickable', () => {
+    render(<MarketCard {...cardProps(new FakeScope({}), { remote: REMOTE, gateway: null, pluginManager: null })} />)
+    const domain = screen.getByRole('link', { name: 'dsh-market.com' })
+    expect(domain.getAttribute('href')).toBe('https://dsh-market.com')
+  })
+
+  it('leaves items without a declared source URL link-free', () => {
+    const plain = {
+      items: {
+        skin: [{ id: 'plain-skin', name: '素色皮肤', rank: 1, preview: { light: 'a.png' } }],
+        pet: [],
+        plugin: [],
+      },
+      stats: { skin: {}, pet: {}, plugin: {} },
+    }
+    render(<MarketCard {...cardProps(new FakeScope({}), { remote: plain, gateway: null, pluginManager: null })} />)
+    expect(screen.queryByRole('link', { name: /素色皮肤/ })).toBeNull()
+    expect(screen.queryByRole('link', { name: /源码仓库/ })).toBeNull()
   })
 
   it('switches tabs and shows plugins with a repo link and install command', () => {

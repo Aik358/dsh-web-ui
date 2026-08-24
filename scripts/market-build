@@ -154,6 +154,9 @@ function scanSkins() {
     if (meta.accent) item.accent = meta.accent
     item.preview = { light: `assets/skins/${name}/${preview.light}`, dark: `assets/skins/${name}/${preview.dark}` }
     item.files = listFiles(dir)
+    // Source GitHub link: preserve an explicit sourceUrl, otherwise point to
+    // this repository's catalog directory so every published skin is discoverable.
+    item.repo = meta.sourceUrl || `https://github.com/zhu1090093659/dsh-web/tree/dev/packages/skins/skin-center/skins/${name}`
     if (Object.keys(contributes).length) item.contributes = contributes
     if (meta.requires) item.requires = meta.requires
     if (meta.facets) item.facets = meta.facets

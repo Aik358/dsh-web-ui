@@ -8,10 +8,12 @@ import { useEffect, useState } from 'react'
 import type { BoardController } from '../../core/controller.ts'
 import { isValidCron } from '../../core/schedule.ts'
 import { MANUAL_STATUSES, TASK_PERMISSIONS, type ExecutionRecord, type TaskPermission, type TaskRecord } from '../../core/tasks.ts'
+import { canEditTaskContent } from '../../core/use-cases/task-update.ts'
 import { t, type TaskBoardKey } from '../locales.ts'
 import { SCHEDULE_PRESETS } from '../schedule-presets.ts'
 import css from '../board.module.css'
 import { ConfirmDialog } from './ConfirmDialog.tsx'
+import { EditTaskModal } from './EditTaskModal.tsx'
 import { formatHostTimestamp, formatTime } from './TaskCard.tsx'
 import { STATUS_KEY } from './status-key.ts'
 
@@ -232,10 +234,13 @@ function ScheduleSection({ controller, task, pending }: { controller: BoardContr
 /** Task detail overlay. */
 export function TaskDetail({ controller, task }: { controller: BoardController; task: TaskRecord }) {
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [showEdit, setShowEdit] = useState(false)
 
   // Keep the overlay in sync if the task record changes underneath.
   const [latest, setLatest] = useState(task)
   useEffect(() => { setLatest(task) }, [task])
+  // A re-used overlay instance must not carry an edit session across tasks.
+  useEffect(() => { setShowEdit(false) }, [task.id])
   const current = latest
   const snapshot = controller.getSnapshot()
   const running = current.status === 'running'
@@ -328,6 +333,16 @@ export function TaskDetail({ controller, task }: { controller: BoardController; 
 
         <footer className={css.detailFooter}>
           {!archived && pending && <span className={css.detailMeta}>{t('board.pending')}…</span>}
+          {!archived && canEditTaskContent(current) && (
+            <button
+              type="button"
+              className={css.ghostButton}
+              disabled={pending}
+              onClick={() => { setShowEdit(true) }}
+            >
+              {t('detail.edit')}
+            </button>
+          )}
           {!archived && (
             <button
               type="button"
@@ -394,6 +409,10 @@ export function TaskDetail({ controller, task }: { controller: BoardController; 
             controller.deleteTask(current.id)
           }}
         />
+      )}
+
+      {showEdit && !archived && canEditTaskContent(current) && (
+        <EditTaskModal controller={controller} task={current} onClose={() => { setShowEdit(false) }} />
       )}
     </div>
   )

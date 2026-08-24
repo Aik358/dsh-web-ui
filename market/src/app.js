@@ -382,8 +382,15 @@
     }
     card.appendChild(media)
     var body = el('div', 'mk-card-body')
-    var name = el('div', 'mk-card-name', item.name || item.displayName)
+    var name = (kind !== 'pet' && item.repo)
+      ? el('a', 'mk-card-name', item.name || item.displayName)
+      : el('div', 'mk-card-name', item.name || item.displayName)
     if (item.nameEn && item.nameEn !== item.name) name.appendChild(el('span', 'mk-card-name-en', item.nameEn))
+    if (name.tagName === 'A') {
+      name.href = item.repo
+      name.target = '_blank'
+      name.rel = 'noopener'
+    }
     body.appendChild(name)
     var meta = []
     if (item.author) meta.push(item.author)
@@ -531,6 +538,16 @@
       steps.appendChild(el('li', null, '社区皮肤可放入 $DSH_HOME/skins/<id>/ 目录，无需重启'))
       install.appendChild(steps)
       info.appendChild(install)
+      if (item.repo) {
+        var skinSource = el('div', null)
+        var skinSourceLink = el('a', null, '源码仓库')
+        skinSourceLink.href = item.repo
+        skinSourceLink.target = '_blank'
+        skinSourceLink.rel = 'noopener'
+        skinSource.appendChild(skinSourceLink)
+        skinSource.style.marginTop = '10px'
+        info.appendChild(skinSource)
+      }
     } else if (kind === 'pet') {
       var petMedia = el('div', 'mk-pet-media')
       var previews = item.previews || []

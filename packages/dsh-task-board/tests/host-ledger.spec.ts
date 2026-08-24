@@ -486,6 +486,29 @@ describe('HostTaskLedger', () => {
     expect(ledger.state().tasks[0].executions).toEqual([])
   })
 
+  it('edits task content only before the first execution and keeps targets editable after', () => {
+    const ledger = new HostTaskLedger(tempRoot(), () => NOW)
+    ledger.applyRequest('create', { kind: 'create', id: 'task-a', input: { title: 'A', description: 'd', prompt: 'p' } })
+    const edited = ledger.applyRequest('update', { kind: 'update', taskId: 'task-a', patch: { title: 'B', description: 'd2', prompt: 'p2' } })
+    expect(edited.state.tasks[0]).toMatchObject({ title: 'B', description: 'd2', prompt: 'p2' })
+
+    expect(() => ledger.applyRequest('update-blank-title', { kind: 'update', taskId: 'task-a', patch: { title: '   ' } })).toThrow('title is required')
+
+    const opened = ledger.applyRequest('run', { kind: 'run', taskId: 'task-a' })
+    const executionId = opened.state.tasks[0].executions[0].id
+    expect(() => ledger.applyRequest('update-running', { kind: 'update', taskId: 'task-a', patch: { prompt: 'live' } })).toThrow('task has already been executed')
+
+    ledger.settle('task-a', executionId, 'failed', 'boom')
+    expect(() => ledger.applyRequest('update-done', { kind: 'update', taskId: 'task-a', patch: { title: 'C' } })).toThrow('task has already been executed')
+
+    // Execution targets stay editable on an executed task; content stays fixed.
+    const targets = ledger.applyRequest('update-targets', { kind: 'update', taskId: 'task-a', patch: { workspaceId: 'ws-1', mode: 'anchored', permission: 'read-only' } })
+    expect(targets.state.tasks[0]).toMatchObject({
+      title: 'B', description: 'd2', prompt: 'p2',
+      workspaceId: 'ws-1', mode: 'anchored', permission: 'read-only',
+    })
+  })
+
   it('rejects a newly armed cron with no reachable occurrence', () => {
     const ledger = new HostTaskLedger(tempRoot(), () => NOW)
     expect(() => ledger.applyRequest('create', {

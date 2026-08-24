@@ -10,6 +10,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const DIST = fileURLToPath(new URL('../market/dist', import.meta.url))
+const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url))
 
 function readJson(rel) {
   return JSON.parse(fs.readFileSync(path.join(DIST, rel), 'utf8'))
@@ -36,6 +37,13 @@ test('skins.json 契约与资产存在性', () => {
     ids.add(item.id)
     assert.ok(exists(item.preview.light), 'preview.light missing: ' + item.preview.light)
     assert.ok(exists(item.preview.dark), 'preview.dark missing: ' + item.preview.dark)
+    const skinJson = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'packages', 'skins', 'skin-center', 'skins', item.id, 'skin.json'), 'utf8'))
+    if (skinJson.sourceUrl) {
+      assert.equal(item.repo, skinJson.sourceUrl, 'skin repo must mirror sourceUrl: ' + item.id)
+    } else {
+      assert.equal(item.repo, `https://github.com/zhu1090093659/dsh-web/tree/dev/packages/skins/skin-center/skins/${item.id}`, 'skin repo must point to catalog source: ' + item.id)
+    }
+    assert.ok(/^https:\/\//.test(item.repo), 'skin repo must be https: ' + item.id)
     const bg = item.contributes && item.contributes.backgroundMedia
     for (const mode of ['light', 'dark']) {
       const v = bg && bg[mode]
@@ -65,7 +73,14 @@ test('plugins.json 契约', () => {
     assert.ok(item.id && item.name, 'plugin fields: ' + item.id)
     assert.equal(typeof item.rank, 'number', 'plugin rank: ' + item.id)
     assert.ok(typeof item.category === 'string' && item.category, 'plugin category: ' + item.id)
+    if (item.repo) assert.ok(/^https:\/\//.test(item.repo), 'plugin repo must be https: ' + item.id)
   }
+})
+
+test('皮肤与插件卡片名称以源码仓库链接渲染', () => {
+  const app = fs.readFileSync(path.join(DIST, 'app.js'), 'utf8')
+  assert.ok(app.includes("el('a', 'mk-card-name'"), 'card name must be an anchor for repo-backed items')
+  assert.ok(app.includes('name.href = item.repo'), 'card name anchor must point at item.repo')
 })
 
 test('宠物卡片预览完整居中且不裁切', () => {

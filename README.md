@@ -26,7 +26,7 @@
 
 <p align="center">
   <strong>DeepSeek Harness（DSH）Web 的插件聚合生态包 · 一切皆插件</strong><br>
-  <em>梁神模式 · 任务看板 · 移动端远程 · SSH 运维 · 图像理解 · 鲸鱼娘宠物 · 皮肤 · 创意工坊</em>
+  <em>任务看板 · 移动端远程 · SSH 运维 · 图像理解 · 皮肤 · 创意工坊</em>
 </p>
 
 <div align="center">
@@ -37,27 +37,26 @@
 
 ## 是什么
 
-dsh-web 是 DeepSeek Harness（DSH）Web 的插件聚合生态包，也是「一切皆开发、一切皆插件」理念在 Web 端最完整的落地：梁神模式、任务看板、移动端远程、SSH 运维、图像理解、右侧面板、鲸鱼娘宠物与皮肤，每一样都是独立成包的插件，可插拔、可替换、可再开发——一次装齐便是完整的开发工作台，只挑一两个也能安静融入原生界面。所有插件都经官方 profile 机制挂载到 `dsh web`，不改 DSH 源码；聚合包还能把外部插件（如 `dsh-better-sidebar`）拼进全家桶，详见 [dsh-web-all README](packages/dsh-web-all/README.zh.md)。
+dsh-web 是 DeepSeek Harness（DSH）Web 的插件聚合生态包，也是「一切皆开发、一切皆插件」理念在 Web 端最完整的落地：任务看板、移动端远程、SSH 运维、图像理解与右侧面板，每一样都是独立成包的插件，可插拔、可替换、可再开发——一次装齐便是完整的开发工作台，只挑一两个也能安静融入原生界面。所有插件都经官方 profile 机制挂载到 `dsh web`，不改 DSH 源码；聚合包还能把外部插件（如 `dsh-better-sidebar`）拼进全家桶，其他皮肤与宠物资产统一从创意工坊获取，详见 [dsh-web-all README](packages/dsh-web-all/README.zh.md)。
 
-皮肤同样长在插件体系里：v2 皮肤不是独立产品，而是「皮肤」插件的纯资产包（skin.json 清单 + 样式、贴图与可选特效脚本），由该插件这一唯一加载器即时加载，与官方彻底解耦——官方升级不再牵动皮肤，新增皮肤也只需落一个目录，无需发布、无需安装。插件负责逻辑，皮肤资产负责外观；插件与皮肤、宠物资产的分发统一走 [创意工坊](#创意工坊dsh-marketcom)（dsh-market.com）。
+皮肤同样长在插件体系里：v2 皮肤不是独立产品，而是「皮肤」插件的纯资产包（skin.json 清单 + 样式、贴图与可选特效脚本），由该插件这一唯一加载器即时加载，与官方彻底解耦——官方升级不再牵动皮肤，新增皮肤也只需落一个目录，无需发布、无需安装。插件负责逻辑，皮肤资产负责外观；Blue Fantasy 随插件内置，其他皮肤与宠物资产统一走 [创意工坊](#创意工坊dsh-marketcom)（dsh-market.com）。
 
 ![DSH Web UI 主界面](docs/screenshots/13-hero-main.png)
 
 | 能力 | 原生 dsh web | dsh-web 全家桶 |
 | --- | --- | --- |
-| Agent 预设 | 官方预设（Standard / Minimal 等） | 梁神模式：面向 V4 Pro 的两阶段锚定预设 |
+| Agent 预设 | 官方预设（Standard / Minimal 等） | 官方与社区预设 |
 | 任务看板 | 无 | 多列看板 + cron 定时真实执行 |
 | 移动端远程 | 无 | 扫码配对、SSE 实时同步；同一链接也可配对 PC 浏览器 |
 | 远程服务器运维 | 无 | SSH 面板：终端 / 传输 / 隧道 / 集群 |
 | 图像理解 | 无 | `describe_image` 视觉工具 |
 | 文件预览与变更 | 无 | 右侧面板：资源管理器 / 编辑器 / 终端 / Git / 浏览器 |
-| 陪伴宠物 | 无 | 鲸鱼娘：跟随智能体状态互动、喂养养成 |
 | Git 可视化 | 无 | 分支选择器 + 提交历史图谱 |
-| 主题皮肤 | 默认主题 | 皮肤插件 19 款主题皮肤 + 自定义主题编辑器，先试穿再应用 |
+| 主题皮肤 | 默认主题 | Blue Fantasy 随皮肤插件内置，其他皮肤从创意工坊按需安装 |
 
 ## 创意工坊（dsh-market.com）
 
-[创意工坊](https://dsh-market.com)（dsh-market.com）是 DSH 的一站式创作空间：皮肤、宠物、插件三位一体，每类按设备点赞热度排序、前三名登上首页颁奖台；皮肤支持实时试穿预览，插件提供一键复制的安装命令。Web GUI 里的「创意工坊」设置卡直接浏览工坊清单——皮肤与宠物一键装进 DSH 主目录，插件经插件管理器安装，装完即可在皮肤与宠物面板中使用。
+[创意工坊](https://dsh-market.com)（dsh-market.com）是 DSH 的一站式创作空间，统一分发皮肤、宠物与插件：每类按设备点赞热度排序、前三名登上首页颁奖台；皮肤支持实时试穿预览，插件提供一键复制的安装命令。经典的 Blue Fantasy 蓝色幻想随皮肤插件内置，鲸鱼娘宠物与其他皮肤可在工坊浏览预览、查看源码并按需安装。Web GUI 里的「创意工坊」设置卡直接浏览工坊清单——皮肤与宠物一键装进 DSH 主目录，插件经插件管理器安装，装完即可在皮肤与宠物面板中使用。
 
 ![创意工坊首页](docs/screenshots/31-market-home.png)
 
@@ -111,27 +110,11 @@ dsh-web 是 DeepSeek Harness（DSH）Web 的插件聚合生态包，也是「一
 
 > 此前的 aionui-panel 右侧面板已**停止支持**：默认关闭，不再维护、测试或接受修复，后续版本将从全家桶移除；设置 → Web UI 插件 → 侧边卡片 卡内嵌其常用设置。
 
-### 鲸鱼娘宠物
-
-一只常驻界面的鲸鱼娘，跟着智能体状态换动画：思考、等待、工作、庆祝。可以点她互动（摸头），喂小鱼干加亲密度，从幼鲸一路养到「深海羁绊」。名字能改，位置能拖，不想看就藏起来。宠物框架由注册表驱动，Live2D 宠物经 PixiJS/WebGL 按需渲染；[创意工坊](#创意工坊dsh-marketcom) 里还有更多宠物可一键装回家。
-
-| 陪伴工作 | 互动面板 |
-| --- | --- |
-| ![鲸鱼娘宠物](docs/screenshots/11-pet-new-chat.png) | ![宠物互动面板](docs/screenshots/12-pet-panel.png) |
-
 ### Git 图谱
 
 输入框上方有分支选择器，可以切分支、翻提交历史；Git 图谱把分支泳道和提交历史画出来，仓库再大也能顺着时间线找到变更。
 
 ![Git 图谱](docs/screenshots/04-git-graph.png)
-
-### 梁神模式
-
-DeepSeek V4 Pro 对首轮工具目录很敏感。社区评测里，官方 Standard / PTC 预设只有 91 / 92 分，Minimal 能到 99 / 96，但 Minimal 只有两个工具。梁神模式把这两步拼起来：新建会话时在预设选择器里选「梁神模式」，首轮按 Minimal 开局（只暴露持久 `bash` 与 `str_replace_editor`，只放行你自己的消息），轨迹锚定后自动切到 PTC Mode，完整工具注册表、workspace 指令和 skill 目录随后恢复。Windows 原生环境实测（DeepSeek V4 Pro）98 / 99，均值 98.5，不是抽卡，也不需要牺牲完整工具能力。
-
-![梁神模式两阶段锚定效果对比（示意图，模拟渲染）](docs/images/liangshen-mode.png)
-
-原理、稳定化控制与限制详见 [dsh-liangshen README](packages/dsh-liangshen/README.zh.md)。
 
 ### 更多插件
 
@@ -144,49 +127,9 @@ DeepSeek V4 Pro 对首轮工具目录很敏感。社区评测里，官方 Standa
 
 ### 皮肤
 
-「皮肤」插件是全部皮肤的唯一加载器：19 款主题皮肤先试穿再应用——试穿即时生效、退出完全还原，满意再一键应用；列表末尾还有自定义主题编辑器，强调色、背景、前景与对比度即时预览。除 Blue Fantasy 随包自带外，其余皮肤按需从 [创意工坊](#创意工坊dsh-marketcom) 下载安装。
-
-![皮肤](docs/screenshots/03-settings-skin-center.png)
-
-主题皮肤一览：
-
-![主题皮肤一览](docs/images/skins-montage.png)
-
-#### Wallpaper Engine 壁纸
-
-皮肤插件可直接把本机 Wallpaper Engine 壁纸库用作 GUI 背景：视频、网页与场景壁纸均动态渲染——场景壁纸由内置 WebGL 播放器驱动；任意类型也可切到「静态帧」模式，钉成零动画开销的图片。单张壁纸可导入 `skin-center/wallpapers/`，脱离 Steam 库也能用，并检测创意工坊原作更新；没有 Wallpaper Engine（如 macOS）时，手动目录可把任意 `.mp4`/`.webm` 视频文件夹或壁纸项目文件夹加为壁纸库。壁纸都是本机文件，从不上传或再分发。
-
-![Wallpaper Engine 壁纸](docs/screenshots/30-skin-wallpaper-engine.png)
-
-#### Windows XP（Luna）
-
-还原 Luna 经典界面：蓝色渐变窗口条、绿色「开始」按钮、Bliss 蓝天桌面，全局直角风格。
-
-![Windows XP 皮肤](docs/screenshots/16-skin-xp-light.png)
-
-#### Blue Fantasy 蓝色幻想
-
-鲸鱼插画垫在半透明面板下面，靛蓝色调贯穿全局，暗色主题下更明显。随皮肤插件自带，开箱即用。
+经典的 Blue Fantasy 蓝色幻想是随皮肤插件提供的默认皮肤：鲸鱼插画垫在半透明面板下面，靛蓝色调贯穿全局，暗色主题下更明显。其他皮肤与 Wallpaper Engine 壁纸由皮肤插件管理，并统一在[创意工坊](https://dsh-market.com)浏览、试穿与按需安装。
 
 ![Blue Fantasy 暗色](docs/screenshots/17-skin-blue-fantasy-dark.png)
-
-#### 鲸吟（Whale Song）
-
-深海鲸语女神主题：纯氛围背景画垫在半透明面板下，冰蓝冷色系贯穿全局，暗色变体是深海夜航调。
-
-![鲸吟 亮色](docs/screenshots/24-skin-whale-song-light.png) · ![鲸吟 暗色](docs/screenshots/25-skin-whale-song-dark.png)
-
-#### 夕港（Harbor）
-
-黄昏港口主题：暮光蓝天空渐入日落橙的港口背景垫在半透明面板下，深暮蓝底与日落橙主色贯穿全局。
-
-![夕港 亮色](docs/screenshots/26-skin-harbor-light.png) · ![夕港 暗色](docs/screenshots/27-skin-harbor-dark.png)
-
-#### 深海女仆工坊（Maid Atelier）
-
-深海蓝工坊主题，包含双角色图层与响应式侧边栏装饰。本皮肤单独采用 CC BY-NC-SA 4.0，仅限非商业使用。
-
-![深海女仆工坊 亮色](packages/skins/skin-center/skins/maid-atelier/preview/light.jpg) · ![深海女仆工坊 暗色](packages/skins/skin-center/skins/maid-atelier/preview/dark.jpg)
 
 ## 快速上手
 
@@ -239,7 +182,6 @@ dsh web
 不想装全家桶时，可单独安装任意插件（npm 已发布，直接用包名）：
 
 ```sh
-dsh plugin --profile web add @linxin666/dsh-liangshen@latest               # 梁神模式
 dsh plugin --profile web add @linxin666/dsh-client-ui-task-board@latest    # 任务看板
 dsh plugin --profile web add @linxin666/dsh-ssh@latest                     # 远程连接（SSH）
 dsh plugin --profile web add @linxin666/dsh-tool-describe-image@latest     # 图像理解工具
@@ -257,7 +199,6 @@ dsh plugin --profile web add @linxin666/dsh-client-ui-aionui-panel@latest  # 旧
 | npm 包 | 说明 |
 | --- | --- |
 | [@linxin666/dsh-web-all](https://www.npmjs.com/package/@linxin666/dsh-web-all) | 全家桶聚合包：一个包装齐全部功能插件（含皮肤插件及其皮肤资产） |
-| [@linxin666/dsh-liangshen](https://www.npmjs.com/package/@linxin666/dsh-liangshen) | 梁神模式：面向 V4 Pro 的两阶段锚定预设 |
 | [@linxin666/dsh-client-ui-task-board](https://www.npmjs.com/package/@linxin666/dsh-client-ui-task-board) | 任务看板：真实会话执行 + cron 定时 |
 | [@linxin666/dsh-remote-web-ui](https://www.npmjs.com/package/@linxin666/dsh-remote-web-ui) | 扫码配对，移动端 / PC 远程使用 Web GUI |
 | [@linxin666/dsh-ssh](https://www.npmjs.com/package/@linxin666/dsh-ssh) | SSH 面板：终端 / 传输 / 隧道 / 集群 |
@@ -394,7 +335,7 @@ A: 可以。聚合包的行 id 统一带 `web-ui-` 前缀（如 `web-ui-describe
 
 | 包 | 来源 | 版权 |
 | --- | --- | --- |
-| dsh-task-board / dsh-git-graph / dsh-aionui-panel / dsh-pet / dsh-remote-web-ui / dsh-web-settings / dsh-liangshen / dsh-doctor / dsh-ssh / dsh-chat-recovery / dsh-skill-explorer / dsh-desktop-launcher / dsh-market / dsh-plugin-manager / dsh-community-plugins / dsh-web-all / skins | 作者 zhu1090093659 个人开发 | Apache-2.0（zhu1090093659） |
+| dsh-task-board / dsh-git-graph / dsh-aionui-panel / dsh-pet / dsh-remote-web-ui / dsh-web-settings / dsh-doctor / dsh-ssh / dsh-chat-recovery / dsh-skill-explorer / dsh-desktop-launcher / dsh-market / dsh-plugin-manager / dsh-community-plugins / dsh-web-all / skins | 作者 zhu1090093659 个人开发 | Apache-2.0（zhu1090093659） |
 | dsh-client-ui-skin-matrix | 贡献者原创（Matrix 深夜护眼暗色皮肤） | Apache-2.0（贡献者 seanchen 声明） |
 | dsh-tool-describe-image | 移植自 [whitelonng/dsh-plugin-describe-image](https://github.com/whitelonng/dsh-plugin-describe-image)（deepseek-harness `packages/vision/tool-describe-image`） | Apache-2.0（zhu1090093659） |
 | dsh-better-sidebar | 外部集成插件 [omdsh-dev/DSH-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar)（右侧面板，npm 依赖引用） | MIT（omdsh-dev） |

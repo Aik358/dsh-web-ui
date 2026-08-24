@@ -33,6 +33,7 @@
         "skin.css",
         "skin.json"
       ],
+      "repo": "https://github.com/zhu1090093659/dsh-web/tree/dev/packages/skins/skin-center/skins/whale-song",
       "contributes": {
         "stylesheet": "skin.css",
         "patches": "patches.css",
@@ -96,6 +97,7 @@
         "skin.css",
         "skin.json"
       ],
+      "repo": "https://github.com/zhu1090093659/dsh-web/tree/dev/packages/skins/skin-center/skins/blue-fantasy",
       "contributes": {
         "stylesheet": "skin.css",
         "patches": "patches.css",
@@ -161,6 +163,7 @@
         "skin.css",
         "skin.json"
       ],
+      "repo": "https://github.com/zhu1090093659/dsh-web/tree/dev/packages/skins/skin-center/skins/harbor",
       "contributes": {
         "stylesheet": "skin.css",
         "patches": "patches.css",
@@ -222,6 +225,7 @@
         "skin.css",
         "skin.json"
       ],
+      "repo": "https://github.com/zhu1090093659/dsh-web/tree/dev/packages/skins/skin-center/skins/xp",
       "contributes": {
         "stylesheet": "skin.css",
         "patches": "patches.css"
@@ -274,6 +278,7 @@
         "skin.css",
         "skin.json"
       ],
+      "repo": "https://github.com/zhu1090093659/dsh-web/tree/dev/packages/skins/skin-center/skins/dragon-heir",
       "contributes": {
         "stylesheet": "skin.css",
         "patches": "patches.css",
@@ -336,6 +341,7 @@
         "skin.css",
         "skin.json"
       ],
+      "repo": "https://github.com/zhu1090093659/dsh-web/tree/dev/packages/skins/skin-center/skins/minecraft",
       "contributes": {
         "stylesheet": "skin.css",
         "patches": "patches.css"
@@ -386,6 +392,7 @@
         "skin.css",
         "skin.json"
       ],
+      "repo": "https://github.com/zhu1090093659/dsh-web/tree/dev/packages/skins/skin-center/skins/trading",
       "contributes": {
         "stylesheet": "skin.css",
         "patches": "patches.css"
@@ -438,6 +445,7 @@
         "skin.css",
         "skin.json"
       ],
+      "repo": "https://github.com/zhu1090093659/dsh-web/tree/dev/packages/skins/skin-center/skins/miku",
       "contributes": {
         "stylesheet": "skin.css",
         "patches": "patches.css",
@@ -501,6 +509,7 @@
         "skin.css",
         "skin.json"
       ],
+      "repo": "https://github.com/zhu1090093659/dsh-web/tree/dev/packages/skins/skin-center/skins/whale-mom",
       "contributes": {
         "stylesheet": "skin.css",
         "patches": "patches.css",
@@ -563,6 +572,7 @@
         "skin.css",
         "skin.json"
       ],
+      "repo": "https://github.com/zhu1090093659/dsh-web/tree/dev/packages/skins/skin-center/skins/matrix",
       "contributes": {
         "stylesheet": "skin.css",
         "patches": "patches.css"
@@ -632,6 +642,7 @@
         "skin.css",
         "skin.json"
       ],
+      "repo": "https://github.com/Small-tailqwq/dsh-deep-whale/tree/main/maid-atelier",
       "contributes": {
         "stylesheet": "skin.css",
         "patches": "patches.css",
@@ -697,6 +708,7 @@
         "skin.css",
         "skin.json"
       ],
+      "repo": "https://github.com/zhu1090093659/dsh-web/tree/dev/packages/skins/skin-center/skins/summer-liquid-glass",
       "contributes": {
         "stylesheet": "skin.css",
         "patches": "patches.css",
@@ -747,6 +759,7 @@
         "skin.css",
         "skin.json"
       ],
+      "repo": "https://github.com/zhu1090093659/dsh-web/tree/dev/packages/skins/skin-center/skins/furina",
       "contributes": {
         "stylesheet": "skin.css",
         "patches": "patches.css",
@@ -806,6 +819,7 @@
         "skin.css",
         "skin.json"
       ],
+      "repo": "https://github.com/zhu1090093659/dsh-web/tree/dev/packages/skins/skin-center/skins/mint",
       "contributes": {
         "stylesheet": "skin.css"
       }
@@ -845,6 +859,7 @@
         "skin.css",
         "skin.json"
       ],
+      "repo": "https://github.com/zhu1090093659/dsh-web/tree/dev/packages/skins/skin-center/skins/cyber-night",
       "contributes": {
         "stylesheet": "skin.css",
         "patches": "patches.css",
@@ -916,6 +931,7 @@
         "skin.css",
         "skin.json"
       ],
+      "repo": "https://github.com/zhu1090093659/dsh-web/tree/dev/packages/skins/skin-center/skins/deep-current",
       "contributes": {
         "stylesheet": "skin.css",
         "patches": "patches.css"
@@ -954,6 +970,7 @@
         "skin.css",
         "skin.json"
       ],
+      "repo": "https://github.com/zhu1090093659/dsh-web/tree/dev/packages/skins/skin-center/skins/pink-sakura",
       "contributes": {
         "stylesheet": "skin.css"
       }
@@ -993,6 +1010,7 @@
         "skin.css",
         "skin.json"
       ],
+      "repo": "https://github.com/zhu1090093659/dsh-web/tree/dev/packages/skins/skin-center/skins/war-thunder",
       "contributes": {
         "stylesheet": "skin.css",
         "patches": "patches.css",
@@ -1054,6 +1072,7 @@
         "skin.css",
         "skin.json"
       ],
+      "repo": "https://github.com/zhu1090093659/dsh-web/tree/dev/packages/skins/skin-center/skins/wallpaper-exclusive",
       "contributes": {
         "stylesheet": "skin.css",
         "patches": "patches.css",

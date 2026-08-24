@@ -10,7 +10,7 @@ window.__ModuleLoader__.load({
 		let _deepseek_ai_dsh_client_runtime_client = require("@deepseek-ai/dsh-client-runtime/client");
 		//#region src/client/turnstile.ts
 		/** Turnstile token relay hosted on the market origin. */
-		const MARKET_ORIGIN = "https://dsh-market.com";
+		const MARKET_ORIGIN$1 = "https://dsh-market.com";
 		const CHALLENGE_URL = "https://dsh-market.com/api/turnstile/challenge";
 		const TIMEOUT_MS = 1e4;
 		let ready = null;
@@ -51,7 +51,7 @@ window.__ModuleLoader__.load({
 				const timer = window.setTimeout(() => finish(/* @__PURE__ */ new Error("turnstile-timeout")), TIMEOUT_MS);
 				const onMessage = (event) => {
 					const data = event.data;
-					if (event.origin !== MARKET_ORIGIN || event.source !== iframe.contentWindow) return;
+					if (event.origin !== MARKET_ORIGIN$1 || event.source !== iframe.contentWindow) return;
 					if (data?.source !== "dsh-market-card" || data.type !== "token" || data.id !== id) return;
 					finish(null, typeof data.token === "string" ? data.token : "");
 				};
@@ -69,7 +69,7 @@ window.__ModuleLoader__.load({
 					source: "dsh-market-card",
 					type: "request",
 					id
-				}, MARKET_ORIGIN);
+				}, MARKET_ORIGIN$1);
 			});
 		}
 		/** Serialize challenges because one invisible widget can execute only once at a time. */
@@ -165,7 +165,7 @@ window.__ModuleLoader__.load({
 					}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 						className: settings_card_module_css_default.description,
 						title: description,
-						children: description
+						children: props.descriptionNode ?? description
 					})]
 				}), state.dirty ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 					className: settings_card_module_css_default.pending,
@@ -190,7 +190,7 @@ window.__ModuleLoader__.load({
 						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 							className: settings_card_module_css_default.description,
 							title: description,
-							children: description
+							children: props.descriptionNode ?? description
 						})]
 					}),
 					state.dirty ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
@@ -878,6 +878,7 @@ window.__ModuleLoader__.load({
 		* DSH home directories through the host gateway, plugins go through the
 		* optional pluginManager service (with the copy-command degradation).
 		*/
+		const MARKET_ORIGIN = "https://dsh-market.com";
 		/** Bridges the market scope onto the card's staged form. */
 		var MarketCardController = class {
 			form;
@@ -1249,6 +1250,17 @@ window.__ModuleLoader__.load({
 				t,
 				titleKey: "settings.title",
 				descriptionKey: "settings.description",
+				descriptionNode: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
+					t("settings.descriptionPrefix"),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("a", {
+						className: market_module_css_default.previewLink,
+						href: MARKET_ORIGIN,
+						target: "_blank",
+						rel: "noreferrer",
+						children: t("badge.market")
+					}),
+					t("settings.descriptionSuffix")
+				] }),
 				state,
 				alwaysOpen: true,
 				onSave: props.save,
@@ -1345,7 +1357,17 @@ window.__ModuleLoader__.load({
 										}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
 											className: market_module_css_default.cardBody,
 											children: [
-												/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+												item.repo ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("a", {
+													className: market_module_css_default.cardName,
+													href: item.repo,
+													target: "_blank",
+													rel: "noreferrer",
+													title: name,
+													children: [name, item.version ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+														className: market_module_css_default.cardVersion,
+														children: ["v", item.version]
+													}) : null]
+												}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
 													className: market_module_css_default.cardName,
 													title: name,
 													children: [name, item.version ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
@@ -1396,7 +1418,7 @@ window.__ModuleLoader__.load({
 																},
 																children: t("preview")
 															}),
-															tab === "plugin" && item.repo ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("a", {
+															(tab === "plugin" || tab === "skin") && item.repo ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("a", {
 																className: market_module_css_default.previewLink,
 																href: item.repo,
 																target: "_blank",
@@ -1508,6 +1530,8 @@ window.__ModuleLoader__.load({
 			"settings.off": "关",
 			"settings.title": "创意工坊",
 			"settings.description": "浏览 dsh-market.com 的皮肤、宠物与社区插件，一键安装到本机 dsh。",
+			"settings.descriptionPrefix": "浏览 ",
+			"settings.descriptionSuffix": " 的皮肤、宠物与社区插件，一键安装到本机 dsh。",
 			"settings.enable": "启用创意工坊卡片",
 			"settings.enableHint": "关闭后隐藏创意工坊内容，仅保留开关本身。",
 			"tab.skin": "皮肤",
@@ -1564,6 +1588,8 @@ window.__ModuleLoader__.load({
 			"settings.off": "Off",
 			"settings.title": "Workshop",
 			"settings.description": "Browse skins, pets and community plugins from dsh-market.com and install them locally with one click.",
+			"settings.descriptionPrefix": "Browse skins, pets and community plugins from ",
+			"settings.descriptionSuffix": " and install them locally with one click.",
 			"settings.enable": "Enable the Workshop card",
 			"settings.enableHint": "Hides the Workshop content and keeps the switch only.",
 			"tab.skin": "Skins",

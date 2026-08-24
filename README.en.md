@@ -26,7 +26,7 @@
 
 <p align="center">
   <strong>The aggregate plugin ecosystem for DeepSeek Harness (DSH) Web · Everything is a plugin</strong><br>
-  <em>Liang Shen Mode · Task Board · Mobile Remote · SSH Ops · Image Understanding · Whale-Girl Pet · Skins · Workshop</em>
+  <em>Task Board · Mobile Remote · SSH Ops · Image Understanding · Skins · Workshop</em>
 </p>
 
 <div align="center">
@@ -37,23 +37,22 @@
 
 ## What It Is
 
-dsh-web is the aggregate plugin ecosystem for DeepSeek Harness (DSH) Web — the most complete realization of "everything is development, everything is a plugin" on the web: Liang Shen Mode, the task board, mobile remote, SSH ops, image understanding, the right panel, the whale-girl pet and skins each ship as an independent, self-contained plugin — pluggable, swappable, re-developable. Install the whole family to assemble a complete dev workbench, or pick one or two and they melt quietly into the stock UI. Everything mounts into `dsh web` through the official profile mechanism, no DSH source changes; the aggregate can even bolt on external plugins like `dsh-better-sidebar` — see the [dsh-web-all README](packages/dsh-web-all/README.md).
+dsh-web is the aggregate plugin ecosystem for DeepSeek Harness (DSH) Web — the most complete realization of "everything is development, everything is a plugin" on the web: the task board, mobile remote, SSH ops, image understanding and the right panel each ship as an independent, self-contained plugin — pluggable, swappable, re-developable. Install the whole family to assemble a complete dev workbench, or pick one or two and they melt quietly into the stock UI. Everything mounts into `dsh web` through the official profile mechanism, no DSH source changes; the aggregate can even bolt on external plugins like `dsh-better-sidebar`, while other skin and pet assets come from the Workshop — see the [dsh-web-all README](packages/dsh-web-all/README.md).
 
-Skins live inside the same plugin system: a v2 skin is not a standalone product but a pure asset pack of the skins plugin (a skin.json manifest plus styles, art and optional effect scripts), loaded on demand by that plugin, the single loader — official upgrades no longer touch any skin, and adding one means dropping in a directory: no publish, no install. Plugins own the logic, skin assets own the look; plugins and skin or pet assets are all distributed through the [Workshop](#workshop-dsh-marketcom) (dsh-market.com).
+Skins live inside the same plugin system: a v2 skin is not a standalone product but a pure asset pack of the skins plugin (a skin.json manifest plus styles, art and optional effect scripts), loaded on demand by that plugin, the single loader — official upgrades no longer touch any skin, and adding one means dropping in a directory: no publish, no install. Plugins own the logic, skin assets own the look; Blue Fantasy ships with the plugin, while other skin and pet assets are distributed through the [Workshop](#workshop-dsh-marketcom) (dsh-market.com).
 
 ![DSH Web UI main screen](docs/screenshots/13-hero-main.png)
 
 | Capability | Stock dsh web | dsh-web family |
 | --- | --- | --- |
-| Agent presets | Official presets (Standard / Minimal…) | Liang Shen Mode: two-phase anchoring tuned for V4 Pro |
+| Agent presets | Official presets (Standard / Minimal…) | Official and community presets |
 | Task board | None | Multi-column board + cron-scheduled real runs |
 | Mobile remote control | None | QR pairing with SSE real-time sync; the same link also pairs a PC browser |
 | Remote server ops | None | SSH panel: terminal / transfer / tunnels / cluster |
 | Image understanding | None | `describe_image` vision tool |
 | File preview & changes | None | Right panel: explorer / editor / terminal / git / browser |
-| Companion pet | None | Whale girl: reacts to agent state, feeding and bonding |
 | Git visualization | None | Branch picker + commit history graph |
-| Themes & skins | Default theme | Skins plugin with 19 skins + a custom-theme editor, try-on before apply |
+| Themes & skins | Default theme | Blue Fantasy ships with the skins plugin; other skins install from the Workshop |
 
 ## Workshop (dsh-market.com)
 
@@ -111,27 +110,11 @@ The right panel is provided by the external plugin [dsh-better-sidebar](https://
 
 > The previous aionui-panel right panel is **no longer supported**: it is off by default, receives no maintenance, tests, or fixes, and will be removed from the family bundle in a future release; Settings → Web UI Plugins → Side Card edits its everyday settings inline.
 
-### Whale-Girl Pet
-
-A whale girl lives at the edge of the UI and changes animation with the agent's state: thinking, waiting, working, celebrating. Click her to interact (head pats), feed dried fish to raise affinity, and grow her from a baby whale to "deep-sea bond". Rename her, drag her anywhere, or hide her whenever you want. The pet framework is registry-driven, Live2D pets render on demand via PixiJS/WebGL, and the [Workshop](#workshop-dsh-marketcom) has more pets to adopt in one click.
-
-| Working companion | Interaction panel |
-| --- | --- |
-| ![Whale pet](docs/screenshots/11-pet-new-chat.png) | ![Pet interaction panel](docs/screenshots/12-pet-panel.png) |
-
 ### Git Graph
 
 The branch picker above the input box switches branches and browses commit history. The Git graph draws branch lanes and commits on a timeline, which stays readable even in big repositories.
 
 ![Git graph](docs/screenshots/04-git-graph.png)
-
-### Liang Shen Mode
-
-DeepSeek V4 Pro cares a lot about the tool catalog it sees on the first turn. In community benchmarks the official Standard / PTC presets score 91 / 92 and Minimal scores 99 / 96, but Minimal only has two tools. Liang Shen Mode puts the two halves together: pick it in the preset selector when you start a new session. The first turn runs Minimal-style (only a persistent `bash` and `str_replace_editor`, only your own messages), and once the trajectory is anchored it switches to PTC Mode, with the full tool registry, workspace instructions and skill directory restored afterwards. Windows-native testing on DeepSeek V4 Pro: 98 / 99, average 98.5. Not luck of the draw, and no need to give up the full tool set.
-
-![Liang Shen Mode two-phase anchoring comparison (schematic, simulated render)](docs/images/liangshen-mode.png)
-
-The mechanics, stabilization controls and limits live in [dsh-liangshen README](packages/dsh-liangshen/README.md).
 
 ### More Plugins
 
@@ -144,49 +127,9 @@ The mechanics, stabilization controls and limits live in [dsh-liangshen README](
 
 ### Skins
 
-The skins plugin is the single loader for every skin: 19 theme skins try on before apply — previews apply instantly and revert fully on exit, apply with one click once happy; the list ends with a custom-theme editor previewing accent, background, foreground and contrast live. Blue Fantasy ships with the skins plugin; every other skin downloads on demand from the [Workshop](#workshop-dsh-marketcom).
-
-![Skins](docs/screenshots/03-settings-skin-center.png)
-
-All theme skins at a glance:
-
-![All theme skins](docs/images/skins-montage.png)
-
-#### Wallpaper Engine Wallpapers
-
-The skins plugin can use your local Wallpaper Engine library as the GUI backdrop: video, web and scene wallpapers all render live — scene wallpapers are driven by a built-in WebGL player — and any type can be pinned to a zero-animation "static frame" image. Import a single wallpaper into `skin-center/wallpapers/` to keep it working outside the Steam library, with update detection against the workshop original; without a Wallpaper Engine install (e.g. macOS), manual folders can add any `.mp4`/`.webm` folder or wallpaper project folder as the library. Wallpapers are your own local files and are never uploaded or redistributed.
-
-![Wallpaper Engine wallpapers](docs/screenshots/30-skin-wallpaper-engine.png)
-
-#### Windows XP (Luna)
-
-A faithful recreation of the classic Luna interface: blue gradient window chrome, a green Start button, the Bliss blue-sky desktop, and square corners throughout.
-
-![Windows XP skin](docs/screenshots/16-skin-xp-light.png)
-
-#### Blue Fantasy
-
-Whale artwork sits beneath translucent panes in a periwinkle-indigo palette. It reads best in dark mode. Ships with the skins plugin, ready out of the box.
+Classic Blue Fantasy is the default skin shipped with the skins plugin: whale artwork sits beneath translucent panes in a periwinkle-indigo palette that reads best in dark mode. Other skins and Wallpaper Engine wallpapers are managed by the skins plugin and are available to browse, try on and install on demand from the [Workshop](https://dsh-market.com).
 
 ![Blue Fantasy dark](docs/screenshots/17-skin-blue-fantasy-dark.png)
-
-#### Whale Song
-
-The deep-sea whale-goddess theme: a text-free ambience painting sits beneath translucent panes in an ice-blue palette, with a night-cruise dark variant.
-
-![Whale Song light](docs/screenshots/24-skin-whale-song-light.png) · ![Whale Song dark](docs/screenshots/25-skin-whale-song-dark.png)
-
-#### Harbor
-
-A dusk-harbor theme: a twilight-blue sky melting into sunset orange sits beneath translucent panes, wrapped in a deep-navy base with amber-orange accents.
-
-![Harbor light](docs/screenshots/26-skin-harbor-light.png) · ![Harbor dark](docs/screenshots/27-skin-harbor-dark.png)
-
-#### Maid Atelier
-
-An ornate navy workshop skin with two character layers and responsive sidebar decoration. This skin is licensed separately under CC BY-NC-SA 4.0 and is restricted to non-commercial use.
-
-![Maid Atelier light](packages/skins/skin-center/skins/maid-atelier/preview/light.jpg) · ![Maid Atelier dark](packages/skins/skin-center/skins/maid-atelier/preview/dark.jpg)
 
 ## Quick Start
 
@@ -240,7 +183,6 @@ Profiles still mounted on `@linxin666/dsh-web-ui-all` do not need a manual remov
 Prefer individual plugins? Install them one by one (published on npm, so use the package name directly):
 
 ```sh
-dsh plugin --profile web add @linxin666/dsh-liangshen@latest               # Liang Shen Mode
 dsh plugin --profile web add @linxin666/dsh-client-ui-task-board@latest    # Task board
 dsh plugin --profile web add @linxin666/dsh-ssh@latest                     # Remote connection (SSH)
 dsh plugin --profile web add @linxin666/dsh-tool-describe-image@latest     # Image understanding tool
@@ -258,7 +200,6 @@ Every plugin is published on npm under the `@linxin666/dsh-*` scope and can be v
 | npm package | What it is |
 | --- | --- |
 | [@linxin666/dsh-web-all](https://www.npmjs.com/package/@linxin666/dsh-web-all) | All-in-one aggregate: every feature plugin in one install, including the skins plugin and its skin assets |
-| [@linxin666/dsh-liangshen](https://www.npmjs.com/package/@linxin666/dsh-liangshen) | Liang Shen Mode: two-phase anchoring agent preset for V4 Pro |
 | [@linxin666/dsh-client-ui-task-board](https://www.npmjs.com/package/@linxin666/dsh-client-ui-task-board) | Task board: real session execution plus cron scheduling |
 | [@linxin666/dsh-remote-web-ui](https://www.npmjs.com/package/@linxin666/dsh-remote-web-ui) | Scan-to-pair remote control of the Web GUI from mobile or PC |
 | [@linxin666/dsh-ssh](https://www.npmjs.com/package/@linxin666/dsh-ssh) | SSH panel: terminal / transfer / tunnel / cluster |
@@ -395,7 +336,7 @@ This repository is licensed under [Apache-2.0](LICENSE). Third-party code merged
 
 | Package | Origin | License |
 | --- | --- | --- |
-| dsh-task-board / dsh-git-graph / dsh-aionui-panel / dsh-pet / dsh-remote-web-ui / dsh-web-settings / dsh-liangshen / dsh-doctor / dsh-ssh / dsh-chat-recovery / dsh-skill-explorer / dsh-desktop-launcher / dsh-market / dsh-plugin-manager / dsh-community-plugins / dsh-web-all / skins | Authored by zhu1090093659 | Apache-2.0 (zhu1090093659) |
+| dsh-task-board / dsh-git-graph / dsh-aionui-panel / dsh-pet / dsh-remote-web-ui / dsh-web-settings / dsh-doctor / dsh-ssh / dsh-chat-recovery / dsh-skill-explorer / dsh-desktop-launcher / dsh-market / dsh-plugin-manager / dsh-community-plugins / dsh-web-all / skins | Authored by zhu1090093659 | Apache-2.0 (zhu1090093659) |
 | dsh-client-ui-skin-matrix | Contributor original (Matrix dark eye-care skin) | Apache-2.0 (declared by contributor seanchen) |
 | dsh-tool-describe-image | Ported from [whitelonng/dsh-plugin-describe-image](https://github.com/whitelonng/dsh-plugin-describe-image) (deepseek-harness `packages/vision/tool-describe-image`) | Apache-2.0 (zhu1090093659) |
 | dsh-better-sidebar | External integrated plugin [omdsh-dev/DSH-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) (right panel, npm dependency reference) | MIT (omdsh-dev) |

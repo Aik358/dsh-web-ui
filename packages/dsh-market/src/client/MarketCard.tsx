@@ -430,6 +430,13 @@ export function MarketCard(props: MarketCardProps): ReactNode {
       t={t}
       titleKey="settings.title"
       descriptionKey="settings.description"
+      descriptionNode={(
+        <>
+          {t('settings.descriptionPrefix')}
+          <a className={css.previewLink} href={MARKET_ORIGIN} target="_blank" rel="noreferrer">{t('badge.market')}</a>
+          {t('settings.descriptionSuffix')}
+        </>
+      )}
       state={state}
       alwaysOpen
       onSave={props.save}
@@ -500,10 +507,17 @@ export function MarketCard(props: MarketCardProps): ReactNode {
                       <span className={css.thumb + ' ' + css.thumbPlaceholder}>{(name[0] ?? '?').toUpperCase()}</span>
                     )}
                     <span className={css.cardBody}>
-                      <span className={css.cardName} title={name}>
-                        {name}
-                        {item.version ? <span className={css.cardVersion}>v{item.version}</span> : null}
-                      </span>
+                      {item.repo ? (
+                        <a className={css.cardName} href={item.repo} target="_blank" rel="noreferrer" title={name}>
+                          {name}
+                          {item.version ? <span className={css.cardVersion}>v{item.version}</span> : null}
+                        </a>
+                      ) : (
+                        <span className={css.cardName} title={name}>
+                          {name}
+                          {item.version ? <span className={css.cardVersion}>v{item.version}</span> : null}
+                        </span>
+                      )}
                       <span className={css.cardMeta}>
                         {item.author ?? ''}
                         {item.category ? <span className={css.badge}>{item.category}</span> : null}
@@ -532,7 +546,7 @@ export function MarketCard(props: MarketCardProps): ReactNode {
                           >
                             {t('preview')}
                           </button>
-                          {tab === 'plugin' && item.repo ? (
+                          {(tab === 'plugin' || tab === 'skin') && item.repo ? (
                             <a className={css.previewLink} href={item.repo} target="_blank" rel="noreferrer">{t('repository')}</a>
                           ) : null}
                         </span>

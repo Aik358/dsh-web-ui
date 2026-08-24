@@ -8,11 +8,11 @@ import { describe, expect, it } from 'vitest'
 import { BoardController, selectedTaskOf } from '../src/core/controller.ts'
 import { nextRunAtMs } from '../src/core/schedule.ts'
 import { InMemoryTaskStore } from '../src/core/store.ts'
-import { createTask, type TaskRecord } from '../src/core/tasks.ts'
+import { createTask, settleExecution, startExecution, type TaskRecord } from '../src/core/tasks.ts'
 import { applyCreateTask } from '../src/core/use-cases/task-create.ts'
 import { applyDeleteTask } from '../src/core/use-cases/task-delete.ts'
 import { applyScheduleNextRun, applySetSchedule } from '../src/core/use-cases/task-schedule.ts'
-import { applyUpdateTask } from '../src/core/use-cases/task-update.ts'
+import { applyUpdateTask, canEditTaskContent, hasContentPatch } from '../src/core/use-cases/task-update.ts'
 
 const NOW = 1_700_000_000_000
 
@@ -93,6 +93,42 @@ describe('use-case: update', () => {
     const pinned = applyUpdateTask(seed(2), 'id-0', { permission: 'workspace-write' }, NOW + 6)
     const invalid = applyUpdateTask(pinned, 'id-0', { permission: 'root' as never }, NOW + 7)
     expect(invalid[0].permission).toBe('workspace-write')
+  })
+
+  it('trims content fields like creation does', () => {
+    const updated = applyUpdateTask(seed(2), 'id-0', { title: '  B  ', description: ' d ', prompt: '  p ' }, NOW + 8)
+    expect(updated[0].title).toBe('B')
+    expect(updated[0].description).toBe('d')
+    expect(updated[0].prompt).toBe('p')
+  })
+})
+
+describe('use-case: update content editability', () => {
+  it('allows content edits only before the first execution', () => {
+    const fresh = seed(1)[0]
+    expect(canEditTaskContent(fresh)).toBe(true)
+
+    const running = startExecution(fresh, NOW, 'e-run').task
+    expect(running.status).toBe('running')
+    expect(canEditTaskContent(running)).toBe(false)
+
+    const done = settleExecution(running, 'e-run', 'succeeded', NOW + 1, undefined)
+    expect(done.status).toBe('done')
+    expect(canEditTaskContent(done)).toBe(false)
+
+    const cancelled = settleExecution(startExecution(fresh, NOW, 'e-cancel').task, 'e-cancel', 'cancelled', NOW + 1, undefined)
+    expect(cancelled.status).toBe('todo')
+    expect(canEditTaskContent(cancelled)).toBe(false)
+
+    expect(canEditTaskContent({ ...fresh, archivedAt: NOW })).toBe(false)
+  })
+
+  it('flags only task-content fields as content patches', () => {
+    expect(hasContentPatch({ title: 'x' })).toBe(true)
+    expect(hasContentPatch({ description: 'd' })).toBe(true)
+    expect(hasContentPatch({ prompt: 'p' })).toBe(true)
+    expect(hasContentPatch({ workspaceId: 'ws', mode: 'anchored', permission: 'read-only' })).toBe(false)
+    expect(hasContentPatch({})).toBe(false)
   })
 })
 

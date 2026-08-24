@@ -273,13 +273,21 @@ export class BoardController {
       : undefined
   }
 
-  updateTask(id: string, patch: TaskUpdatePatch): void {
+  /**
+   * Apply an editable-field patch (task content + execution targets).
+   * Host-backed: the Host ledger owns the fail-closed checks (the content of
+   * an executed task is read-only) and confirms the mutation, so the resolved
+   * value reflects whether the Host accepted it; the legacy in-memory path
+   * applies and persists synchronously.
+   * @returns true when the patch was accepted by the authority.
+   */
+  async updateTask(id: string, patch: TaskUpdatePatch): Promise<boolean> {
     if (this.deps.transport !== undefined) {
-      void this.commitRemote({ kind: 'update', taskId: id, patch }, id)
-      return
+      return await this.commitRemote({ kind: 'update', taskId: id, patch }, id)
     }
     this.tasks = [...applyUpdateTask(this.tasks, id, patch, this.now())]
     this.persistAndNotify()
+    return true
   }
 
   /**

@@ -18,6 +18,17 @@ describe('task-board action protocol', () => {
     })).toBeUndefined()
   })
 
+  it('accepts a task-content update patch (host rejects the blank title)', () => {
+    expect(parseActionEnvelope({
+      requestId: 'content-update',
+      action: { kind: 'update', taskId: 'task-a', patch: { title: 'B', description: 'd', prompt: 'p' } },
+    })?.action.kind).toBe('update')
+    expect(parseActionEnvelope({
+      requestId: 'content-update-blank',
+      action: { kind: 'update', taskId: 'task-a', patch: { title: '' } },
+    })?.action.kind).toBe('update')
+  })
+
   it('accepts benign future import fields but rejects executable command fields', () => {
     const valid = createTask({ title: 'A', description: '', prompt: '' }, 1, 'task-a')
     expect(parseActionEnvelope({ requestId: 'ok', action: { kind: 'import', sourceId: 'browser', tasks: [valid] } })).toBeDefined()
