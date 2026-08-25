@@ -84,6 +84,15 @@ describe('resolveNamespaceEntry', () => {
     expect(resolveNamespaceEntry('dsh-client-ui-aionui-panel')).toBe('aionui-panel')
   })
 
+  it('maps the market and skin custom-theme / wallpaper namespaces (#1176)', () => {
+    expect(resolveNamespaceEntry('dsh-market')).toBe('dsh-web-ui-market')
+    expect(resolveNamespaceEntry('dsh-client-ui-market')).toBe('dsh-web-ui-market')
+    expect(resolveNamespaceEntry('dsh-web-ui-market')).toBe('dsh-web-ui-market')
+    expect(resolveNamespaceEntry('market')).toBe('dsh-web-ui-market')
+    expect(resolveNamespaceEntry('skin-custom-theme')).toBe('skin-custom-theme')
+    expect(resolveNamespaceEntry('skin-wallpaper')).toBe('skin-wallpaper')
+  })
+
   it('ignores packages without a settings namespace and unknown names', () => {
     expect(resolveNamespaceEntry('dsh-web')).toBeUndefined()
     expect(resolveNamespaceEntry('dsh-client-ui-web-ui-settings')).toBeUndefined()
@@ -98,7 +107,10 @@ describe('composeAllowlist', () => {
     'remote-web-ui',
     'pet',
     'skin-background',
+    'skin-custom-theme',
+    'skin-wallpaper',
     'community-plugins',
+    'dsh-web-ui-market',
     'web-search-deepseek',
   ]
 
@@ -106,16 +118,19 @@ describe('composeAllowlist', () => {
     expect(composeAllowlist([], registered)).toEqual([
       'community-plugins',
       'dsh-ssh',
+      'dsh-web-ui-market',
       'pet',
       'remote-web-ui',
       'skin-background',
+      'skin-custom-theme',
+      'skin-wallpaper',
       'task-board',
     ])
   })
 
   it('honors user entries, deduplicates, and ignores unknown names', () => {
-    expect(composeAllowlist(['dsh-client-ui-task-board', 'dsh-skins', 'dsh-ssh', 'nope'], registered))
-      .toEqual(['dsh-ssh', 'skin-background', 'task-board'])
+    expect(composeAllowlist(['dsh-client-ui-task-board', 'dsh-skins', 'dsh-ssh', 'dsh-market', 'nope'], registered))
+      .toEqual(['dsh-ssh', 'dsh-web-ui-market', 'skin-background', 'task-board'])
   })
 
   it('drops namespaces not registered in the settings seam', () => {
