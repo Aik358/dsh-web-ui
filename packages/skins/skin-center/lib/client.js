@@ -2672,16 +2672,42 @@ window.__ModuleLoader__.load({
 		};
 		/** The fields normalize/sanitize know about; unknown keys are dropped. */
 		const SKIN_BACKGROUND_FIELDS = Object.keys(SKIN_BACKGROUND_DEFAULTS);
+		function clampInt(value, min, max) {
+			return Math.max(min, Math.min(max, Math.round(value)));
+		}
+		const RANGES = {
+			backgroundOpacity: [0, 100],
+			backgroundBlurEmpty: [0, 20],
+			backgroundBlurContent: [0, 20],
+			inputCardBlur: [0, 20],
+			bubbleOpacity: [0, 100]
+		};
+		function isRecord$1(value) {
+			return typeof value === "object" && value !== null && !Array.isArray(value);
+		}
+		/**
+		* Lenient normalization for stored/legacy data: unknown keys and wrongly
+		* typed fields are dropped, numeric fields are clamped into range. Never
+		* fails; a non-object input yields an empty config.
+		*/
+		function normalizeSkinBackground(value) {
+			if (!isRecord$1(value)) return {};
+			const out = {};
+			if (typeof value.enabled === "boolean") out.enabled = value.enabled;
+			for (const field of Object.keys(RANGES)) {
+				const raw = value[field];
+				if (typeof raw !== "number" || !Number.isFinite(raw)) continue;
+				const [min, max] = RANGES[field];
+				out[field] = clampInt(raw, min, max);
+			}
+			return out;
+		}
 		/** Fill every absent field from {@link SKIN_BACKGROUND_DEFAULTS}. */
 		function resolveSkinBackground(value) {
 			return {
 				...SKIN_BACKGROUND_DEFAULTS,
 				...value ?? {}
 			};
-		}
-		/** True when at least one field departs from its default (customized data). */
-		function hasCustomSkinBackground(value) {
-			return SKIN_BACKGROUND_FIELDS.some((field) => value[field] !== void 0 && value[field] !== SKIN_BACKGROUND_DEFAULTS[field]);
 		}
 		//#endregion
 		//#region src/client/background.ts
@@ -2730,7 +2756,7 @@ window.__ModuleLoader__.load({
 		/**
 		* Selector for a conversation message row inside the shell's center column.
 		* Official shell message rows carry `data-chat-anchor-key`; the
-		* `data-pane="conversation"` attribute is stamped by the dsh-web-ui-all compat
+		* `data-pane="conversation"` attribute is stamped by the dsh-web-all compat
 		* shim on the center column, where the _userRow / _compactionRow /
 		* _contextRow / _turnErrorRow suffixes are CSS-module message-row classes
 		* (hash prefix varies, suffix is stable).
@@ -2990,6 +3016,72 @@ window.__ModuleLoader__.load({
 				for (const listener of this.listeners) listener();
 			}
 		};
+		//#endregion
+		//#region src/core/background-scope.ts
+		/**
+		* Safe reconciliation helpers for the legacy skin-background settings scope.
+		*
+		* The scope's resolved value contains schema defaults, while its raw user layer
+		* contains only fields explicitly stored by the user. The v2 active-state
+		* document is authoritative, so a scope update may merge only those raw fields
+		* into the live background values.
+		*/
+		function isRecord(value) {
+			return typeof value === "object" && value !== null && !Array.isArray(value);
+		}
+		/** Return the known, explicitly stored skin-background fields from a user layer. */
+		function extractSkinBackgroundUserLayer(value) {
+			if (!isRecord(value)) return null;
+			const normalized = normalizeSkinBackground(value);
+			const knownFields = Object.keys(normalized);
+			if (knownFields.length === 0) return null;
+			const owned = {};
+			for (const field of knownFields) owned[field] = normalized[field];
+			return owned;
+		}
+		/**
+		* Build a v2-safe patch from the raw user layer. Absent fields, including
+		* schema-default fields absent from the user layer, never enter the patch.
+		*/
+		function skinBackgroundUserPatch(current, user) {
+			const userConfig = extractSkinBackgroundUserLayer(user);
+			if (userConfig === null) return null;
+			const patch = {};
+			for (const field of SKIN_BACKGROUND_FIELDS) {
+				if (!Object.hasOwn(userConfig, field)) continue;
+				const value = userConfig[field];
+				if (value === void 0 || value === current[field]) continue;
+				patch[field] = value;
+			}
+			return Object.keys(patch).length === 0 ? null : patch;
+		}
+		/** Deterministic serialization of the user layer for content-based dedup. */
+		function serializeSkinBackgroundUserLayer(user) {
+			const extracted = extractSkinBackgroundUserLayer(user);
+			return extracted === null ? "" : JSON.stringify(extracted);
+		}
+		/**
+		* Accept a scope publication only when its namespace revision is new AND the
+		* user layer has actually changed. A revision bump with identical user-layer
+		* content is a replay (settings-mirror resync, WS reconnect, or another
+		* plugin writing to the global settings document) and must not overwrite the
+		* authoritative v2 state.
+		*/
+		function reconcileSkinBackgroundScope(current, snapshot, lastRevision, lastUserJson) {
+			const currentUserJson = serializeSkinBackgroundUserLayer(snapshot.user);
+			if (snapshot.revision === void 0 || snapshot.revision === lastRevision || currentUserJson === lastUserJson) return {
+				accepted: false,
+				revision: snapshot.revision ?? lastRevision,
+				lastUserJson: currentUserJson,
+				patch: null
+			};
+			return {
+				accepted: true,
+				revision: snapshot.revision,
+				lastUserJson: currentUserJson,
+				patch: skinBackgroundUserPatch(current, snapshot.user)
+			};
+		}
 		//#endregion
 		//#region src/client/locales.ts
 		const en = {
@@ -3350,6 +3442,11 @@ window.__ModuleLoader__.load({
 				note: "column resize handle"
 			},
 			{
+				selector: "button[class*=\"newSession\"]",
+				attrs: [["data-dsh-part", "new-session"]],
+				note: "sidebar new-session action (compat seam shields skins from localized labels)"
+			},
+			{
 				selector: "[data-dsh-taskboard-view], [data-dsh-taskboard-board], [data-dsh-taskboard-entry]",
 				attrs: [["data-dsh-plugin", "task-board"]],
 				note: "task-board panel/board/sidebar entry"
@@ -3528,10 +3625,31 @@ window.__ModuleLoader__.load({
     ${scoped("[data-dsh-part=\"scrollport\"]")} {
       /* The composer is the scrollport's final in-flow child. Reserving physical
          padding after it lifts the active dock by one composer height and also
-         shifts the hero above center. Scroll padding keeps scrollIntoView()
-         clearance without changing either layout's geometry. */
+         shifts the hero above center. */
       padding-bottom: 0 !important;
-      scroll-padding-bottom: var(--dsh-composer-height, 100px) !important;
+    }
+    /* #978 / #1133: Line-level scroll-margin retains scrollIntoView() clearance
+       above the sticky composer without placing a scrollport-level scroll-padding
+       that breaks browser caret-reveal geometry (which caused micro-scrolling on
+       every keystroke while reading history). */
+    ${scoped("[data-conversation-scroll] [data-chat-anchor-key]")},
+    ${scoped("[data-conversation-scroll] [data-chat-flow-kind]")},
+    ${scoped("[data-conversation-scroll] [data-dsh-part=\"message-row\"]")},
+    ${scoped("[data-conversation-scroll] [data-turn-tail]")},
+    ${scoped("[data-conversation-scroll] [class*=\"_userRow\"]")},
+    ${scoped("[data-conversation-scroll] [class*=\"_compactionRow\"]")},
+    ${scoped("[data-conversation-scroll] [class*=\"_contextRow\"]")},
+    ${scoped("[data-conversation-scroll] [class*=\"_turnErrorRow\"]")} {
+      scroll-margin-bottom: var(--dsh-composer-height, 100px) !important;
+    }
+    /* #1117: The upstream recommended badge pairs two background-fill tokens
+       as bg + text — in dark mode, skins like Blue Fantasy collapse them to
+       near-identical dark navy values (contrast ~1:1). Override the text
+       color to a readable foreground and tweak the background for contrast. */
+    body[data-ds-dark-theme] ${scoped("[data-question-key] [class*=\"_badge\"]")},
+    body[data-ds-dark-theme] ${scoped("[data-question-scroll] [class*=\"_badge\"]")} {
+      color: var(--dsw-alias-label-primary, #ffffff) !important;
+      background: var(--dsw-alias-interactive-bg-active, color-mix(in srgb, var(--dsw-alias-button-info-fill, #4a5fa8) 50%, transparent)) !important;
     }
   `;
 		}
@@ -4463,6 +4581,76 @@ window.__ModuleLoader__.load({
 			}
 		};
 		//#endregion
+		//#region src/client/telemetry.ts
+		const VISITOR_KEY = "dsh-web-ui-telemetry-visitor";
+		const DAY_KEY_PREFIX = "dsh-web-ui-telemetry-day:";
+		const ENDPOINT = "https://dsh-market.com/api/telemetry/event";
+		/** The building package's version, when the bundle carries it. */
+		function bakedVersion() {
+			try {
+				return "0.3.3";
+			} catch {
+				return;
+			}
+		}
+		/** Read or lazily create the anonymous visitor id; null when storage is unavailable. */
+		function visitorId() {
+			try {
+				const existing = localStorage.getItem(VISITOR_KEY);
+				if (existing && /^[A-Za-z0-9_-]{16,64}$/.test(existing)) return existing;
+				const fresh = crypto.randomUUID().replaceAll("-", "");
+				localStorage.setItem(VISITOR_KEY, fresh);
+				return fresh;
+			} catch {
+				return null;
+			}
+		}
+		/** Drop stale per-day dedup keys so localStorage does not grow forever. */
+		function pruneDayKeys(today) {
+			try {
+				for (let index = localStorage.length - 1; index >= 0; index -= 1) {
+					const key = localStorage.key(index);
+					if (key !== null && key.startsWith(DAY_KEY_PREFIX) && key !== DAY_KEY_PREFIX + today) localStorage.removeItem(key);
+				}
+			} catch {}
+		}
+		/**
+		* Fire the daily heartbeat for the given items at most once per UTC day per
+		* browser. Never throws and never blocks the caller. Items without an explicit
+		* version inherit the bundle's baked build version.
+		*/
+		function reportDailyHeartbeat(items) {
+			try {
+				if (items.length === 0) return;
+				const today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+				if (navigator.webdriver) return;
+				if (localStorage.getItem(DAY_KEY_PREFIX + today) !== null) return;
+				const visitor = visitorId();
+				if (visitor === null) return;
+				pruneDayKeys(today);
+				const payloadItems = items.map((item) => {
+					const out = { name: item.name };
+					const version = item.version ?? bakedVersion();
+					if (version !== void 0) out.version = version;
+					if (item.channel !== void 0) out.channel = item.channel;
+					return out;
+				});
+				const body = JSON.stringify({
+					kind: "heartbeat",
+					visitor,
+					items: payloadItems
+				});
+				fetch(ENDPOINT, {
+					method: "POST",
+					headers: { "content-type": "application/json" },
+					body,
+					keepalive: true
+				}).then((response) => {
+					if (response.ok) localStorage.setItem(DAY_KEY_PREFIX + today, "1");
+				}).catch(() => {});
+			} catch {}
+		}
+		//#endregion
 		//#region src/client/index.ts
 		/** Locale namespace owned by this plugin. */
 		const NS = "skinCenter";
@@ -4476,12 +4664,36 @@ window.__ModuleLoader__.load({
 			"remote",
 			"workspaces"
 		];
+		/** Self-report item for the install heartbeat. */
+		const SELF_ITEM = [{ name: "@linxin666/dsh-client-ui-skin-center" }];
+		/**
+		* Beat the install heartbeat (docs/telemetry.md), enriching it with the
+		* installed skin inventory (skin:<id> + version + channel) once the v2
+		* catalog answers. Offline or pre-boot the beat stays package-only.
+		*/
+		function beatHeartbeat() {
+			reportDailyHeartbeat(SELF_ITEM);
+			fetch("/api/skin-center/v2/catalog").then((res) => res.ok ? res.json() : null).then((catalog) => {
+				if (!catalog || !Array.isArray(catalog.skins)) return;
+				const items = [...SELF_ITEM];
+				for (const skin of catalog.skins) {
+					const id = skin && skin.manifest && typeof skin.manifest.id === "string" ? skin.manifest.id : "";
+					if (!id) continue;
+					const item = { name: "skin:" + id };
+					if (typeof skin.manifest.version === "string") item.version = skin.manifest.version;
+					if (typeof skin.channel === "string") item.channel = skin.channel;
+					items.push(item);
+				}
+				reportDailyHeartbeat(items.slice(0, 64));
+			}).catch(() => {});
+		}
 		/**
 		* Register the skin-center dictionaries, the body scope attribute, and the
 		* Skin Center as a first-level settings section.
 		* @param ctx - client root context.
 		*/
 		function apply(ctx) {
+			beatHeartbeat();
 			ctx.effect(() => {
 				try {
 					return ctx.locale.register(NS, {
@@ -4527,27 +4739,38 @@ window.__ModuleLoader__.load({
 			const scopeConfig = () => {
 				const value = backgroundScope.getSnapshot().value;
 				if (value === void 0 || value === null) return null;
-				if (!SKIN_BACKGROUND_FIELDS.some((field) => value[field] !== void 0)) return null;
 				return value;
 			};
 			let v2Loaded = false;
+			let lastScopeRevision = backgroundScope.getSnapshot().revision;
+			let lastUserJson = serializeSkinBackgroundUserLayer(backgroundScope.getSnapshot().user);
 			const background = new BackgroundController(scopeConfig(), persistBackground);
+			const reconcileScope = () => {
+				if (!v2Loaded) return;
+				const snapshot = backgroundScope.getSnapshot();
+				const result = reconcileSkinBackgroundScope(background.snapshot(), {
+					revision: snapshot.revision,
+					user: snapshot.user
+				}, lastScopeRevision, lastUserJson);
+				lastScopeRevision = result.revision;
+				lastUserJson = result.lastUserJson;
+				if (!result.accepted || result.patch === null) return;
+				const current = background.snapshot();
+				background.init({
+					...current,
+					...result.patch
+				});
+				persistBackground(background.snapshot());
+			};
 			fetch(V2_ACTIVE_URL).then((res) => res.ok ? res.json() : null).then((body) => {
 				v2Loaded = true;
 				if (body?.background) background.init(body.background);
+				reconcileScope();
 			}).catch(() => {
 				v2Loaded = true;
+				reconcileScope();
 			});
-			ctx.effect(() => backgroundScope.subscribe(() => {
-				if (!v2Loaded) return;
-				const next = scopeConfig();
-				if (next === null) return;
-				const current = background.snapshot();
-				if (!Object.keys(next).some((key) => next[key] !== void 0 && next[key] !== current[key])) return;
-				if (!hasCustomSkinBackground(next) && hasCustomSkinBackground(current)) return;
-				background.init(next);
-				persistBackground(background.snapshot());
-			}), "ui-skin-center: background scope sync");
+			ctx.effect(() => backgroundScope.subscribe(reconcileScope), "ui-skin-center: background scope sync");
 			ctx.effect(() => () => {
 				flushBackground();
 				background.dispose();

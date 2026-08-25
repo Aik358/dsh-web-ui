@@ -9,7 +9,7 @@ ADR 0001 的第二项能力：续接卡片须能携带交接包（钉住三元�
 ## 决策
 
 - `TaskRecord` 新增 `handover?: TaskHandover`（workspaceId/mode/permission + 有界 `references`，打点 `bundledAt`）与 `permissionConfirmedAt?: number`。领域逻辑集中在 `core/handover.ts`：`sanitizeHandover`（精确键、字符串目标、已知权限、32 条引用 / 每条 512 B / 总量 8 KiB）、`effectivePermission`（交接包覆盖普通钉住）、`requiresPermissionConfirmation`（既高权又未确认）、以及相对 `DEFAULT_SESSION_PERMISSION = 'read-only'` 的 `PERMISSION_RANK` 高权序。
-- `protocol.ts` 在 create 输入与 update patch 上接受 `handover`（null 清除，与 freeze 一致），新增 `confirm-permission` 动作；脱敏后的包原地替换线上值。导入白名单经 `parseLedger` 归一化放行交接包与确认戳。
+- `protocol.ts` 在 create 输入与 update patch 上接受 `handover`（null 清除，与 freeze 一致），新增 `confirm-permission` 动作；脱敏后的包原地替换线上值。导入白名单经 `parseLedger` 归一化放行交接包，但剥除 `permissionConfirmedAt`——import 不是人工确认动作，高权绑定导入后重新武装确认门（审查加固见 `2026-08-24-review-hardening.zh.md`）。
 - Host 账本对未确认高权卡拒绝 `run`/`rerun`（`confirmation-required`）；`openScheduled`（cron）跳过该卡并滚动 `nextRunAt`（与已运行拒绝同路径）；新增 `confirm-permission` 分支打 `permissionConfirmedAt` 戳。比较基线是账本的 `sessionDefaultPermission` 选项，由新插件配置键（schema 默认 `read-only`，fail-safe）经 `TaskBoardHostService` 接线，并随每个 snapshot 下发给 UI 侧门控。
 - 重新武装语义：确认绑定的是确切的权限值。`applyUpdateTask` 在权限真实变化或交接包任何变化（含清除）时清掉 `permissionConfirmedAt`——先确认后换权无法把旧确认带到新的更高权限上。
 - `HostExecutionRunner.launch` 先解析有效三元组（交接包优先于钉住）再校验；交接包携带引用时在 Prompt 前拼接交接前言（引用 + 打包时间）。

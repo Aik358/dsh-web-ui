@@ -14,7 +14,7 @@ ADR 0001 对抗性审核场景 c：冻结卡片文本是延时执行的存储型
 
 ## 决策
 
-- `src/host-runner.ts` 导出 `promptText(task)`：续接卡片（带 `freeze` 快照的任务）执行时，任务指令被来源声明强制包裹——冻结时间（ISO）、来源会话（`freeze.frozenBy`，缺失时标"未记录"）与未经人工审查提示，置于显式 开始/结束 标记之间。包裹与 T4 交接前言组合而非冲突：引用前言在前，来源声明随后包住指令。普通任务（无冻结）保持 前言+正文 原样；模板由看板侧生成，卡片文本无法移除或伪造包裹。
+- `src/host-runner.ts` 导出 `promptText(task)`：续接卡片（带 `freeze` 快照的任务）执行时，任务指令被来源声明强制包裹——冻结时间（ISO）、来源会话（`freeze.frozenBy`，缺失时标"未记录"）与未经人工审查提示，置于显式 开始/结束 标记之间。包裹与 T4 交接前言组合而非冲突：引用前言在前，来源声明随后包住指令。普通任务（无冻结）保持 前言+正文 原样；模板由看板侧生成，且卡片可控文本（prompt/标题正文与 `frozenBy`）经 `escapeProvenanceDelimiter` 中和伪造的 开始/结束 标记串，卡片文本无法提前闭合包裹（审查加固见 `2026-08-24-review-hardening.zh.md`）。
 - 来源盖章：`TaskFreeze.frozenBy`（作者会话）与 `ExecutionRecord.initiatedBy`（领卡会话），并在每次打开执行时捕获冻结来源副本（`frozenAt`/`frozenBy`）。`startExecution` 捕获快照来源，后续替换快照无法改写历史。
 - 动作 envelope 新增可选 `initiator` 会话 id（有界非空字符串，256 上限；畸形值整体拒绝 envelope）。Host 账本在 create 时将其盖入 `freeze.frozenBy`，update 替换快照时重新盖章（换快照不能沿用旧作者），run/rerun 时记为 `initiatedBy`；cron 打开的执行不带 initiator。initiator 是客户端断言的审计元数据，不构成信任边界——`host-routes.ts` 的 loopback/origin 棚栏仍是权威校验。
 - 冻结协议门（`sanitizeFreezeSnapshot` extras）放行可选字符串 `frozenBy`、拒绝非字符串；账本/存储归一化（`parseLedger`、import 白名单）带类型校验地往返 `frozenBy` 与执行审计字段，畸形字段按既有修复策略单独丢弃。

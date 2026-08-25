@@ -503,6 +503,8 @@ export class HostTaskLedger {
       }
       case 'update': {
         const task = this.document.tasks.find(task => task.id === action.taskId)
+        if (task === undefined) throw new Error('task not found')
+        if (task.archivedAt !== undefined) throw new Error('archived task is read-only')
         // The task content (title/description/prompt) is the record of what
         // was planned; once an execution started it must not change under a
         // running session or an executed history. Execution targets stay
@@ -517,6 +519,10 @@ export class HostTaskLedger {
           ? action.patch
           : { ...action.patch, freeze: { ...action.patch.freeze, frozenBy: initiator } }
         this.document.tasks = [...applyUpdateTask(this.document.tasks, action.taskId, patch, now)]
+        break
+      }
+      case 'delete':
+        {
           const task = this.document.tasks.find(task => task.id === action.taskId)
           if (task === undefined) throw new Error('task not found')
           if (task.status === 'running' || hasOpenExecution(task)) throw new Error('running task cannot be deleted')

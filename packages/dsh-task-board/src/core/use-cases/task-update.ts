@@ -4,10 +4,9 @@
  * fresh updatedAt. Pure ledger transition (no persistence or notify — the
  * controller orchestrates those).
  *
- * An explicit `undefined` in the patch clears an execution-target field
- * (the task falls back to the runtime default); content fields are trimmed
- * and never cleared. An unknown permission string is ignored so stale UI
- * can never persist a value the execution service rejects.
+ * An explicit `undefined` in the patch clears the field (the task falls
+ * back to the runtime default); an unknown permission string is ignored so
+ * stale UI can never persist a value the execution service rejects.
  */
 import { freezeOf, isTaskPermission, normalizeTargetId, type TaskRecord, type TaskPermission } from '../tasks.ts'
 import type { FreezeSnapshot } from '../freeze-snapshot.ts'
@@ -23,8 +22,7 @@ export type TaskUpdatePatch = Partial<Pick<TaskRecord, 'title' | 'description' |
   handover?: TaskHandoverInput | null
 }
 
-/**
- * The fields that edit the task's content (what the user reads and what the
+/** The fields that edit the task's content (what the user reads and what the
  * next execution sends). Unlike the execution targets they stay editable only
  * while the task has never started executing — after the first run the
  * recorded prompt is the record of what actually ran, so it becomes read-only.
@@ -83,6 +81,8 @@ export function applyUpdateTask(
       next[field] = value === undefined ? task[field] : value.trim()
     }
     // null (or a vanished key value) clears the snapshot; a present object
+    // replaces it with a fresh frozenAt stamp.
+    next.freeze = freezePatch == null ? undefined : freezeOf(freezePatch, now)
     // Handover follows the same null-clears convention, restamping bundledAt.
     next.handover = handoverPatch == null ? undefined : { ...handoverPatch, bundledAt: now }
     // The permission confirmation binds the exact permission value: a change

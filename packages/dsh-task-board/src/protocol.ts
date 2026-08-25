@@ -160,7 +160,8 @@ function importedTask(value: unknown): TaskRecord | undefined {
     ...(task.archivedAt === undefined ? {} : { archivedAt: task.archivedAt }),
     ...(task.freeze === undefined ? {} : { freeze: task.freeze }),
     ...(task.handover === undefined ? {} : { handover: task.handover }),
-    ...(task.permissionConfirmedAt === undefined ? {} : { permissionConfirmedAt: task.permissionConfirmedAt }),
+    // 安全门（对抗场景 b）：import 不是人工确认动作，确认戳一律剥除——
+    // 高于会话默认权限的绑定经 import 进入后必须重新武装 confirm-permission 门。
   }
 }
 

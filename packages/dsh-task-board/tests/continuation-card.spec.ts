@@ -14,6 +14,7 @@ import { HostTaskLedger } from '../src/host-ledger.ts'
 import { parseActionEnvelope, TASK_BOARD_API_PREFIX, type TaskBoardSnapshot } from '../src/protocol.ts'
 import { matchesFilter } from '../src/client/board/TaskBoard.tsx'
 import { createTask } from '../src/core/tasks.ts'
+import { requiresPermissionConfirmation } from '../src/core/handover.ts'
 
 const NOW = 1_700_000_000_000
 let nextId = 0
@@ -200,6 +201,25 @@ describe('continuation card: import keeps the freeze snapshot', () => {
     expect(parsed?.action.kind).toBe('import')
     if (parsed?.action.kind !== 'import') return
     expect(parsed.action.tasks[0]?.freeze).toMatchObject({ goal: 'g', frozenAt: NOW })
+  })
+
+  // 对抗场景 b（提权）：import 不是人工确认动作，伪造的确认戳必须被剥除，
+  // 高于会话默认权限的绑定导入后重新武装 confirm-permission 门。
+  it('strips an imported permissionConfirmedAt stamp so the confirmation gate re-arms', () => {
+    const parsed = envelope({
+      kind: 'import', sourceId: 'browser-evil',
+      tasks: [{
+        ...createTask({ title: 'c', description: '', prompt: 'p' }, NOW, 'card-evil'),
+        handover: { permission: 'danger-full-access', references: [], bundledAt: NOW },
+        permissionConfirmedAt: NOW,
+      }],
+    })
+    expect(parsed?.action.kind).toBe('import')
+    if (parsed?.action.kind !== 'import') return
+    const task = parsed.action.tasks[0]
+    expect(task?.handover?.permission).toBe('danger-full-access')
+    expect(task?.permissionConfirmedAt).toBeUndefined()
+    expect(requiresPermissionConfirmation(task!)).toBe(true)
   })
 })
 
