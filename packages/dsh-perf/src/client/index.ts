@@ -9,6 +9,38 @@
  * @module @linxin666/dsh-perf/client
  */
 
+import type { ClientContext, SettingsScope, SettingsScopeSpec } from '@deepseek-ai/dsh-client-runtime/client'
+// Type-only: pulls the locale / settings-surface / slot merge points.
+import type {} from '@deepseek-ai/dsh-client-locale/client'
+import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
+import type {} from '@deepseek-ai/dsh-client-ui-slots'
+
+import { zh, en, type PerfKey } from './perf-locales.ts'
+import { PerfSettingsCard, PerfSettingsCardController, type PerfSettings, type PerfSettingsCardFace } from './perf-settings-card.tsx'
+
+/** Locale namespace owned by this plugin. */
+export const NS = 'dsh-perf'
+
+declare module '@deepseek-ai/dsh-client-ui-slots' {
+  interface LocaleNamespaceMap {
+    'dsh-perf': PerfKey
+  }
+  interface SlotMap {
+    'web-ui.plugin.item': { kind: 'list'; scope: 'root'; owner: { children?: never } }
+  }
+}
+
+declare module '@deepseek-ai/cordis' {
+  interface Context {
+    /** Optional binder provided by dsh-web-settings. */
+    webUiSettings?: { bind<S>(spec: SettingsScopeSpec<S>): SettingsScope<S> }
+  }
+}
+
+/** Services required by the browser half. */
+export const inject = ['slots', 'locale', 'settingsScope']
+
+
 /** Wire shape the host half returns; loose on purpose (host version drift). */
 interface StatsWire {
   ok?: boolean
@@ -37,11 +69,37 @@ const STORAGE_KEY = 'dsh-perf-hud-visible'
 const FPS_WINDOW_MS = 1000
 const LONGTASK_WINDOW_MS = 60_000
 
-export function apply(): void {
+export function apply(ctx: ClientContext): void {
   try {
     boot()
   } catch (error) {
     console.debug('[dsh-perf] HUD boot degraded:', error)
+  }
+  // 词典: 设置卡文案。
+  try {
+    ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-perf: dictionaries')
+  } catch { /* noop */ }
+  // 设置卡: 贡献到 "Web 插件" 组, 绑定 dsh-perf 命名空间。
+  try {
+    const binder = ctx.get('webUiSettings') ?? ctx.settingsScope
+    const settingsScope = binder.bind<PerfSettings>({ namespace: NS })
+    const controller = new PerfSettingsCardController(settingsScope)
+    ctx.slots.inject('web-ui.plugin.item', () => {
+      try {
+        const unregister = ctx.slots.register({
+          name: 'web-ui.plugin.item',
+          id: 'dsh-perf',
+          order: 95,
+          locale: NS,
+          inject: () => controller.inject() as PerfSettingsCardFace,
+        }, PerfSettingsCard)
+        return () => { controller.dispose(); unregister() }
+      } catch {
+        return () => {}
+      }
+    })
+  } catch (error) {
+    console.debug('[dsh-perf] settings card degraded:', error)
   }
 }
 

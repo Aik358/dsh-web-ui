@@ -1,0 +1,64 @@
+/**
+ * The dsh-perf plugin settings card dictionaries.
+ */
+
+/** Simplified Chinese dictionary (the key-set source of truth). */
+export const zh = {
+  'settings.title': '性能观测与治理',
+  'settings.description': 'HUD 指标、事件速率/事件循环延迟监测、写批频控与告警阈值。',
+  'settings.enabled': '启用性能观测',
+  'settings.enabledHint': '关闭后 host 停止订阅事件与采样（HUD 随之无数据）。',
+  'settings.mode': '模式',
+  'settings.modeHint': 'off / balanced / aggressive（balanced 为默认；写批延迟由 bundle patch 声明为 500ms）。',
+  'settings.maxActiveSessions': '会话告警阈值',
+  'settings.maxActiveSessionsHint': '活跃会话（含 subagent）达到该值 HUD 亮警，默认 5。',
+  'settings.maxEventsPerSec': '事件速率告警阈值',
+  'settings.maxEventsPerSecHint': '全局 events/s 达到该值 HUD 亮警，默认 300。',
+  'settings.inherit': '继承',
+  'settings.on': '开',
+  'settings.off': '关',
+  'settings.overridden': '已覆盖',
+  'settings.reset': '恢复默认',
+  'settings.notExposed': '当前 DSH 版本未向配置页暴露本插件的设置命名空间。请直接编辑 ~/.dsh/settings.yaml，或将命名空间加入 dsh-host-apiproxy 的 WEB_SETTINGS_NAMESPACES 白名单后重启。',
+  'settings.readOnly': '此部署的设置只读。',
+  'settings.expand': '显示设置',
+  'settings.collapse': '收起设置',
+  'settings.save': '保存',
+  'settings.saving': '保存中…',
+  'settings.discard': '放弃',
+  'settings.unsaved': '未保存',
+  'settings.saveFailed': '部署未接受这些值，已保留待修正。',
+  'settings.invalidNumber': '请输入数字，或留空使用默认值。',
+} satisfies Record<string, string>
+
+/** Key union for this namespace. */
+export type PerfKey = keyof typeof zh
+
+/** English dictionary, checked complete against the zh key set. */
+export const en = {
+  'settings.title': 'Performance observability',
+  'settings.description': 'HUD metrics, event-rate and event-loop delay monitoring, write-batch pacing and alert thresholds.',
+  'settings.enabled': 'Enable performance monitoring',
+  'settings.enabledHint': 'Off: the host stops subscribing and sampling (the HUD goes empty).',
+  'settings.mode': 'Mode',
+  'settings.modeHint': 'off / balanced / aggressive (balanced is the default; write-batch delay is declared at 500ms by the bundle patch).',
+  'settings.maxActiveSessions': 'Session alert threshold',
+  'settings.maxActiveSessionsHint': 'HUD alerts when active sessions (incl. subagents) reach this value; default 5.',
+  'settings.maxEventsPerSec': 'Event-rate alert threshold',
+  'settings.maxEventsPerSecHint': 'HUD alerts when global events/s reaches this value; default 300.',
+  'settings.inherit': 'Inherit',
+  'settings.on': 'On',
+  'settings.off': 'Off',
+  'settings.overridden': 'Overridden',
+  'settings.reset': 'Reset to default',
+  'settings.notExposed': "This DSH version does not expose this plugin's settings namespace to the configuration page, so the form is unavailable. Edit ~/.dsh/settings.yaml directly, or add the namespace to dsh-host-apiproxy's WEB_SETTINGS_NAMESPACES allowlist and restart.",
+  'settings.readOnly': 'This deployment stores settings read-only.',
+  'settings.expand': 'Show settings',
+  'settings.collapse': 'Hide settings',
+  'settings.save': 'Save',
+  'settings.saving': 'Saving…',
+  'settings.discard': 'Discard',
+  'settings.unsaved': 'Unsaved',
+  'settings.saveFailed': 'The deployment did not accept these values; they were left for you to correct.',
+  'settings.invalidNumber': 'Enter a number, or leave blank to use the default.',
+} satisfies Record<PerfKey, string>

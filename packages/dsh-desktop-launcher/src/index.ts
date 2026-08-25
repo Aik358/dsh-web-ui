@@ -80,7 +80,7 @@ const DEFAULT_ANNOUNCE = false
 const SECTION_ORDER = 210
 
 /** Model-facing announcement: plugin presence, capabilities, and limits. */
-export const DESKTOP_LAUNCHER_GUIDANCE = '本机已安装 dsh-desktop-launcher 插件（DSH 桌面启动器 + 一键关机）：设置 → 插件配置 → Web UI 插件 卡片内「创建桌面图标」可在桌面生成一键启动图标（Windows .lnk / macOS .command / Linux .desktop），双击即启动 dsh web 并打开 Web GUI；可配置 dshCommand / url / profile。界面右下角还有关机样式浮动按钮，点击弹出确认框，确认后请求宿主进程优雅退出（经 ctx.appExit，先回收插件树再退出；无 appExit 时回退 process.exit(0)）。限制：图标创建与关机路由均仅限 loopback，退出会终止 dsh web 进程，正在运行的会话/任务可能中断。用户提到「桌面图标 / 快捷方式 / 一键启动 dsh / 关机 / 退出 DSH / 关闭 DeepSeek Harness」时即指本插件，请据此协作。'
+export const DESKTOP_LAUNCHER_GUIDANCE = '本机已安装 dsh-desktop-launcher 插件（DSH 桌面启动器 + 一键关机）：设置 → 插件配置 → Web 插件 卡片内「创建桌面图标」可在桌面生成一键启动图标（Windows .lnk / macOS .command / Linux .desktop），双击即启动 dsh web 并打开 Web GUI；可配置 dshCommand / url / profile。界面右下角还有关机样式浮动按钮，点击弹出确认框，确认后请求宿主进程优雅退出（经 ctx.appExit，先回收插件树再退出；无 appExit 时回退 process.exit(0)）。限制：图标创建与关机路由均仅限 loopback，退出会终止 dsh web 进程，正在运行的会话/任务可能中断。用户提到「桌面图标 / 快捷方式 / 一键启动 dsh / 关机 / 退出 DSH / 关闭 DeepSeek Harness」时即指本插件，请据此协作。'
 
 /**
  * Mount the route and announcement, gated on the composition entry config
