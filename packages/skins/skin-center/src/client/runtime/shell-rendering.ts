@@ -81,10 +81,22 @@ export function shellRenderingCss(): string {
     ${scoped('[data-dsh-part="scrollport"]')} {
       /* The composer is the scrollport's final in-flow child. Reserving physical
          padding after it lifts the active dock by one composer height and also
-         shifts the hero above center. Scroll padding keeps scrollIntoView()
-         clearance without changing either layout's geometry. */
+         shifts the hero above center. */
       padding-bottom: 0 !important;
-      scroll-padding-bottom: var(--dsh-composer-height, ${DEFAULT_COMPOSER_CLEARANCE_PX}px) !important;
+    }
+    /* #978 / #1133: Line-level scroll-margin retains scrollIntoView() clearance
+       above the sticky composer without placing a scrollport-level scroll-padding
+       that breaks browser caret-reveal geometry (which caused micro-scrolling on
+       every keystroke while reading history). */
+    ${scoped('[data-conversation-scroll] [data-chat-anchor-key]')},
+    ${scoped('[data-conversation-scroll] [data-chat-flow-kind]')},
+    ${scoped('[data-conversation-scroll] [data-dsh-part="message-row"]')},
+    ${scoped('[data-conversation-scroll] [data-turn-tail]')},
+    ${scoped('[data-conversation-scroll] [class*="_userRow"]')},
+    ${scoped('[data-conversation-scroll] [class*="_compactionRow"]')},
+    ${scoped('[data-conversation-scroll] [class*="_contextRow"]')},
+    ${scoped('[data-conversation-scroll] [class*="_turnErrorRow"]')} {
+      scroll-margin-bottom: var(--dsh-composer-height, ${DEFAULT_COMPOSER_CLEARANCE_PX}px) !important;
     }
     /* #1117: The upstream recommended badge pairs two background-fill tokens
        as bg + text — in dark mode, skins like Blue Fantasy collapse them to

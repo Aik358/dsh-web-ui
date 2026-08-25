@@ -158,13 +158,16 @@ describe('shared shell rendering adapter (#954)', () => {
     expect(css).not.toContain('[data-goal-bar="true"] > *')
   })
 
-  it('keeps composer geometry intact while retaining scroll clearance (#978)', () => {
+  it('keeps composer geometry intact while retaining scroll clearance (#978, #1133)', () => {
     const css = shellRenderingCss()
     expect(css).toContain('[data-conversation-scroll]')
     expect(css).toContain('[data-dsh-part="scrollport"]')
     expect(css).toContain('padding-bottom: 0 !important;')
     expect(css).toMatch(new RegExp(`\\[data-dsh-part=\"scrollport\"\\][^{]*\\{[^}]*padding-bottom: 0 !important;`, 's'))
-    expect(css).toContain(`scroll-padding-bottom: var(--dsh-composer-height, ${DEFAULT_COMPOSER_CLEARANCE_PX}px) !important;`)
+    expect(css).not.toContain('scroll-padding-bottom:')
+    expect(css).toContain('[data-conversation-scroll] [data-chat-anchor-key]')
+    expect(css).toContain('[data-conversation-scroll] [data-dsh-part="message-row"]')
+    expect(css).toContain(`scroll-margin-bottom: var(--dsh-composer-height, ${DEFAULT_COMPOSER_CLEARANCE_PX}px) !important;`)
   })
 
   it('measures composer height and cleans up custom property on teardown (#978)', () => {
