@@ -1,11 +1,9 @@
-/**
- * Client capability-checker tests: the host verdict envelope parses strictly
- * (only an explicit acceptsImages-true passes), answers cache per session,
- * and every failure fails closed to false so the legacy rewrite proceeds.
- */
-
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createImageCapabilityChecker, fetchSessionAcceptsImages } from '../src/client/capability.ts'
+import {
+  createImageCapabilityChecker,
+  fetchSessionAcceptsImages,
+  invalidateImageCapabilityCaches,
+} from '../src/client/capability.ts'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -85,5 +83,43 @@ describe('createImageCapabilityChecker', () => {
     await expect(check({ sessionId: 's1' })).resolves.toBe(false)
     await expect(check({ sessionId: 's1' })).resolves.toBe(false)
     expect(fetchSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('forces an immediate refetch when invalidated (#1164)', async () => {
+    const fetchSpy = stubFetch({ ok: true, value: { acceptsImages: true } })
+    vi.stubGlobal('fetch', fetchSpy)
+    const check = createImageCapabilityChecker()
+    await expect(check({ sessionId: 's1' })).resolves.toBe(true)
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+
+    // Global invalidation (e.g. from NativeImageSection toggle)
+    invalidateImageCapabilityCaches()
+    await expect(check({ sessionId: 's1' })).resolves.toBe(true)
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+
+    // Per-session invalidation
+    check.invalidate('s1')
+    await expect(check({ sessionId: 's1' })).resolves.toBe(true)
+    expect(fetchSpy).toHaveBeenCalledTimes(3)
+  })
+
+  it('clears all live checkers when invalidateImageCapabilityCaches is called', async () => {
+    const fetchSpy = stubFetch({ ok: true, value: { acceptsImages: true } })
+    vi.stubGlobal('fetch', fetchSpy)
+    const check1 = createImageCapabilityChecker()
+    const check2 = createImageCapabilityChecker()
+
+    await check1({ sessionId: 's1' })
+    await check2({ sessionId: 's2' })
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+
+    invalidateImageCapabilityCaches()
+
+    await check1({ sessionId: 's1' })
+    await check2({ sessionId: 's2' })
+    expect(fetchSpy).toHaveBeenCalledTimes(4)
+
+    check1.dispose()
+    check2.dispose()
   })
 })

@@ -57,18 +57,47 @@ export async function fetchSessionAcceptsImages(sessionId: string, timeoutMs: nu
   }
 }
 
+/** Registry of live checker caches for module-level invalidation on setting toggle. */
+const activeCaches = new Set<Map<string, { at: number; value: boolean }>>()
+
+/**
+ * Invalidate cached capability verdicts across all active checkers (or for a specific session).
+ * Called after changing the native image request setting so subsequent sends immediately probe fresh.
+ * @param sessionId - optional session id to invalidate; if omitted, clears all session caches.
+ */
+export function invalidateImageCapabilityCaches(sessionId?: string): void {
+  for (const cache of activeCaches) {
+    if (typeof sessionId === 'string') {
+      cache.delete(sessionId)
+    } else {
+      cache.clear()
+    }
+  }
+}
+
+/** The capability checker callable with invalidation and lifecycle handles. */
+export interface ImageCapabilityChecker {
+  (session: unknown): Promise<boolean>
+  /** Invalidate cache entries for this checker. */
+  invalidate(sessionId?: string): void
+  /** Unregister this checker from the global invalidation registry. */
+  dispose(): void
+}
+
 /**
  * Create the send-hook's capability checker: per-session cached, in-flight
  * deduped, fail-closed. Sessions without a readable id answer false.
  * @param options - cache and timeout tuning.
- * @returns an async predicate over the structural session face.
+ * @returns an async predicate over the structural session face with invalidation support.
  */
-export function createImageCapabilityChecker(options: ImageCapabilityCheckerOptions = {}): (session: unknown) => Promise<boolean> {
+export function createImageCapabilityChecker(options: ImageCapabilityCheckerOptions = {}): ImageCapabilityChecker {
   const ttl = options.ttlMs ?? DEFAULT_CAPABILITY_TTL_MS
   const timeout = options.timeoutMs ?? DEFAULT_CAPABILITY_TIMEOUT_MS
   const cache = new Map<string, { at: number; value: boolean }>()
   const inflight = new Map<string, Promise<boolean>>()
-  return (session: unknown): Promise<boolean> => {
+  activeCaches.add(cache)
+
+  const checker = (session: unknown): Promise<boolean> => {
     const id = sessionIdOf(session)
     if (id === undefined) return Promise.resolve(false)
     const hit = cache.get(id)
@@ -86,4 +115,19 @@ export function createImageCapabilityChecker(options: ImageCapabilityCheckerOpti
       return false
     })
   }
+
+  checker.invalidate = (sessionId?: string): void => {
+    if (typeof sessionId === 'string') {
+      cache.delete(sessionId)
+    } else {
+      cache.clear()
+    }
+  }
+
+  checker.dispose = (): void => {
+    activeCaches.delete(cache)
+    cache.clear()
+  }
+
+  return checker
 }

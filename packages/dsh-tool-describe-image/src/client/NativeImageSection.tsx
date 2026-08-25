@@ -11,6 +11,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { fetchNativeImageState, setNativeImageEnabled, type NativeImageClientState } from './native-images.ts'
+import { invalidateImageCapabilityCaches } from './capability.ts'
 import { t } from './locales.ts'
 import cardCss from './settings-card.module.css'
 import css from './probe.module.css'
@@ -52,6 +53,7 @@ export function NativeImageSection() {
     void setNativeImageEnabled(!state.capability.acceptsImages).then((result) => {
       setBusy(false)
       if (result.ok && result.value !== undefined) {
+        invalidateImageCapabilityCaches()
         setState(result.value)
         setPhase('ready')
         return
