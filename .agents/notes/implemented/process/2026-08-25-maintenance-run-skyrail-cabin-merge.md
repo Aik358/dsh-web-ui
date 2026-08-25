@@ -1,0 +1,24 @@
+# Agent Note: Maintenance run merges Skyrail Cabin skin and gates community-plugin evidence
+
+Status: implemented
+
+## Problem
+
+The 2026-08-25 /pr-issue-maintenance run covered the open pull-request queue of zhu1090093659/dsh-web (the user instructed PRs only, with the default scope: pull requests explicitly assigned to zhu1090093659). Seven PRs were open; all except one were waiting on author updates against existing CHANGES_REQUESTED reviews. Community-plugin registration PRs are a standing review type that requires evidence on usage value, upstream stability, and compatibility with the plugin system.
+
+## Decision
+
+- PR #1087 (Skyrail Cabin skin) passed its gates and merged (squash, merge commit 42def344). The owner review had already approved; this run approved the pending CI and agent-notes-guard workflow runs on the final head (3d700112), re-ran the gate set locally on a head rebased onto origin/dev (frozen-lockfile install, full typecheck, full test suite with skin-center 552/552 and dsh-web-all 6/6, dsh-skin validate future-window PASS v1.4.3, skin-center/market/gallery/aggregate/docs checks all green), then squash-merged. All four required checks (CI checks, plugin-mount, guard-agent-notes, Validate PR contribution evidence) are success on the merged head.
+- PR #1098 (dsh-agent-plugins-market): re-review reply posted after verifying upstream evidence. Install confirmation now exists (InstallConfirmModal shows surface counts, version, executable warning; cancel sends no request; catalog.install() writes enabled after confirm), and npm 0.5.2 is released. The review decision stays CHANGES_REQUESTED because the decline/cancel regression test is absent, and the confirm dialog does not show the locked source commit while Windows and reproducible runtime evidence remain missing.
+- PRs #1118, #1100, #1093, #1070, #1031: no comments posted. Existing changes-requested reviews stand; authors have not pushed or replied. Upstream dsh-fulltext-search has since shipped the security fix (server-side session cwd only, security-test.mjs, CI matrix, v0.1.1), but the PR evidence has not been updated. dsh-archive-button still uses the rejected host-serve string-patch architecture.
+
+## Alternatives considered
+
+- Re-review #1087 after approval: rejected because the post-approval commits only removed Agent Note files from the diff and regenerated market artifacts, and the local validation covered the final head against latest dev.
+- Auto-close #1100 / #1093 / #1070 / #1118 / #1031: rejected because auto-close applies only to new-feature PRs with no maintainer reply; all of these carry an existing maintainer review.
+- Merge #1098 on the author's reply: rejected because two review-mandated evidence items are still unverifiable.
+- Review the open issues in this run: excluded by the user's explicit scope (PRs only).
+
+## Consequences
+
+dev now ships the Skyrail Cabin skin; the Skin Center client gained the data-dsh-part="new-session" contract and its semantic adapter coverage, with market and gallery artifacts regenerated. The community plugin index remains unpublished for the four pending applications until author evidence lands. The skill default-scope configuration was corrected from the non-existent zhu1090093659/dsh-web-ui to zhu1090093659/dsh-web (user configuration, outside this repository).
