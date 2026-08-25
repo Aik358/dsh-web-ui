@@ -404,63 +404,80 @@ function sha256File(file) {
 const TRYON_SHELL_DIR = path.join(ROOT, 'market', 'shell', 'dist')
 
 /**
- * Minimal ZIP writer (store method, no compression): the per-skin install
- * archives are a few MB and static hosting serves them whole; keeping this
- * dependency-free beats dragging a zip library into the build.
+ * Minimal standard-compliant ZIP writer (store method, no compression).
+ * Output is fully deterministic (fixed 1980-01-01 DOS timestamps).
+ *
+ * Previous implementation had a fatal 2-byte shift in both Local File Header
+ * and Central Directory Entry (extra writeUInt16LE at offset 14/16 pushed all
+ * subsequent fields by 2 bytes), causing most extractors to reject the
+ * archive. This rewrite aligns every field to the PKWARE APPNOTE.TXT spec.
  */
 function zipStore(files) {
   const chunks = []
   const central = []
   let offset = 0
+
+  // 1980-01-01 00:00:00 in MS-DOS format
+  const DOS_TIME = 0x0000
+  const DOS_DATE = 0x0021 // (0 << 9) | (1 << 5) | 1
+
   for (const { name, data } of files) {
     const nameBytes = Buffer.from(name, 'utf8')
     const crc = crc32(data) >>> 0
+
+    // Local File Header (30 bytes)
     const header = Buffer.alloc(30)
-    header.writeUInt32LE(0x04034b50, 0)
-    header.writeUInt16LE(20, 4)
-    header.writeUInt16LE(0x0800, 6)
-    header.writeUInt16LE(0, 8)
-    header.writeUInt16LE(0, 10)
-    header.writeUInt16LE(0, 12)
-    header.writeUInt16LE(0, 14)
-    header.writeUInt32LE(crc, 16)
-    header.writeUInt32LE(data.length, 20)
-    header.writeUInt32LE(data.length, 24)
-    header.writeUInt16LE(nameBytes.length, 26)
-    header.writeUInt16LE(0, 28)
+    header.writeUInt32LE(0x04034b50, 0)       // Signature
+    header.writeUInt16LE(20, 4)               // Version needed (2.0)
+    header.writeUInt16LE(0x0800, 6)           // General purpose flag (UTF-8)
+    header.writeUInt16LE(0, 8)                // Compression method (Store)
+    header.writeUInt16LE(DOS_TIME, 10)        // Last mod time
+    header.writeUInt16LE(DOS_DATE, 12)        // Last mod date
+    header.writeUInt32LE(crc, 14)             // CRC-32
+    header.writeUInt32LE(data.length, 18)     // Compressed size
+    header.writeUInt32LE(data.length, 22)     // Uncompressed size
+    header.writeUInt16LE(nameBytes.length, 26) // File name length
+    header.writeUInt16LE(0, 28)               // Extra field length
     chunks.push(header, nameBytes, data)
+
+    // Central Directory Header (46 bytes)
     const cen = Buffer.alloc(46)
-    cen.writeUInt32LE(0x02014b50, 0)
-    cen.writeUInt16LE(20, 4)
-    cen.writeUInt16LE(20, 6)
-    cen.writeUInt16LE(0x0800, 8)
-    cen.writeUInt16LE(0, 10)
-    cen.writeUInt16LE(0, 12)
-    cen.writeUInt16LE(0, 14)
-    cen.writeUInt16LE(0, 16)
-    cen.writeUInt32LE(crc, 20)
-    cen.writeUInt32LE(data.length, 24)
-    cen.writeUInt32LE(data.length, 28)
-    cen.writeUInt16LE(nameBytes.length, 30)
-    cen.writeUInt16LE(0, 32)
-    cen.writeUInt16LE(0, 34)
-    cen.writeUInt16LE(0, 36)
-    cen.writeUInt16LE(0, 38)
-    cen.writeUInt32LE(0, 40)
-    cen.writeUInt32LE(offset, 42)
+    cen.writeUInt32LE(0x02014b50, 0)          // Signature
+    cen.writeUInt16LE(0x0314, 4)              // Version made by (UNIX 2.0)
+    cen.writeUInt16LE(20, 6)                  // Version needed (2.0)
+    cen.writeUInt16LE(0x0800, 8)              // General purpose flag (UTF-8)
+    cen.writeUInt16LE(0, 10)                  // Compression method (Store)
+    cen.writeUInt16LE(DOS_TIME, 12)           // Last mod time
+    cen.writeUInt16LE(DOS_DATE, 14)           // Last mod date
+    cen.writeUInt32LE(crc, 16)                // CRC-32
+    cen.writeUInt32LE(data.length, 20)        // Compressed size
+    cen.writeUInt32LE(data.length, 24)        // Uncompressed size
+    cen.writeUInt16LE(nameBytes.length, 28)   // File name length
+    cen.writeUInt16LE(0, 30)                  // Extra field length
+    cen.writeUInt16LE(0, 32)                  // File comment length
+    cen.writeUInt16LE(0, 34)                  // Disk number start
+    cen.writeUInt16LE(0, 36)                  // Internal file attributes
+    cen.writeUInt32LE(((0o100644 << 16) | 0x20) >>> 0, 38) // External attrs (POSIX rw-r--r-- + DOS archive)
+    cen.writeUInt32LE(offset, 42)             // Relative offset of LFH
     central.push(cen, nameBytes)
+
     offset += 30 + nameBytes.length + data.length
   }
+
   let cenSize = 0
   for (const c of central) cenSize += c.length
+
+  // End of Central Directory Record (22 bytes)
   const eocd = Buffer.alloc(22)
-  eocd.writeUInt32LE(0x06054b50, 0)
-  eocd.writeUInt16LE(0, 4)
-  eocd.writeUInt16LE(0, 6)
-  eocd.writeUInt16LE(files.length, 8)
-  eocd.writeUInt16LE(files.length, 10)
-  eocd.writeUInt32LE(cenSize, 12)
-  eocd.writeUInt32LE(offset, 16)
+  eocd.writeUInt32LE(0x06054b50, 0)           // Signature
+  eocd.writeUInt16LE(0, 4)                    // Disk number
+  eocd.writeUInt16LE(0, 6)                    // Disk with start of central dir
+  eocd.writeUInt16LE(files.length, 8)         // Records on this disk
+  eocd.writeUInt16LE(files.length, 10)        // Total records
+  eocd.writeUInt32LE(cenSize, 12)             // Size of central directory
+  eocd.writeUInt32LE(offset, 16)              // Offset of central directory
+  eocd.writeUInt16LE(0, 20)                   // Comment length
+
   return Buffer.concat([...chunks, ...central, eocd])
 }
 
