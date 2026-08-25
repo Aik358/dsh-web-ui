@@ -4,13 +4,14 @@ Status: implemented
 
 ## Problem
 
-2026-08-25 的 /pr-issue-maintenance 运行覆盖 zhu1090093659/dsh-web 的开放 PR 队列（用户指示只处理 PR，默认范围：assignees 明确包含 zhu1090093659 的 PR）。当时开放 7 个 PR，除一个外全部在等待作者回应既有 CHANGES_REQUESTED 评审。社区插件登记 PR 是既定审查类型，要求提供实用性、上游稳定性与插件体系兼容性的证据。
+2026-08-25 的 /pr-issue-maintenance 运行覆盖 zhu1090093659/dsh-web 的开放 PR 队列（用户指示只处理 PR，默认范围：assignees 明确包含 zhu1090093659 的 PR）。当时开放 7 个 PR，多数在等待作者回应既有 CHANGES_REQUESTED 评审。#1118（OUO Neko 宠物）由维护者侧补齐后合并，#1098 发出了基于证据的复审回复。社区插件登记 PR 是既定审查类型，要求提供实用性、上游稳定性与插件体系兼容性的证据。
 
 ## Decision
 
 - PR #1087（Skyrail Cabin 皮肤）通过全部闸门并合并（squash，合并提交 42def344）。owner 评审早已批准；本次运行审批了最后一个 head（3d700112）上待运行 CI 与 agent-notes-guard 工作流，把 head rebase 到 origin/dev 后在本地重跑门禁（frozen-lockfile 安装、全仓 typecheck、全量测试含 skin-center 552/552 与 dsh-web-all 6/6、dsh-skin validate future-window PASS v1.4.3、skin-center/market/gallery/aggregate/docs 检查全绿），然后 squash 合并。四项必需检查（CI checks、plugin-mount、guard-agent-notes、Validate PR contribution evidence）在合并 head 上均为 success。
 - PR #1098（dsh-agent-plugins-market）：核实上游证据后发出复审回复。安装确认已存在（InstallConfirmModal 展示 surface 数量、版本与可执行警告；取消不发请求；catalog.install() 确认后写入 enabled），npm 0.5.2 已发布。review 判定保持 CHANGES_REQUESTED，因为「拒绝/取消后不得启用或启动进程」回归测试缺失，确认弹窗未展示锁定来源提交，且 Windows 与可复现运行证据仍空白。
-- PR #1118、#1100、#1093、#1070、#1031：未发表任何评论。既有 changes-requested 评审保持有效；作者未推送或回复。上游 dsh-fulltext-search 已发布安全修复（仅用服务端会话 cwd、security-test.mjs、CI 矩阵、v0.1.1），但 PR 证据未更新。dsh-archive-button 仍使用已被否决的 host 伺服字符串补丁架构。
+- PR #1118（OUO Neko 宠物）：维护者侧补齐后合并（squash，93ae86d3）。补齐内容：THIRD_PARTY_NOTICES.md 增加 OUO Neko 条目与完整 MIT 文本（原始来源不可核验，按作者声明路径记录，锚点为 manifest 的 author/license 字段与 PR 作者声明）；head rebase 到最新 origin/dev；在隔离 scratch 实例（本分支家族 tarball，dsh web http://127.0.0.1:3091）完成真实 GUI 证据——设置 Pet 选择器含 OUO Neko、切换后 pet.id=ouo-neko 且精灵图集换为 /pet/ouo-neko/spritesheet.webp、700ms 两帧不同（动画运行）、解码图集 1536×2288 且第 9/10 行 16 个 look 单元全部非空；证据归档 docs/archive/ouo-neko-pr-1118/。
+- PR #1100、#1093、#1070、#1031：未发表任何评论。既有 changes-requested 评审保持有效；作者未推送或回复。上游 dsh-fulltext-search 已发布安全修复（仅用服务端会话 cwd、security-test.mjs、CI 矩阵、v0.1.1），但 PR 证据未更新。dsh-archive-button 仍使用已被否决的 host 伺服字符串补丁架构。
 
 ## Alternatives considered
 
@@ -21,4 +22,4 @@ Status: implemented
 
 ## Consequences
 
-dev 现已发布 Skyrail Cabin 皮肤；Skin Center client 获得 data-dsh-part="new-session" 契约及其语义适配覆盖，market 与 gallery 产物已重新生成。四个待定社区插件在作者证据到位前保持未收录。Skill 默认范围配置已从不存在的 zhu1090093659/dsh-web-ui 修正为 zhu1090093659/dsh-web（用户配置，位于本仓库之外）。
+dev 现已发布 Skyrail Cabin 皮肤与 OUO Neko 宠物（均 squash 合并，42def344 与 93ae86d3）；Skin Center client 获得 data-dsh-part="new-session" 契约及其语义适配覆盖。四个待定社区插件在作者证据到位前保持未收录。Skill 默认范围配置已从不存在的 zhu1090093659/dsh-web-ui 修正为 zhu1090093659/dsh-web（用户配置，位于本仓库之外）。
