@@ -15,6 +15,8 @@ export interface Config {
   mode?: string
   meterIntervalMs?: number
   statsWindowSeconds?: number
+  maxActiveSessions?: number
+  maxEventsPerSec?: number
 }
 
 export const Config: z<Config> = z.object({
@@ -22,6 +24,8 @@ export const Config: z<Config> = z.object({
   mode: z.string().default('balanced'),
   meterIntervalMs: z.number().min(1000).max(60000).default(2000),
   statsWindowSeconds: z.number().min(10).max(3600).default(120),
+  maxActiveSessions: z.number().min(1).max(100).default(5),
+  maxEventsPerSec: z.number().min(10).max(100000).default(300),
 })
 
 export interface ResolvedConfig {
@@ -29,6 +33,8 @@ export interface ResolvedConfig {
   mode: PerfMode
   meterIntervalMs: number
   statsWindowSeconds: number
+  maxActiveSessions: number
+  maxEventsPerSec: number
 }
 
 export function resolveConfig(config?: Config): ResolvedConfig {
@@ -37,6 +43,8 @@ export function resolveConfig(config?: Config): ResolvedConfig {
     mode: config?.mode === 'off' || config?.mode === 'aggressive' || config?.mode === 'balanced' ? config.mode : 'balanced',
     meterIntervalMs: config?.meterIntervalMs ?? 2000,
     statsWindowSeconds: config?.statsWindowSeconds ?? 120,
+    maxActiveSessions: config?.maxActiveSessions ?? 5,
+    maxEventsPerSec: config?.maxEventsPerSec ?? 300,
   }
 }
 
@@ -72,6 +80,8 @@ export const apply = mountOnce('@linxin666/dsh-perf', (ctx: Context, config?: Co
       mode: value.mode,
       meterIntervalMs: value.meterIntervalMs,
       statsWindowSeconds: value.statsWindowSeconds,
+      maxActiveSessions: value.maxActiveSessions,
+      maxEventsPerSec: value.maxEventsPerSec,
       batchDelayMs: readAppliedBatchDelay(ctx) ?? BUNDLE_WRITE_BATCH_DELAY_MS,
     }
     if (meter === undefined) {

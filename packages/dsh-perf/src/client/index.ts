@@ -22,6 +22,13 @@ interface StatsWire {
   events?: { perSec?: number; window?: number; activeSessions?: number }
   topSessions?: { id?: string; eventsPerSec?: number; lastType?: string }[]
   eventTypes?: Record<string, number>
+  alert?: {
+    kind?: string
+    activeSessions?: number
+    eventsPerSec?: number
+    maxSessions?: number
+    maxEventsPerSec?: number
+  } | null
 }
 
 const API_STATS = '/api/dsh-perf/stats'
@@ -50,6 +57,7 @@ function boot(): void {
     'color:#d8e0ea', 'font:11px/1.5 ui-monospace,Menlo,Consolas,monospace',
     'white-space:pre', 'pointer-events:auto', 'user-select:none',
     'box-shadow:0 2px 12px rgb(0 0 0 / .35)', 'max-width:340px', 'overflow:hidden',
+    'border:1px solid transparent',
   ].join(';')
 
   const cache: { stats?: StatsWire; stale: boolean; failures: number } = { stats: undefined, stale: true, failures: 0 }
@@ -113,6 +121,15 @@ function boot(): void {
     const lines: string[] = []
     const mode = s.mode ?? '?'
     const batch = s.batchDelayMs ?? '?'
+    const alert = s.alert
+    if (alert) {
+      const reason = alert.kind === 'sessions'
+        ? '会话 ' + (alert.activeSessions ?? '?') + ' 个 ≥ 阈值 ' + (alert.maxSessions ?? '?')
+        : alert.kind === 'events'
+          ? '事件 ' + (alert.eventsPerSec ?? '?') + '/s ≥ 阈值 ' + (alert.maxEventsPerSec ?? '?')
+          : '会话与事件均超阈值'
+      lines.push('[!] ' + reason)
+    }
     lines.push('dsH PERF  mode=' + mode + '  batch=' + batch + 'ms')
     const ev = s.events ?? {}
     lines.push('events ' + (ev.perSec ?? '?') + '/s  active=' + (ev.activeSessions ?? '?') + '  win=' + (ev.window ?? '?'))
@@ -125,6 +142,7 @@ function boot(): void {
       const id = shortId(session.id ?? '?')
       lines.push('  · ' + id + '  ' + (session.eventsPerSec ?? '?') + '/s [' + (session.lastType ?? '') + ']')
     }
+    hostEl.style.borderColor = alert ? '#ff8a65' : 'transparent'
     if (renderInto !== undefined) renderInto.textContent = lines.join('\n')
     else hostEl.textContent = lines.join('\n')
   }

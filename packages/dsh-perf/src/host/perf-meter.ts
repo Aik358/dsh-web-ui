@@ -13,23 +13,30 @@ export interface PerfMeterOptions {
   statsWindowSeconds: number
   /** bundle patch 应用的写批延迟(毫秒), 展示用。 */
   batchDelayMs: number
+  /** 活跃会话告警阈值(≥ 时亮警): 默认 5 个并发 subagent/会话即提示。 */
+  maxActiveSessions: number
+  /** 全局事件速率告警阈值(events/s, ≥ 时亮警)。 */
+  maxEventsPerSec: number
 }
 
-interface SessionTrack {
-  window: number
-  lastType: string
-}
-
-interface Bucket {
+interface PerfBucket {
   at: number
-  events: number
-  sessions: number
+  perSession: ReadonlyMap<string, number>
+  types: Record<string, number>
 }
 
 export interface PerfSessionStat {
   id: string
   eventsPerSec: number
   lastType: string
+}
+
+export interface PerfAlert {
+  kind: 'sessions' | 'events' | 'both'
+  activeSessions: number
+  eventsPerSec: number
+  maxSessions: number
+  maxEventsPerSec: number
 }
 
 export interface PerfStats {
@@ -44,17 +51,20 @@ export interface PerfStats {
   events: { perSec: number; window: number; activeSessions: number }
   topSessions: PerfSessionStat[]
   eventTypes: Record<string, number>
+  alert: PerfAlert | null
 }
 
 export class PerfMeter {
-  private readonly sessions = new Map<string, SessionTrack>()
-  private readonly types = new Map<string, number>()
-  private readonly buckets: Bucket[] = []
+  private readonly buckets: PerfBucket[] = []
   private readonly el: EventLoopDelayMonitor
   private timer: ReturnType<typeof setInterval> | undefined
   private disposed = false
   private started = false
   private windowMs: number
+  private readonly lastTypeBySession = new Map<string, string>()
+  private pendingSessions = new Map<string, number>()
+  private pendingTypes: Record<string, number> = {}
+  private lastDelay: { meanMs: number; p99Ms: number; maxMs: number } = { meanMs: 0, p99Ms: 0, maxMs: 0 }
 
   constructor(
     private readonly ctx: Context,
@@ -91,6 +101,9 @@ export class PerfMeter {
     this.started = false
   }
 
+  private attached = false
+  private readonly disposers: (() => void)[] = []
+
   private attach(): void {
     if (this.attached) return
     this.attached = true
@@ -112,33 +125,21 @@ export class PerfMeter {
     this.attached = false
   }
 
-  private attached = false
-  private readonly disposers: (() => void)[] = []
-  private pending = 0
-
   private noteEvent(id: string, type: string): void {
-    this.pending += 1
-    const track = this.sessions.get(id) ?? { window: 0, lastType: type }
-    track.window += 1
-    track.lastType = type
-    this.sessions.set(id, track)
-    this.types.set(type, (this.types.get(type) ?? 0) + 1)
+    this.pendingSessions.set(id, (this.pendingSessions.get(id) ?? 0) + 1)
+    this.lastTypeBySession.set(id, type)
+    this.pendingTypes[type] = (this.pendingTypes[type] ?? 0) + 1
   }
 
-  /** 每 tick 归档: pending -> bucket; 解算窗口速率; 读取 EL 延迟并重置。 */
+  /** 每 tick 归档 pending 到 per-session bucket; 读取 EL 延迟并清零。 */
   private tick(): void {
     const at = Date.now()
-    const events = this.pending
-    this.pending = 0
-    if (events === 0) {
-      this.el.reset()
-      this.compactBuckets(at, 0)
-      return
+    if (this.pendingSessions.size > 0) {
+      this.buckets.push({ at, perSession: new Map(this.pendingSessions), types: this.pendingTypes })
+      this.pendingSessions.clear()
+      this.pendingTypes = {}
     }
-    const sessions = this.sessions.size
-    this.buckets.push({ at, events, sessions })
-    this.compactBuckets(at, events)
-    // 每 tick 读一次均值并将累计器清零, 使数字代表"最近一个采样周期"。
+    this.compactBuckets(at)
     const meanMs = this.el.mean / 1e6
     const p99Ms = this.el.percentile(99) / 1e6
     const maxMs = this.el.max / 1e6
@@ -146,45 +147,76 @@ export class PerfMeter {
     this.lastDelay = { meanMs, p99Ms, maxMs }
   }
 
-  private lastDelay: { meanMs: number; p99Ms: number; maxMs: number } = { meanMs: 0, p99Ms: 0, maxMs: 0 }
-
-  private compactBuckets(at: number, _events: number): void {
+  private compactBuckets(at: number): void {
     const cutoff = at - this.windowMs
     while (this.buckets.length > 0 && this.buckets[0].at < cutoff) this.buckets.shift()
   }
 
-  private windowEvents(): { perSec: number; count: number } {
-    if (this.buckets.length === 0) return { perSec: 0, count: 0 }
-    const span = Math.max(1, (this.buckets[this.buckets.length - 1].at - this.buckets[0].at) / 1000)
-    const count = this.buckets.reduce((sum, bucket) => sum + bucket.events, 0)
-    return { perSec: Math.round((count / span) * 10) / 10, count }
+  /** 窗口内聚合: 总速率 / 每会话速率 / 事件类型分布。 */
+  private windowAggregate(): {
+    perSec: number
+    window: number
+    activeSessions: number
+    topSessions: PerfSessionStat[]
+    eventTypes: Record<string, number>
+  } {
+    const bySession = new Map<string, number>()
+    const types = new Map<string, number>()
+    let count = 0
+    for (const bucket of this.buckets) {
+      for (const [id, n] of bucket.perSession) {
+        count += n
+        bySession.set(id, (bySession.get(id) ?? 0) + n)
+      }
+      for (const [type, n] of Object.entries(bucket.types)) {
+        types.set(type, (types.get(type) ?? 0) + n)
+      }
+    }
+    const seconds = Math.max(1, this.windowMs / 1000)
+    const topSessions: PerfSessionStat[] = [...bySession.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([id, n]) => ({
+        id,
+        eventsPerSec: Math.round((n / seconds) * 10) / 10,
+        lastType: this.lastTypeBySession.get(id) ?? 'unknown',
+      }))
+    return {
+      perSec: Math.round((count / seconds) * 10) / 10,
+      window: count,
+      activeSessions: bySession.size,
+      topSessions,
+      eventTypes: Object.fromEntries([...types.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10)),
+    }
   }
 
   snapshot(): PerfStats {
-    const { perSec, count } = this.windowEvents()
-    const now = Date.now()
-    const activeSessions = [...this.sessions.values()].filter(track => track.window > 0).length
-    const topSessions: PerfSessionStat[] = [...this.sessions.entries()]
-      .sort((a, b) => b[1].window - a[1].window)
-      .slice(0, 5)
-      .map(([id, track]) => ({
-        id,
-        eventsPerSec: Math.round((track.window / Math.max(1, this.windowMs / 1000)) * 10) / 10,
-        lastType: track.lastType,
-      }))
+    const agg = this.windowAggregate()
     const mem = process.memoryUsage()
+    const sessionsOver = agg.activeSessions >= this.options.maxActiveSessions
+    const eventsOver = agg.perSec >= this.options.maxEventsPerSec
+    const alert: PerfAlert | null = sessionsOver || eventsOver
+      ? {
+          kind: sessionsOver && eventsOver ? 'both' : sessionsOver ? 'sessions' : 'events',
+          activeSessions: agg.activeSessions,
+          eventsPerSec: agg.perSec,
+          maxSessions: this.options.maxActiveSessions,
+          maxEventsPerSec: this.options.maxEventsPerSec,
+        }
+      : null
     return {
       ok: true,
-      ts: now,
+      ts: Date.now(),
       uptimeMs: process.uptime() * 1000,
       mode: this.options.mode,
       meterIntervalMs: this.options.meterIntervalMs,
       batchDelayMs: this.options.batchDelayMs,
       elDelay: this.lastDelay,
       mem: { rssMB: Math.round(mem.rss / 1048576), heapUsedMB: Math.round(mem.heapUsed / 1048576) },
-      events: { perSec, window: count, activeSessions },
-      topSessions,
-      eventTypes: Object.fromEntries([...this.types.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10)),
+      events: { perSec: agg.perSec, window: agg.window, activeSessions: agg.activeSessions },
+      topSessions: agg.topSessions,
+      eventTypes: agg.eventTypes,
+      alert,
     }
   }
 }

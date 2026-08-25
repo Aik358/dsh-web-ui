@@ -14,6 +14,8 @@
         enabled: true
         meterIntervalMs: 2000
         statsWindowSeconds: 120
+        maxActiveSessions: 5
+        maxEventsPerSec: 300
 
 - id: session-persistence-jsonl
   config:

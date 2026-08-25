@@ -43,6 +43,8 @@ pnpm add @linxin666/dsh-perf
 | `mode` | `balanced` | `off`（仅路由）/ `balanced` / `aggressive` |
 | `meterIntervalMs` | `2000` | 采样周期（1s–60s） |
 | `statsWindowSeconds` | `120` | 速率窗口（10s–1h） |
+| `maxActiveSessions` | `5` | 活跃会话/并发 subagent 告警阈值（≥ 时 HUD 亮警） |
+| `maxEventsPerSec` | `300` | 全局事件速率告警阈值（≥ 时 HUD 亮警） |
 
 ## HUD
 
@@ -50,8 +52,19 @@ pnpm add @linxin666/dsh-perf
 - 浏览器：FPS（近 1s）、Longtask（近 60s）。× 关闭后写 localStorage（`dsh-perf-hud-visible`）。
 - host 端点连续 3 次不可达时自动隐藏（无 host 半 / 未启用时静默降级）。
 
+## 多 subagent 场景
+
+每个 subagent 是一个独立流式会话：N 个并发 subagent = N 份逐 token 事件链
+（持久化批写 + ws 推送 + 前端渲染）。HUD 的 `active=` 会精确显示并发会话数，
+`topSessions` 给出每个流式会话的 events/s 与最后事件类型——超过
+`maxActiveSessions`（默认 5）时 HUD 亮警提示。
+
+观察发现（基于诊断采样）：事件链的单份成本来自逐 token 事件的
+firehose 扇出（写盘 + 推送各一份），而 firehose 在 dsh-session 内不可拦截；
+写批延迟是本插件能合法调节的降载旋钮（fsync 批频率），发射侧/推送帧聚合
+属于上游 PR 项（见下）。
+
 ## 边界与上游
 
 - `/api/dsh-perf/stats` 仅提供聚合指标，不含任何会话内容；loopback 守卫复用 shared/host/loopback.ts（同源 + 127/8 + same-origin markers）。
 - 逐 token 事件的"发射侧聚合"与"推送帧聚合"在 core（agent-loop / client-runtime）硬编码，插件不做破坏性替换。若 HUD 数据显示它们值得优化，向 dsh core 提 PR，本插件退化为"开关 + 验证器"。
-
