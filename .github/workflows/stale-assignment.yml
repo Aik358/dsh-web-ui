@@ -1,4 +1,4 @@
-name: Reassign stale assignments
+name: Reassign stale PR assignments
 
 on:
   schedule:
@@ -12,12 +12,12 @@ permissions:
 
 jobs:
   sweep:
-    name: Reassign stale items to the owner
+    name: Reassign stale PRs to the owner
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
     steps:
-      - name: Reassign items with an inactive assignee
+      - name: Reassign PRs with an inactive assignee
         uses: actions/github-script@v8
         with:
           script: |
@@ -74,12 +74,16 @@ jobs:
 
             let reassigned = 0;
             for (const item of items) {
+              const isPr = !!item.pull_request;
+              // Issues remain with the collaborator; only stale PR work escalates.
+              if (!isPr) {
+                continue;
+              }
               const login = item.assignee && item.assignee.login;
               if (!login || login === owner) {
                 continue;
               }
               const number = item.number;
-              const isPr = !!item.pull_request;
 
               let active = false;
               try {

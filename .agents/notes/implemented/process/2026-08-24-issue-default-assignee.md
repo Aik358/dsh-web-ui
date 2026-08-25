@@ -22,4 +22,4 @@ Recognized Issue categories therefore keep their existing route-specific assigne
 
 Unmatched new Issues now go to Aa728848, and a configuration-read failure still has Aa728848 as its safe hardcoded fallback. PR reviewer and assignee routing remains governed by the existing shared `defaultRoute`. The stale-assignment workflow already watches Aa728848 and escalates inactive open items to the repository owner after 14 days.
 
-The existing author-filter behavior remains: if the only configured assignee is the Issue author, the workflow leaves the Issue unassigned.
+The earlier Issue-only fallback decision is superseded by [separate Issue and PR assignment](2026-08-25-issue-pr-assignment-separation.md); the rationale for keeping `defaultRoute` independent of Issue assignment remains relevant to PR routing.

@@ -22,4 +22,4 @@ Issue 创建工作流与 PR 路由共用 `defaultRoute`。该路由会把没有�
 
 新建且未匹配分类的 Issue 现在会分配给 Aa728848；配置读取失败时也会使用 Aa728848 作为安全的硬编码兜底。PR 的审查者与负责人路由仍由现有共享 `defaultRoute` 控制。stale-assignment 工作流已经监控 Aa728848，并会在开放项目超过 14 天没有活动后将其升级给仓库所有者。
 
-现有的作者过滤行为保持不变：如果唯一配置的负责人就是 Issue 作者，工作流会让该 Issue 保持未分配状态。
+此前的 Issue 专用兜底决策已被[分离 Issue 与 PR 分配](2026-08-25-issue-pr-assignment-separation.zh.md)取代；保持 `defaultRoute` 独立于 Issue 分配的理由仍适用于 PR 路由。
