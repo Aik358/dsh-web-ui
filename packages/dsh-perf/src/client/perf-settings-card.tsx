@@ -14,8 +14,8 @@ export interface PerfSettings {
   mode?: string
   meterIntervalMs?: number
   statsWindowSeconds?: number
-  maxActiveSessions?: number
-  maxEventsPerSec?: number
+  alertPreset?: string
+  hudEnabled?: boolean
   renderDegrade?: boolean
 }
 
@@ -25,8 +25,8 @@ export interface PerfSettingsCardState extends CardShell {
   mode: CardFieldState
   meterIntervalMs: CardFieldState
   statsWindowSeconds: CardFieldState
-  maxActiveSessions: CardFieldState
-  maxEventsPerSec: CardFieldState
+  alertPreset: CardFieldState
+  hudEnabled: CardFieldState
   renderDegrade: CardFieldState
 }
 
@@ -48,8 +48,8 @@ export class PerfSettingsCardController {
       choiceField('mode', ['off', 'balanced', 'aggressive']),
       numberField('meterIntervalMs'),
       numberField('statsWindowSeconds'),
-      numberField('maxActiveSessions'),
-      numberField('maxEventsPerSec'),
+      choiceField('alertPreset', ['light', 'standard', 'strict']),
+      booleanField('hudEnabled'),
       booleanField('renderDegrade'),
     ])
     this.store = this.form.bind(() => this.projection())
@@ -62,8 +62,8 @@ export class PerfSettingsCardController {
       mode: this.form.field('mode'),
       meterIntervalMs: this.form.field('meterIntervalMs'),
       statsWindowSeconds: this.form.field('statsWindowSeconds'),
-      maxActiveSessions: this.form.field('maxActiveSessions'),
-      maxEventsPerSec: this.form.field('maxEventsPerSec'),
+      alertPreset: this.form.field('alertPreset'),
+      hudEnabled: this.form.field('hudEnabled'),
       renderDegrade: this.form.field('renderDegrade'),
     }
   }
@@ -143,25 +143,32 @@ export function PerfSettingsCard(props: PerfSettingsCardProps) {
         onEdit={(text) => { props.edit('renderDegrade', text) }}
         onReset={() => { props.resetField('renderDegrade') }}
       />
-      <ValueField
-        id="settings-perf-max-sessions"
-        label={t('settings.maxActiveSessions')}
-        hint={t('settings.maxActiveSessionsHint')}
-        numeric
+      <div>
+        <SelectField
+          id="settings-perf-alert-preset"
+          options={[
+            { label: t('settings.alertPresetLight'), value: 'light' },
+            { label: t('settings.alertPresetStandard'), value: 'standard' },
+            { label: t('settings.alertPresetStrict'), value: 'strict' },
+          ]}
+          value={state.alertPreset.text}
+          disabled={disabled}
+          invalid={state.alertPreset.invalid}
+          onEdit={(text) => { props.edit('alertPreset', text) }}
+        />
+        <p style={{ margin: '6px 0 0', opacity: 0.66, fontSize: '0.92em' }}>{t('settings.alertPresetHint')}</p>
+      </div>
+      <BooleanField
+        id="settings-perf-hud-enabled"
+        label={t('settings.hudEnabled')}
+        hint={t('settings.hudEnabledHint')}
+        inheritLabel={t('settings.inherit')}
+        onLabel={t('settings.on')}
+        offLabel={t('settings.off')}
         {...fieldProps}
-        {...state.maxActiveSessions}
-        onEdit={(text) => { props.edit('maxActiveSessions', text) }}
-        onReset={() => { props.resetField('maxActiveSessions') }}
-      />
-      <ValueField
-        id="settings-perf-max-events"
-        label={t('settings.maxEventsPerSec')}
-        hint={t('settings.maxEventsPerSecHint')}
-        numeric
-        {...fieldProps}
-        {...state.maxEventsPerSec}
-        onEdit={(text) => { props.edit('maxEventsPerSec', text) }}
-        onReset={() => { props.resetField('maxEventsPerSec') }}
+        {...state.hudEnabled}
+        onEdit={(text) => { props.edit('hudEnabled', text) }}
+        onReset={() => { props.resetField('hudEnabled') }}
       />
     </PluginSettingsCard>
   )

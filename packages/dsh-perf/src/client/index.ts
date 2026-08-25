@@ -80,26 +80,38 @@ export function apply(ctx: ClientContext): void {
     const binder = ctx.get('webUiSettings') ?? ctx.settingsScope
     perfScope = binder.bind<PerfSettings>({ namespace: NS })
   } catch { /* 无设置面时按默认开启 */ }
-  // 渲染降载开关: 统一走插件设置命名空间(不再是 localStorage)。
+  // 渲染降载/HUD 开关: 统一走插件设置命名空间。
   let renderDegrade = true
-  const refreshRenderDegrade = (): void => {
+  let hudOn = false
+  let hudDispose: (() => void) | undefined
+  const refreshClientSwitches = (): void => {
+    let snapshotValue: PerfSettings | undefined
     try {
       const snapshot = perfScope?.getSnapshot()
-      renderDegrade = snapshot?.status === 'ready' ? (snapshot.value?.renderDegrade ?? true) : true
-    } catch { renderDegrade = true }
+      if (snapshot?.status === 'ready') snapshotValue = snapshot.value as PerfSettings
+    } catch { /* noop */ }
+    renderDegrade = snapshotValue?.renderDegrade ?? true
+    const nextHudOn = snapshotValue?.hudEnabled ?? false
+    if (nextHudOn === hudOn) return
+    hudOn = nextHudOn
+    try {
+      if (hudOn && hudDispose === undefined) {
+        hudDispose = boot(isEnabled)
+      } else if (!hudOn && hudDispose !== undefined) {
+        hudDispose()
+        hudDispose = undefined
+      }
+    } catch (error) {
+      console.debug('[dsh-perf] HUD boot degraded:', error)
+    }
   }
-  try { refreshRenderDegrade(); perfScope?.subscribe(refreshRenderDegrade) } catch { /* noop */ }
   const isEnabled = (): boolean => {
     try {
       const snapshot = perfScope?.getSnapshot()
       return snapshot?.status === 'ready' ? (snapshot.value?.enabled ?? true) : true
     } catch { return true }
   }
-  try {
-    boot(isEnabled)
-  } catch (error) {
-    console.debug('[dsh-perf] HUD boot degraded:', error)
-  }
+  try { refreshClientSwitches(); perfScope?.subscribe(refreshClientSwitches) } catch { /* noop */ }
   // 词典: 设置卡文案。
   try {
     ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-perf: dictionaries')
@@ -158,9 +170,9 @@ export function apply(ctx: ClientContext): void {
   }
 }
 
-function boot(isEnabled: () => boolean): void {
+function boot(isEnabled: () => boolean): () => void {
   const host = document.documentElement
-  if (host === null || host === undefined) return
+  if (host === null || host === undefined) return () => {}
 
   const root = document.createElement('div')
   root.dataset.dshPerf = 'hud'
@@ -347,5 +359,6 @@ function boot(isEnabled: () => boolean): void {
   }
   applyCollapse()
   void poll()
-  setInterval(poll, POLL_MS)
+  const timer = setInterval(poll, POLL_MS)
+  return () => { clearInterval(timer) }
 }

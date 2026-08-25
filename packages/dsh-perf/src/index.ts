@@ -15,8 +15,10 @@ export interface Config {
   mode?: string
   meterIntervalMs?: number
   statsWindowSeconds?: number
-  maxActiveSessions?: number
-  maxEventsPerSec?: number
+  /** 告警阈值预设: light(减轻)/standard(标准)/strict(严格)。 */
+  alertPreset?: string
+  /** HUD 检测面板(客户端消费, host schema 承载): 默认关闭。 */
+  hudEnabled?: boolean
   /** 客户端消息渲染降载(P1 shadow)开关, 由 client 消费, host 只做 schema 承载。 */
   renderDegrade?: boolean
 }
@@ -26,8 +28,8 @@ export const Config: z<Config> = z.object({
   mode: z.string().default('balanced'),
   meterIntervalMs: z.number().min(1000).max(60000).default(2000),
   statsWindowSeconds: z.number().min(10).max(3600).default(120),
-  maxActiveSessions: z.number().min(1).max(100).default(5),
-  maxEventsPerSec: z.number().min(10).max(100000).default(300),
+  alertPreset: z.string().default('standard'),
+  hudEnabled: z.boolean().default(false),
   renderDegrade: z.boolean().default(true),
 })
 
@@ -38,7 +40,15 @@ export interface ResolvedConfig {
   statsWindowSeconds: number
   maxActiveSessions: number
   maxEventsPerSec: number
+  hudEnabled: boolean
   renderDegrade: boolean
+}
+
+/** 告警阈值预设: 轻/标准/严格 → 会话数与事件速率。 */
+const ALERT_PRESETS: Readonly<Record<string, { sessions: number; eventsPerSec: number }>> = {
+  light: { sessions: 10, eventsPerSec: 1000 },
+  standard: { sessions: 5, eventsPerSec: 300 },
+  strict: { sessions: 3, eventsPerSec: 150 },
 }
 
 export function resolveConfig(config?: Config): ResolvedConfig {
@@ -47,8 +57,12 @@ export function resolveConfig(config?: Config): ResolvedConfig {
     mode: config?.mode === 'off' || config?.mode === 'aggressive' || config?.mode === 'balanced' ? config.mode : 'balanced',
     meterIntervalMs: config?.meterIntervalMs ?? 2000,
     statsWindowSeconds: config?.statsWindowSeconds ?? 120,
-    maxActiveSessions: config?.maxActiveSessions ?? 5,
-    maxEventsPerSec: config?.maxEventsPerSec ?? 300,
+    ...(() => {
+      const preset = typeof config?.alertPreset === 'string' && config.alertPreset in ALERT_PRESETS ? config.alertPreset : 'standard'
+      const mapped = ALERT_PRESETS[preset]
+      return { maxActiveSessions: mapped.sessions, maxEventsPerSec: mapped.eventsPerSec }
+    })(),
+    hudEnabled: config?.hudEnabled ?? false,
     renderDegrade: config?.renderDegrade ?? true,
   }
 }
