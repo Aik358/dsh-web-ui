@@ -80,6 +80,15 @@ export function apply(ctx: ClientContext): void {
     const binder = ctx.get('webUiSettings') ?? ctx.settingsScope
     perfScope = binder.bind<PerfSettings>({ namespace: NS })
   } catch { /* 无设置面时按默认开启 */ }
+  // 渲染降载开关: 统一走插件设置命名空间(不再是 localStorage)。
+  let renderDegrade = true
+  const refreshRenderDegrade = (): void => {
+    try {
+      const snapshot = perfScope?.getSnapshot()
+      renderDegrade = snapshot?.status === 'ready' ? (snapshot.value?.renderDegrade ?? true) : true
+    } catch { renderDegrade = true }
+  }
+  try { refreshRenderDegrade(); perfScope?.subscribe(refreshRenderDegrade) } catch { /* noop */ }
   const isEnabled = (): boolean => {
     try {
       const snapshot = perfScope?.getSnapshot()
@@ -138,7 +147,7 @@ export function apply(ctx: ClientContext): void {
           key: 'assistant-step',
           priority: -1,
           locale: NS,
-        }, makePerfAssistantShadow(official))
+        }, makePerfAssistantShadow(official, () => renderDegrade))
         return () => { unregister() }
       } catch {
         return () => {}

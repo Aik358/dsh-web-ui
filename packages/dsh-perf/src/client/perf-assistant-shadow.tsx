@@ -36,10 +36,6 @@ export interface ShadowOwner {
 
 const DEFAULT_THRESHOLD = 20000
 
-function shadowEnabled(): boolean {
-  try { return localStorage.getItem('dsh-perf-shadow') !== 'off' } catch { return true }
-}
-
 function threshold(): number {
   try {
     const value = Number(localStorage.getItem('dsh-perf-shadow-threshold'))
@@ -95,13 +91,19 @@ function DegradedBlocks(props: ShadowOwner, onExpand: () => void): JSX.Element |
   )
 }
 
-/** Build the shadow component around the captured official renderer. */
-export function makePerfAssistantShadow(official: ComponentType<ShadowOwner> | undefined): ComponentType<ShadowOwner> {
+/** Build the shadow component around the captured official renderer.
+ * @param official - captured official assistant-step renderer (undefined = fail-safe degrade).
+ * @param enabled - plugin setting (dsh-perf renderDegrade) reader; light nodes always forward official.
+ */
+export function makePerfAssistantShadow(
+  official: ComponentType<ShadowOwner> | undefined,
+  enabled: () => boolean = (): boolean => true,
+): ComponentType<ShadowOwner> {
   const Shadow = memo(function PerfAssistantShadow(props: ShadowOwner) {
     const [expanded, setExpanded] = useState(false)
     const isAssistant = props.node?.kind === 'assistant-step'
     const blocks = props.node?.data?.blocks ?? []
-    const heavy = shadowEnabled() && isAssistant && !expanded && blockChars(blocks) > threshold()
+    const heavy = enabled() && isAssistant && !expanded && blockChars(blocks) > threshold()
     if (!heavy && official !== undefined) {
       // 轻节点: 透传转发官方(相同 owner/inject 面, 零行为差异)。
       return createElement(official, props)

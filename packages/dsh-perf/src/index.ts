@@ -17,6 +17,8 @@ export interface Config {
   statsWindowSeconds?: number
   maxActiveSessions?: number
   maxEventsPerSec?: number
+  /** 客户端消息渲染降载(P1 shadow)开关, 由 client 消费, host 只做 schema 承载。 */
+  renderDegrade?: boolean
 }
 
 export const Config: z<Config> = z.object({
@@ -26,6 +28,7 @@ export const Config: z<Config> = z.object({
   statsWindowSeconds: z.number().min(10).max(3600).default(120),
   maxActiveSessions: z.number().min(1).max(100).default(5),
   maxEventsPerSec: z.number().min(10).max(100000).default(300),
+  renderDegrade: z.boolean().default(true),
 })
 
 export interface ResolvedConfig {
@@ -35,6 +38,7 @@ export interface ResolvedConfig {
   statsWindowSeconds: number
   maxActiveSessions: number
   maxEventsPerSec: number
+  renderDegrade: boolean
 }
 
 export function resolveConfig(config?: Config): ResolvedConfig {
@@ -45,6 +49,7 @@ export function resolveConfig(config?: Config): ResolvedConfig {
     statsWindowSeconds: config?.statsWindowSeconds ?? 120,
     maxActiveSessions: config?.maxActiveSessions ?? 5,
     maxEventsPerSec: config?.maxEventsPerSec ?? 300,
+    renderDegrade: config?.renderDegrade ?? true,
   }
 }
 

@@ -5,8 +5,8 @@
  */
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SettingsScope, SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
-import { PluginSettingsCard, ValueField, BooleanField } from './plugin-settings-card.tsx'
-import { CardForm, booleanField, numberField, textField, type CardActions, type CardShell, type FieldState as CardFieldState } from './settings-form.ts'
+import { PluginSettingsCard, ValueField, BooleanField, SelectField } from './plugin-settings-card.tsx'
+import { CardForm, booleanField, choiceField, numberField, type CardActions, type CardShell, type FieldState as CardFieldState } from './settings-form.ts'
 
 /** The dsh-perf settings namespace shape (mirrors the host Config schema). */
 export interface PerfSettings {
@@ -16,6 +16,7 @@ export interface PerfSettings {
   statsWindowSeconds?: number
   maxActiveSessions?: number
   maxEventsPerSec?: number
+  renderDegrade?: boolean
 }
 
 /** What the card renders. */
@@ -26,6 +27,7 @@ export interface PerfSettingsCardState extends CardShell {
   statsWindowSeconds: CardFieldState
   maxActiveSessions: CardFieldState
   maxEventsPerSec: CardFieldState
+  renderDegrade: CardFieldState
 }
 
 /** Registration-side face injected by the slot entry. */
@@ -43,11 +45,12 @@ export class PerfSettingsCardController {
   constructor(scope: SettingsScope<PerfSettings>) {
     this.form = new CardForm(scope, [
       booleanField('enabled'),
-      textField('mode'),
+      choiceField('mode', ['off', 'balanced', 'aggressive']),
       numberField('meterIntervalMs'),
       numberField('statsWindowSeconds'),
       numberField('maxActiveSessions'),
       numberField('maxEventsPerSec'),
+      booleanField('renderDegrade'),
     ])
     this.store = this.form.bind(() => this.projection())
   }
@@ -61,6 +64,7 @@ export class PerfSettingsCardController {
       statsWindowSeconds: this.form.field('statsWindowSeconds'),
       maxActiveSessions: this.form.field('maxActiveSessions'),
       maxEventsPerSec: this.form.field('maxEventsPerSec'),
+      renderDegrade: this.form.field('renderDegrade'),
     }
   }
 
@@ -112,14 +116,32 @@ export function PerfSettingsCard(props: PerfSettingsCardProps) {
         onEdit={(text) => { props.edit('enabled', text) }}
         onReset={() => { props.resetField('enabled') }}
       />
-      <ValueField
-        id="settings-perf-mode"
-        label={t('settings.mode')}
-        hint={t('settings.modeHint')}
+      <div>
+        <SelectField
+          id="settings-perf-mode"
+          options={[
+            { label: t('settings.modeOff'), value: 'off' },
+            { label: t('settings.modeBalanced'), value: 'balanced' },
+            { label: t('settings.modeAggressive'), value: 'aggressive' },
+          ]}
+          value={state.mode.text}
+          disabled={disabled}
+          invalid={state.mode.invalid}
+          onEdit={(text) => { props.edit('mode', text) }}
+        />
+        <p style={{ margin: '6px 0 0', opacity: 0.66, fontSize: '0.92em' }}>{t('settings.modeHint')}</p>
+      </div>
+      <BooleanField
+        id="settings-perf-render-degrade"
+        label={t('settings.renderDegrade')}
+        hint={t('settings.renderDegradeHint')}
+        inheritLabel={t('settings.inherit')}
+        onLabel={t('settings.on')}
+        offLabel={t('settings.off')}
         {...fieldProps}
-        {...state.mode}
-        onEdit={(text) => { props.edit('mode', text) }}
-        onReset={() => { props.resetField('mode') }}
+        {...state.renderDegrade}
+        onEdit={(text) => { props.edit('renderDegrade', text) }}
+        onReset={() => { props.resetField('renderDegrade') }}
       />
       <ValueField
         id="settings-perf-max-sessions"
