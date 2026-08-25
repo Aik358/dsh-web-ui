@@ -172,6 +172,14 @@ describe('DoctorApi.status', () => {
     await api.status()
     expect(String(fetchSeam.mock.calls[0]![0])).toBe('http://loopback.test/status')
   })
+
+  it('defaults the base to the loopback /api/doctor prefix', async () => {
+    const fetchSeam = vi.fn(async (_url: string) => jsonResponse(200, supervisorBody()))
+    const api = new DoctorApi({ fetch: fetchSeam })
+    const result = await api.status()
+    expect(result.ok).toBe(true)
+    expect(String(fetchSeam.mock.calls[0]![0])).toBe('/api/doctor/status')
+  })
 })
 
 describe('DoctorApi.action', () => {

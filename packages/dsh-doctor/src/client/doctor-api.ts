@@ -192,7 +192,7 @@ export class DoctorApi {
 
   constructor(deps?: { fetch?: DoctorFetch; base?: string }) {
     this.fetch = deps?.fetch ?? defaultFetch
-    this.base = deps?.base ?? ''
+    this.base = deps?.base ?? DOCTOR_API_BASE
   }
 
   /** GET /api/doctor/status (supervisor snapshot). */
