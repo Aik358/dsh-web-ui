@@ -86,6 +86,15 @@ export function shellRenderingCss(): string {
       padding-bottom: 0 !important;
       scroll-padding-bottom: var(--dsh-composer-height, ${DEFAULT_COMPOSER_CLEARANCE_PX}px) !important;
     }
+    /* #1117: The upstream recommended badge pairs two background-fill tokens
+       as bg + text — in dark mode, skins like Blue Fantasy collapse them to
+       near-identical dark navy values (contrast ~1:1). Override the text
+       color to a readable foreground and tweak the background for contrast. */
+    body[data-ds-dark-theme] ${scoped('[data-question-key] [class*="_badge"]')},
+    body[data-ds-dark-theme] ${scoped('[data-question-scroll] [class*="_badge"]')} {
+      color: var(--dsw-alias-label-primary, #ffffff) !important;
+      background: var(--dsw-alias-interactive-bg-active, color-mix(in srgb, var(--dsw-alias-button-info-fill, #4a5fa8) 50%, transparent)) !important;
+    }
   `
 }
 
