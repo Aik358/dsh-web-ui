@@ -89,15 +89,16 @@ describe('desktop file rendering', () => {
     expect(withIcon).not.toContain('Icon=utilities-terminal')
   })
 
-  it('renders a Windows shortcut installer with the icon location', () => {
+  it('renders a Windows shortcut installer with the icon location and working directory', () => {
     const ps = renderShortcutInstaller({
       launcherPath: 'C:/Users/u/.dsh/desktop-launcher/launcher.ps1',
       desktopPath: 'C:/Users/u/Desktop/DSH.lnk',
-      homeDir: 'C:/Users/u',
+      workingDirectory: 'C:/Users/u/.dsh/desktop-launcher',
       iconLocation: 'C:/Users/u/.dsh/desktop-launcher/dsh.ico',
     })
     expect(ps).toContain("$shortcut.TargetPath = 'powershell.exe'")
     expect(ps).toContain('-WindowStyle Hidden -File C:/Users/u/.dsh/desktop-launcher/launcher.ps1')
+    expect(ps).toContain("$shortcut.WorkingDirectory = 'C:/Users/u/.dsh/desktop-launcher'")
     expect(ps).toContain("$shortcut.IconLocation = 'C:/Users/u/.dsh/desktop-launcher/dsh.ico'")
     expect(ps).toContain("$shortcut.Save()")
   })
@@ -109,6 +110,7 @@ describe('desktop file rendering', () => {
       homeDir: 'C:/',
       iconLocation: 'powershell.exe,0',
     })
+    expect(ps).toContain("$shortcut.WorkingDirectory = 'C:/'")
     expect(ps).toContain("$shortcut.IconLocation = 'powershell.exe,0'")
   })
 })

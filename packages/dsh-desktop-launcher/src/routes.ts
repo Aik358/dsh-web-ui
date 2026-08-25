@@ -172,7 +172,7 @@ export async function createDesktopShortcut(deps: LauncherRoutesDeps): Promise<C
     const installerPath = join(scriptsDir, 'install-shortcut.ps1')
     // The installer embeds user paths and may contain non-ASCII characters;
     // Windows PowerShell 5.1 requires a BOM to decode it as UTF-8.
-    await writeFile(installerPath, '\uFEFF' + renderShortcutInstaller({ launcherPath, desktopPath: iconPath, homeDir: home, iconLocation: iconIco ?? 'powershell.exe,0' }))
+    await writeFile(installerPath, '\uFEFF' + renderShortcutInstaller({ launcherPath, desktopPath: iconPath, workingDirectory: scriptsDir, iconLocation: iconIco ?? 'powershell.exe,0' }))
     const result = await run('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', installerPath])
     if (result.code !== 0) throw new Error(`shortcut creation failed: ${result.stderr}`)
   } else if (platform === 'darwin') {
