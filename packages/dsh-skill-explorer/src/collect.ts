@@ -261,25 +261,30 @@ export async function collectSkills(options: CollectOptions): Promise<CollectRes
 
   // Registry supplement: same-name skills get whenToUse / invocation flags
   // filled in; registry-only skills (bundled / runtime) join as-is.
+  // Query the registry for primary cwd and any other active project roots so
+  // project-level providers are captured.
+  const snapshotCwds = new Set<string>([cwd, ...roots])
   let complete = true
-  try {
-    const snapshot = await registry.snapshot({ cwd })
-    complete = snapshot.complete
-    for (const skill of snapshot.skills) {
-      const existing = byName.get(skill.name)
-      const serialized = serializeRegistry(skill)
-      if (existing === undefined) {
-        byName.set(skill.name, serialized)
-      } else {
-        if (serialized.whenToUse !== undefined) existing.whenToUse = serialized.whenToUse
-        if (serialized.provider !== undefined) existing.provider = serialized.provider
-        existing.modelInvocable = serialized.modelInvocable
-        existing.userInvocable = serialized.userInvocable
+  for (const snapshotCwd of snapshotCwds) {
+    try {
+      const snapshot = await registry.snapshot({ cwd: snapshotCwd })
+      if (snapshot.complete !== true) complete = false
+      for (const skill of snapshot.skills) {
+        const existing = byName.get(skill.name)
+        const serialized = serializeRegistry(skill)
+        if (existing === undefined) {
+          byName.set(skill.name, serialized)
+        } else {
+          if (serialized.whenToUse !== undefined) existing.whenToUse = serialized.whenToUse
+          if (serialized.provider !== undefined) existing.provider = serialized.provider
+          existing.modelInvocable = serialized.modelInvocable
+          existing.userInvocable = serialized.userInvocable
+        }
       }
+    } catch {
+      // Registry unavailable: the filesystem result still stands.
+      complete = false
     }
-  } catch {
-    // Registry unavailable: the filesystem result still stands.
-    complete = false
   }
   return { skills: [...byName.values()], complete }
 }

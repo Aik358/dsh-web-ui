@@ -74,10 +74,19 @@ export function makeRoutes(ctx: Context, deps: SkillRoutesDeps): WebRoute[] {
     return true
   }
 
+  /** Active session cwd list (degraded to [] when sessions throw). */
+  const safeSessionCwds = (): string[] => {
+    try {
+      return activeSessionCwds()
+    } catch {
+      return []
+    }
+  }
+
   /** Active session project roots (degraded to [] when sessions throw). */
   const sessionProjectRoots = (): string[] => {
     try {
-      return activeSessionCwds().map((sessionCwd) => findProjectRoot(sessionCwd))
+      return safeSessionCwds().map((sessionCwd) => findProjectRoot(sessionCwd))
     } catch {
       return []
     }
@@ -128,7 +137,8 @@ export function makeRoutes(ctx: Context, deps: SkillRoutesDeps): WebRoute[] {
           const url = new URL(req.url ?? '/', 'http://x')
           // Project root base: explicit ?cwd= first, then active session
           // workspaces, process.cwd() last.
-          const cwd = queryParam(url, 'cwd') ?? DEFAULT_CWD()
+          const sessionCwds = safeSessionCwds()
+          const cwd = queryParam(url, 'cwd') ?? sessionCwds[0] ?? DEFAULT_CWD()
           const projectRoots = sessionProjectRoots()
           const { skills, complete } = await collectSkills(collectOptions(cwd))
           writeJson(res, 200, buildPayload(skills, complete, cwd, [...new Set(projectRoots)]))

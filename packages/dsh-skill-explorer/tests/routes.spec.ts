@@ -182,6 +182,23 @@ describe('/api/dsh-skill-explorer trust fence', () => {
     expect(names).toContain('user-tool')
   })
 
+  it('uses activeSessionCwds when no explicit cwd query param is provided (#1139)', async () => {
+    const activeCwd = '/virtual/active-project'
+    const snapshotFn = vi.fn().mockResolvedValue({ skills: [{ name: 'project-skill', description: 'desc', source: 'other:project-config' }], complete: true })
+    const activeRoutes = makeRoutes(emptyCtx, {
+      ...deps,
+      activeSessionCwds: () => [activeCwd],
+      registry: { snapshot: snapshotFn },
+    })
+    const list = activeRoutes.find((r) => r.path === ROUTES.list)!
+    const { res, status, body } = response()
+    await list.handler(request(ROUTES.list, 'GET'), res)
+    expect(status()).toBe(200)
+    const payload = JSON.parse(body())
+    expect(payload.cwd).toBe(activeCwd)
+    expect(snapshotFn).toHaveBeenCalledWith(expect.objectContaining({ cwd: activeCwd }))
+  })
+
   it('serves health with a skill count', async () => {
     const { res, status, body } = response()
     await find(ROUTES.health)!.handler(request(ROUTES.health, 'GET'), res)

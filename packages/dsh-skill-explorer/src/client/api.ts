@@ -47,8 +47,11 @@ export class ApiError extends Error {}
 /** Skill center API client. */
 export class SkillApi {
   /** Fetch the grouped skill list. */
-  async list(): Promise<ListPayload> {
-    return this.request<ListPayload>(API.list)
+  async list(cwd?: string): Promise<ListPayload> {
+    const url = typeof cwd === 'string' && cwd.trim() !== ''
+      ? `${API.list}?cwd=${encodeURIComponent(cwd)}`
+      : API.list
+    return this.request<ListPayload>(url)
   }
 
   /** Enable or disable a skill (rewrites disable-model-invocation). */

@@ -126,6 +126,31 @@ describe('collectSkills', () => {
     expect(complete).toBe(false)
     expect(skills.some((s) => s.name === 'poc-first')).toBe(true)
   })
+
+  it('queries registry snapshot for all project roots (#1139)', async () => {
+    const calledCwds: string[] = []
+    const multiRegistry = {
+      snapshot: async ({ cwd }: { cwd: string }) => {
+        calledCwds.push(cwd)
+        if (cwd === '/virtual/proj-b') {
+          return { skills: [{ name: 'proj-b-skill', description: 'from project b', source: 'other:project-config' }], complete: true }
+        }
+        return { skills: [], complete: true }
+      },
+    }
+    const { skills, complete } = await collectSkills({
+      cwd: PROJ,
+      projectRoots: [PROJ, '/virtual/proj-b'],
+      customSkillDirs: [],
+      dshHome: HOME,
+      agentsHome: AGENTS,
+      registry: multiRegistry as never,
+    })
+    expect(complete).toBe(true)
+    expect(calledCwds).toContain(PROJ)
+    expect(calledCwds).toContain('/virtual/proj-b')
+    expect(skills.some((s) => s.name === 'proj-b-skill')).toBe(true)
+  })
 })
 
 describe('cross-root precedence', () => {
