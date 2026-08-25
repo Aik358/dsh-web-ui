@@ -60,5 +60,4 @@ pnpm add @linxin666/dsh-perf
 ## 边界与上游
 
 - `/api/dsh-perf/stats` 仅提供聚合指标（不含会话内容）；loopback 守卫复用 shared/host/loopback.ts（同源 + 127/8 + sec-fetch 标记）。
-- 发射侧聚合与推送帧批量在 core（agent-loop / client-runtime），插件不做破坏性替换；实测证据在 repo 的 docs/dsh-perf-upstream-proposal.md（内部研究，不走上游 PR）。
-
+- 发射侧聚合与推送帧批量在 core（agent-loop / client-runtime），插件不做破坏性替换；实测证据在 repo 的 docs/dsh-perf-optimization-report.md（内部研究，不走上游 PR）。

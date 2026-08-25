@@ -60,5 +60,4 @@ Restart `dsh web` (Web mode does not enable HMR at load time) for the host half;
 ## Boundaries / upstream
 
 - `/api/dsh-perf/stats` serves aggregates only (no session content); loopback guard from shared/host/loopback.ts (same-origin + 127/8 + sec-fetch markers).
-- Emission-side aggregation and push-frame batching live in core (agent-loop / client-runtime) — out of the plugin scope by design; measured evidence lives in docs/dsh-perf-upstream-proposal.md (internal research, not upstream PRs).
-
+- Emission-side aggregation and push-frame batching live in core (agent-loop / client-runtime) — out of the plugin scope by design; measured evidence lives in docs/dsh-perf-optimization-report.md (internal research, not upstream PRs).
