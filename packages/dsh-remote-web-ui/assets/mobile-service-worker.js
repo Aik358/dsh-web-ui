@@ -1,9 +1,8 @@
 /* PWA worker for the standalone /m mobile shell. */
-const CACHE_NAME = 'dsh-remote-mobile-shell-v1'
+const CACHE_NAME = 'dsh-remote-mobile-shell-v2'
 const OFFLINE_URL = '/m/offline.html'
 const SHELL_PATHS = new Set([
   '/m/',
-  '/m/mobile.js',
   '/m/manifest.webmanifest',
   '/m/apple-touch-icon.png',
   '/m/icon-192.png',

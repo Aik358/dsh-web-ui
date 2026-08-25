@@ -5,10 +5,10 @@
 }
 
 :root, body[data-ds-dark-theme] {
-  --dsw-alias-bg-base: #141a2eb3;
-  --dsw-alias-bg-layer-1: #181f36b3;
-  --dsw-alias-bg-layer-2: #1d2540b8;
-  --dsw-alias-bg-layer-3: #222b4ac7;
+  --dsw-alias-bg-base: rgba(20, 26, 46, calc(var(--dsw-skin-scrim, 0) * .5));
+  --dsw-alias-bg-layer-1: rgba(24, 31, 54, calc(.4 + var(--dsw-skin-scrim, 0) * .4));
+  --dsw-alias-bg-layer-2: rgba(29, 37, 64, calc(.45 + var(--dsw-skin-scrim, 0) * .35));
+  --dsw-alias-bg-layer-3: rgba(34, 43, 74, calc(.5 + var(--dsw-skin-scrim, 0) * .35));
   --dsw-alias-bg-overlay: #2a3357d1;
   --dsw-alias-bg-module-platform: #222b4ac7;
   --dsw-alias-bg-multi-select: #222b4ac7;

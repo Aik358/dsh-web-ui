@@ -1,5 +1,5 @@
-/** PWA routes for the standalone /m mobile surface. */
 import { createServer, request as httpRequest } from 'node:http'
+import { gunzipSync } from 'node:zlib'
 import { describe, expect, it } from 'vitest'
 import type { AddressInfo } from 'node:net'
 import type { IncomingHttpHeaders } from 'node:http'
@@ -44,9 +44,9 @@ async function serve(routes: WebRoute[]): Promise<TestServer> {
   }
 }
 
-async function get(port: number, path: string): Promise<GetResponse> {
+async function get(port: number, path: string, headers: Record<string, string> = {}): Promise<GetResponse> {
   return await new Promise((resolve, reject) => {
-    const req = httpRequest({ host: '127.0.0.1', port, path, method: 'GET' }, (response) => {
+    const req = httpRequest({ host: '127.0.0.1', port, path, method: 'GET', headers }, (response) => {
       const chunks: Buffer[] = []
       response.on('data', (chunk) => { chunks.push(chunk as Buffer) })
       response.on('end', () => {
@@ -70,6 +70,18 @@ async function getBytes(port: number, path: string): Promise<Buffer> {
       const chunks: Buffer[] = []
       response.on('data', (chunk) => { chunks.push(chunk as Buffer) })
       response.on('end', () => resolve(Buffer.concat(chunks)))
+    })
+    req.on('error', reject)
+    req.end()
+  })
+}
+
+async function getBinary(port: number, path: string, headers: Record<string, string> = {}): Promise<{ headers: IncomingHttpHeaders; body: Buffer }> {
+  return await new Promise((resolve, reject) => {
+    const req = httpRequest({ host: '127.0.0.1', port, path, method: 'GET', headers }, (response) => {
+      const chunks: Buffer[] = []
+      response.on('data', (chunk) => { chunks.push(chunk as Buffer) })
+      response.on('end', () => resolve({ headers: response.headers, body: Buffer.concat(chunks) }))
     })
     req.on('error', reject)
     req.end()
@@ -168,13 +180,21 @@ describe('mobile routes', () => {
     }
   })
 
-  it('serves the built mobile bundle at /m/mobile.js', async () => {
+  it('serves the built mobile bundle at /m/mobile.js with optional gzip compression (#1066)', async () => {
     const server = await serve(makeMobileRoutes())
     try {
       const bundle = await get(server.port, '/m/mobile.js')
       expect(bundle.status).toBe(200)
       expect(bundle.type).toContain('text/javascript')
+      expect(bundle.headers['vary']).toBe('Accept-Encoding')
       expect(bundle.body.length).toBeGreaterThan(1_000)
+
+      const gzipRes = await getBinary(server.port, '/m/mobile.js', { 'accept-encoding': 'gzip, deflate' })
+      expect(gzipRes.headers['content-encoding']).toBe('gzip')
+      expect(gzipRes.headers['vary']).toBe('Accept-Encoding')
+      expect(gzipRes.body.length).toBeLessThan(bundle.body.length)
+      const decompressed = gunzipSync(gzipRes.body).toString('utf8')
+      expect(decompressed).toBe(bundle.body)
     } finally {
       await server.close()
     }

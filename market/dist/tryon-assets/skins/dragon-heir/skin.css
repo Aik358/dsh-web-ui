@@ -14,10 +14,10 @@ html[data-dsh-skin="dragon-heir"] body[data-ds-dark-theme] {
 
 html[data-dsh-skin="dragon-heir"] {
   --dsh-accent: #c3272b;
-  --dsw-alias-bg-base: #faf7f057;
-  --dsw-alias-bg-layer-1: #f4efe461;
-  --dsw-alias-bg-layer-2: #ede5d56e;
-  --dsw-alias-bg-layer-3: #e5dac67a;
+  --dsw-alias-bg-base: rgba(250, 247, 240, calc(var(--dsw-skin-scrim, 0) * .5));
+  --dsw-alias-bg-layer-1: rgba(244, 239, 228, calc(.35 + var(--dsw-skin-scrim, 0) * .45));
+  --dsw-alias-bg-layer-2: rgba(237, 229, 213, calc(.4 + var(--dsw-skin-scrim, 0) * .4));
+  --dsw-alias-bg-layer-3: rgba(229, 218, 198, calc(.45 + var(--dsw-skin-scrim, 0) * .35));
   --dsw-alias-bg-mask-1: #26231952;
   --dsw-alias-bg-mask-2: #26231926;
   --dsw-alias-bg-mask-3: #26231966;
@@ -196,10 +196,10 @@ html[data-dsh-skin="dragon-heir"] {
 
 html[data-dsh-skin="dragon-heir"] body {
   --dsh-accent: #c3272b;
-  --dsw-alias-bg-base: #faf7f057;
-  --dsw-alias-bg-layer-1: #f4efe461;
-  --dsw-alias-bg-layer-2: #ede5d56e;
-  --dsw-alias-bg-layer-3: #e5dac67a;
+  --dsw-alias-bg-base: rgba(250, 247, 240, calc(var(--dsw-skin-scrim, 0) * .5));
+  --dsw-alias-bg-layer-1: rgba(244, 239, 228, calc(.35 + var(--dsw-skin-scrim, 0) * .45));
+  --dsw-alias-bg-layer-2: rgba(237, 229, 213, calc(.4 + var(--dsw-skin-scrim, 0) * .4));
+  --dsw-alias-bg-layer-3: rgba(229, 218, 198, calc(.45 + var(--dsw-skin-scrim, 0) * .35));
   --dsw-alias-bg-mask-1: #26231952;
   --dsw-alias-bg-mask-2: #26231926;
   --dsw-alias-bg-mask-3: #26231966;
@@ -289,10 +289,10 @@ html[data-dsh-skin="dragon-heir"] body {
 
 html[data-dsh-skin="dragon-heir"] body[data-ds-dark-theme] {
   --dsh-accent: #c8a24a;
-  --dsw-alias-bg-base: #12161f57;
-  --dsw-alias-bg-layer-1: #1a213066;
-  --dsw-alias-bg-layer-2: #21293c75;
-  --dsw-alias-bg-layer-3: #28324780;
+  --dsw-alias-bg-base: rgba(18, 22, 31, calc(var(--dsw-skin-scrim, 0) * .5));
+  --dsw-alias-bg-layer-1: rgba(26, 33, 48, calc(.35 + var(--dsw-skin-scrim, 0) * .45));
+  --dsw-alias-bg-layer-2: rgba(33, 41, 60, calc(.4 + var(--dsw-skin-scrim, 0) * .4));
+  --dsw-alias-bg-layer-3: rgba(40, 50, 71, calc(.45 + var(--dsw-skin-scrim, 0) * .35));
   --dsw-alias-bg-mask-1: #00000073;
   --dsw-alias-bg-mask-2: #00000038;
   --dsw-alias-bg-mask-3: #00000080;

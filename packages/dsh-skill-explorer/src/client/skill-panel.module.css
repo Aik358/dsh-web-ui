@@ -41,7 +41,8 @@
 }
 
 /* Collapsed rail: icon-only, centered, matching the shell's 56px rail. */
-:global([data-dsh-frame][data-sidebar-collapsed]) .entry {
+:global([data-dsh-frame][data-sidebar-collapsed]) .entry,
+:global([data-sidebar-collapsed]) .entry {
   justify-content: center;
   width: 36px;
   height: 36px;
@@ -50,7 +51,8 @@
   border-radius: 50%;
 }
 
-:global([data-dsh-frame][data-sidebar-collapsed]) .entryLabel {
+:global([data-dsh-frame][data-sidebar-collapsed]) .entryLabel,
+:global([data-sidebar-collapsed]) .entryLabel {
   display: none;
 }
 
@@ -372,70 +374,64 @@ body[data-ds-dark-theme] .formButton:hover {
 }
 
 /* ---- Dark theme overrides ----
- * The --dsw-alias-* fallbacks above are light-palette values; several of
- * the semantic tokens they fall back to (state-business/success-*,
- * bg-layer-1) are absent from the dark palette, so the light colors leak
- * into dark mode.  Pin explicit dark values for the affected surfaces.
- * Hierarchy: panel (darkest) < head/tabs < cards/inputs < active tab. */
-body[data-ds-dark-theme] .card {
-  /* Elevation matches the settings panel: app #0a0a0b < modal #2c2c2e
-     < head #3a3a3c < cards #48484a < active controls #636366. */
+ * Use semantic --dsw-alias-* tokens when skins are applied (html[data-dsh-skin]).
+ * When un-skinned under stock dark theme, apply the dark fallbacks. */
+body[data-ds-dark-theme]:not([data-dsh-skin]) .card {
   background: #2c2c2e;
 }
-body[data-ds-dark-theme] .head {
+body[data-ds-dark-theme]:not([data-dsh-skin]) .head {
   background: #2c2c2e;
 }
-body[data-ds-dark-theme] .tabs {
-  /* Recessed track: a step darker than the modal (not pure black). */
+body[data-ds-dark-theme]:not([data-dsh-skin]) .tabs {
   background: #1e1e1e;
 }
-body[data-ds-dark-theme] .skill {
+body[data-ds-dark-theme]:not([data-dsh-skin]) .skill {
   background: #48484a;
   border-color: rgba(255, 255, 255, 0.08);
 }
-body[data-ds-dark-theme] .badge {
+body[data-ds-dark-theme]:not([data-dsh-skin]) .badge {
   background: rgba(99, 120, 220, 0.22);
   color: #a5b4fc;
   border-color: rgba(99, 120, 220, 0.4);
 }
-body[data-ds-dark-theme] .badgeInvokable {
+body[data-ds-dark-theme]:not([data-dsh-skin]) .badgeInvokable {
   background: rgba(48, 209, 88, 0.15);
   color: #30d158;
   border-color: rgba(48, 209, 88, 0.3);
 }
-body[data-ds-dark-theme] .switchThumb {
+body[data-ds-dark-theme]:not([data-dsh-skin]) .switchThumb {
   background: #fff;
 }
-body[data-ds-dark-theme] .tab {
+body[data-ds-dark-theme]:not([data-dsh-skin]) .tab {
   color: rgba(255, 255, 255, 0.5);
 }
-body[data-ds-dark-theme] .tabActive {
+body[data-ds-dark-theme]:not([data-dsh-skin]) .tabActive {
   background: #3a3a3c;
   color: #fff;
   border: 0.5px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
-body[data-ds-dark-theme] .formInput {
+body[data-ds-dark-theme]:not([data-dsh-skin]) .formInput {
   background: #1c1c1e;
   border-color: rgba(255, 255, 255, 0.06);
 }
 
-body[data-ds-dark-theme] .headButton {
+body[data-ds-dark-theme]:not([data-dsh-skin]) .headButton {
   background: rgba(255, 255, 255, 0.1);
   border-color: transparent;
   color: rgba(255, 255, 255, 0.85);
 }
-body[data-ds-dark-theme] .headButton:hover {
+body[data-ds-dark-theme]:not([data-dsh-skin]) .headButton:hover {
   background: rgba(255, 255, 255, 0.15);
 }
-body[data-ds-dark-theme] .headButton:active {
+body[data-ds-dark-theme]:not([data-dsh-skin]) .headButton:active {
   background: rgba(255, 255, 255, 0.05);
 }
-body[data-ds-dark-theme] .deleteButton {
+body[data-ds-dark-theme]:not([data-dsh-skin]) .deleteButton {
   background: rgba(255, 59, 48, 0.16);
   border-color: transparent;
   color: #ff6b61;
 }
-body[data-ds-dark-theme] .deleteButton:hover {
+body[data-ds-dark-theme]:not([data-dsh-skin]) .deleteButton:hover {
   background: rgba(255, 59, 48, 0.26);
 }

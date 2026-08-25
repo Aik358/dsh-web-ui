@@ -8,6 +8,7 @@
 import { readFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { gzipSync } from 'node:zlib'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 
@@ -147,7 +148,8 @@ export function makeMobileRoutes(): WebRoute[] {
   // The bundle is immutable for the process lifetime (a rebuild requires a
   // host restart), so the body is read from disk once, not per phone.
   let bundleBody: string | undefined
-  const handleBundle = async (_req: IncomingMessage, res: ServerResponse): Promise<void> => {
+  let bundleGzip: Buffer | undefined
+  const handleBundle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     if (bundleBody === undefined) {
       const path = mobileBundlePath()
       if (!existsSync(path)) {
@@ -156,12 +158,32 @@ export function makeMobileRoutes(): WebRoute[] {
       }
       try {
         bundleBody = await readFile(path, 'utf8')
+        bundleGzip = gzipSync(Buffer.from(bundleBody, 'utf8'))
       } catch {
         writeStatic(res, 500, 'text/plain', 'failed to read the mobile bundle')
         return
       }
     }
-    writeStatic(res, 200, 'text/javascript', bundleBody)
+    const acceptEncoding = req.headers['accept-encoding'] ?? ''
+    const acceptsGzip = typeof acceptEncoding === 'string' && acceptEncoding.includes('gzip') && bundleGzip !== undefined
+    if (acceptsGzip) {
+      res.writeHead(200, {
+        'content-type': 'text/javascript; charset=utf-8',
+        'content-encoding': 'gzip',
+        'cache-control': 'no-cache',
+        vary: 'Accept-Encoding',
+        'referrer-policy': 'no-referrer',
+      })
+      res.end(bundleGzip)
+    } else {
+      res.writeHead(200, {
+        'content-type': 'text/javascript; charset=utf-8',
+        'cache-control': 'no-cache',
+        vary: 'Accept-Encoding',
+        'referrer-policy': 'no-referrer',
+      })
+      res.end(bundleBody)
+    }
   }
 
   let workerBody: string | undefined

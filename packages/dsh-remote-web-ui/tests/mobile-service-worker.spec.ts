@@ -3,7 +3,7 @@ import { runInNewContext } from 'node:vm'
 import { describe, expect, it, vi } from 'vitest'
 
 const ORIGIN = 'https://dsh.example'
-const CACHE_NAME = 'dsh-remote-mobile-shell-v1'
+const CACHE_NAME = 'dsh-remote-mobile-shell-v2'
 
 type WorkerRequest = { method: string; mode: string; url: string }
 type FetchListener = (event: { request: WorkerRequest; respondWith(response: Promise<Response> | Response): void }) => void
@@ -69,14 +69,24 @@ describe('mobile service worker', () => {
     expect(fetcher).toHaveBeenCalledTimes(1)
   })
 
-  it('uses cached static bundle content only when its network request fails', async () => {
-    const fetcher = vi.fn().mockRejectedValue(new TypeError('offline'))
+  it('does not intercept the dynamic mobile bundle, letting it always fetch over network (#1066)', async () => {
+    const fetcher = vi.fn()
     const worker = await loadWorker(fetcher)
     worker.setCached('/m/mobile.js', new Response('cached mobile bundle'))
 
     const response = await worker.dispatch({ method: 'GET', mode: 'same-origin', url: ORIGIN + '/m/mobile.js' })
+    expect(response).toBeUndefined()
+    expect(fetcher).not.toHaveBeenCalled()
+  })
+
+  it('uses cached static shell asset content when its network request fails', async () => {
+    const fetcher = vi.fn().mockRejectedValue(new TypeError('offline'))
+    const worker = await loadWorker(fetcher)
+    worker.setCached('/m/manifest.webmanifest', new Response('cached manifest'))
+
+    const response = await worker.dispatch({ method: 'GET', mode: 'same-origin', url: ORIGIN + '/m/manifest.webmanifest' })
     expect(response).toBeDefined()
-    expect(await response?.text()).toBe('cached mobile bundle')
+    expect(await response?.text()).toBe('cached manifest')
   })
 
   it('does not intercept the paired-device mobile API channel', async () => {

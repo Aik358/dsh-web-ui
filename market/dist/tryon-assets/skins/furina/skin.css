@@ -13,10 +13,10 @@ html[data-dsh-skin="furina"] body[data-ds-dark-theme] {
 }
 
 html[data-dsh-skin="furina"] {
-  --dsw-alias-bg-base: #ffffff1a;
-  --dsw-alias-bg-layer-1: #f3f5fb80;
-  --dsw-alias-bg-layer-2: #e9edf7bf;
-  --dsw-alias-bg-layer-3: #dde3f194;
+  --dsw-alias-bg-base: rgba(255, 255, 255, calc(var(--dsw-skin-scrim, 0) * .5));
+  --dsw-alias-bg-layer-1: rgba(243, 245, 251, calc(.35 + var(--dsw-skin-scrim, 0) * .45));
+  --dsw-alias-bg-layer-2: rgba(233, 237, 247, calc(.4 + var(--dsw-skin-scrim, 0) * .4));
+  --dsw-alias-bg-layer-3: rgba(221, 227, 241, calc(.45 + var(--dsw-skin-scrim, 0) * .35));
   --dsw-alias-bg-mask-1: #1c254666;
   --dsw-alias-bg-mask-2: #1c254633;
   --dsw-alias-bg-mask-3: #1c254680;
@@ -194,10 +194,10 @@ html[data-dsh-skin="furina"] {
 }
 
 html[data-dsh-skin="furina"] body {
-  --dsw-alias-bg-base: #ffffff1a;
-  --dsw-alias-bg-layer-1: #f3f5fb80;
-  --dsw-alias-bg-layer-2: #e9edf7bf;
-  --dsw-alias-bg-layer-3: #dde3f194;
+  --dsw-alias-bg-base: rgba(255, 255, 255, calc(var(--dsw-skin-scrim, 0) * .5));
+  --dsw-alias-bg-layer-1: rgba(243, 245, 251, calc(.35 + var(--dsw-skin-scrim, 0) * .45));
+  --dsw-alias-bg-layer-2: rgba(233, 237, 247, calc(.4 + var(--dsw-skin-scrim, 0) * .4));
+  --dsw-alias-bg-layer-3: rgba(221, 227, 241, calc(.45 + var(--dsw-skin-scrim, 0) * .35));
   --dsw-alias-bg-mask-1: #1c254666;
   --dsw-alias-bg-mask-2: #1c254633;
   --dsw-alias-bg-mask-3: #1c254680;
@@ -286,10 +286,10 @@ html[data-dsh-skin="furina"] body {
 
 
 html[data-dsh-skin="furina"] body[data-ds-dark-theme] {
-  --dsw-alias-bg-base: #10162a1a;
-  --dsw-alias-bg-layer-1: #1a22388c;
-  --dsw-alias-bg-layer-2: #263953bf;
-  --dsw-alias-bg-layer-3: #26324fa3;
+  --dsw-alias-bg-base: rgba(16, 22, 42, calc(var(--dsw-skin-scrim, 0) * .5));
+  --dsw-alias-bg-layer-1: rgba(26, 34, 56, calc(.35 + var(--dsw-skin-scrim, 0) * .45));
+  --dsw-alias-bg-layer-2: rgba(38, 57, 83, calc(.4 + var(--dsw-skin-scrim, 0) * .4));
+  --dsw-alias-bg-layer-3: rgba(38, 50, 79, calc(.45 + var(--dsw-skin-scrim, 0) * .35));
   --dsw-alias-bg-mask-1: #0000008c;
   --dsw-alias-bg-mask-2: #0000004d;
   --dsw-alias-bg-mask-3: #0009;
