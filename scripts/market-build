@@ -182,22 +182,32 @@ function scanPets() {
       throw new Error(`pet ${name}: pet.json must declare "petManifestVersion": 2`)
     }
     if (!meta.id || !meta.displayName) throw new Error(`pet ${name}: pet.json needs id and displayName`)
+    const renderer = meta.renderer || 'sprite2d'
+    // frames2d pets (directory-style frame sequences, e.g. miku) ship no
+    // spritesheet: the card rides the previews, and the installer downloads
+    // the whole files list into $DSH_HOME/pets/<id>.
     const sprite2d = meta.sprite2d || {}
-    if (typeof sprite2d.spritesheetPath !== 'string' || !sprite2d.spritesheetPath) {
+    const frames2d = meta.frames2d || {}
+    if (renderer === 'frames2d') {
+      if (typeof frames2d !== 'object' || frames2d === null || typeof frames2d.tracks !== 'object' || frames2d.tracks === null) {
+        throw new Error(`pet ${name}: frames2d.tracks is mandatory for renderer frames2d`)
+      }
+    } else if (typeof sprite2d.spritesheetPath !== 'string' || !sprite2d.spritesheetPath) {
       throw new Error(`pet ${name}: sprite2d.spritesheetPath is mandatory`)
+    } else {
+      assertInside(dir, sprite2d.spritesheetPath, `pet ${name} spritesheet`)
     }
-    assertInside(dir, sprite2d.spritesheetPath, `pet ${name} spritesheet`)
     const previewsDir = path.join(dir, 'previews')
     let previews = []
     if (fs.existsSync(previewsDir)) {
       // 顺序对齐 tracks（如 idle 优先），无 tracks 时按字母序
-      const tracks = (sprite2d.tracks ? Object.keys(sprite2d.tracks) : [])
+      const trackNames = renderer === 'frames2d' ? Object.keys(frames2d.tracks) : (sprite2d.tracks ? Object.keys(sprite2d.tracks) : [])
       const files = fs.readdirSync(previewsDir).filter((f) => /\.(gif|webp|png)$/i.test(f))
       files.sort((a, b) => {
         const ka = a.replace(/\.[^.]+$/, '')
         const kb = b.replace(/\.[^.]+$/, '')
-        const ia = tracks.indexOf(ka)
-        const ib = tracks.indexOf(kb)
+        const ia = trackNames.indexOf(ka)
+        const ib = trackNames.indexOf(kb)
         if (ia !== -1 && ib !== -1) return ia - ib
         if (ia !== -1) return -1
         if (ib !== -1) return 1
@@ -209,12 +219,13 @@ function scanPets() {
       id: meta.id,
       displayName: meta.displayName,
       rank: pets.length + 1,
-      renderer: meta.renderer || 'sprite2d',
-      spritesheet: `assets/pets/${name}/${sprite2d.spritesheetPath}`,
+      renderer,
+      ...(renderer === 'frames2d' ? {} : { spritesheet: `assets/pets/${name}/${sprite2d.spritesheetPath}` }),
     }
     if (previews.length) item.previews = previews
     if (Array.isArray(sprite2d.frames)) item.frames = sprite2d.frames
-    if (sprite2d.tracks) item.tracks = Object.keys(sprite2d.tracks)
+    if (renderer === 'frames2d') item.tracks = Object.keys(frames2d.tracks)
+    else if (sprite2d.tracks) item.tracks = Object.keys(sprite2d.tracks)
     item.files = listFiles(dir)
     pets.push({ name, dir, item })
   }
