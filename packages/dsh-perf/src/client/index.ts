@@ -52,7 +52,7 @@ interface StatsWire {
   elDelay?: { meanMs?: number; p99Ms?: number; maxMs?: number }
   mem?: { rssMB?: number; heapUsedMB?: number }
   events?: { perSec?: number; window?: number; activeSessions?: number }
-  topSessions?: { id?: string; eventsPerSec?: number; lastType?: string }[]
+  topSessions?: { id?: string; eventsPerSec?: number; lastType?: string; status?: string }[]
   eventTypes?: Record<string, number>
   alert?: {
     kind?: string
@@ -236,7 +236,8 @@ function boot(isEnabled: () => boolean): void {
     const top = Array.isArray(s.topSessions) ? s.topSessions : []
     for (const session of top.slice(0, 3)) {
       const id = shortId(session.id ?? '?')
-      lines.push('  · ' + id + '  ' + (session.eventsPerSec ?? '?') + '/s [' + (session.lastType ?? '') + ']')
+      const statusMark = session.status === 'idle' ? ' ·idle' : ''
+      lines.push('  · ' + id + '  ' + (session.eventsPerSec ?? '?') + '/s [' + (session.lastType ?? '') + ']' + statusMark)
     }
     hostEl.style.borderColor = alert ? '#ff8a65' : 'transparent'
     if (peekBtn !== undefined) peekBtn.style.display = currentVisible() ? 'none' : 'block'

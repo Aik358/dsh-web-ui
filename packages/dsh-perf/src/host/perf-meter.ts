@@ -29,6 +29,8 @@ export interface PerfSessionStat {
   id: string
   eventsPerSec: number
   lastType: string
+  /** agent 状态(idle/running/…, 有 agent/status 迁移事件时) */
+  status?: string
 }
 
 export interface PerfAlert {
@@ -48,7 +50,7 @@ export interface PerfStats {
   batchDelayMs: number
   elDelay: { meanMs: number; p99Ms: number; maxMs: number }
   mem: { rssMB: number; heapUsedMB: number }
-  events: { perSec: number; window: number; activeSessions: number }
+  events: { perSec: number; window: number; activeSessions: number; idleSessions?: number }
   topSessions: PerfSessionStat[]
   eventTypes: Record<string, number>
   alert: PerfAlert | null
@@ -65,6 +67,7 @@ export class PerfMeter {
   private pendingSessions = new Map<string, number>()
   private pendingTypes: Record<string, number> = {}
   private lastDelay: { meanMs: number; p99Ms: number; maxMs: number } = { meanMs: 0, p99Ms: 0, maxMs: 0 }
+  private readonly agentStatus = new Map<string, { status: string; at: number }>()
 
   constructor(
     private readonly ctx: Context,
@@ -118,13 +121,22 @@ export class PerfMeter {
     const ctx = this.ctx as unknown as {
       on(event: string, listener: (subject: unknown, event: unknown) => void): () => void
     }
-    const off = ctx.on('session/event', (subject, event) => {
+    const offEvent = ctx.on('session/event', (subject, event) => {
       const ev = event as { type?: string }
       const type = typeof ev?.type === 'string' ? ev.type : 'unknown'
       const id = (subject as { id?: string } | undefined)?.id ?? 'root'
       this.noteEvent(id, type)
     })
-    if (typeof off === 'function') this.disposers.push(off)
+    if (typeof offEvent === 'function') this.disposers.push(offEvent)
+    // agent 空闲/运行状态时间线(零上游观测): agent/status 由 agent-loop 迁移时发射。
+    const offStatus = ctx.on('agent/status', (subject: unknown, data: unknown) => {
+      const d = (data ?? subject) as { status?: unknown; id?: unknown } | undefined
+      const status = typeof d?.status === 'string' ? d.status : 'unknown'
+      const id = typeof d?.id === 'string' ? d.id : typeof (subject as { id?: unknown } | undefined)?.id === 'string' ? (subject as { id: string }).id : undefined
+      if (id === undefined) return
+      this.agentStatus.set(id, { status, at: Date.now() })
+    })
+    if (typeof offStatus === 'function') this.disposers.push(offStatus)
   }
 
   private detach(): void {
@@ -162,6 +174,7 @@ export class PerfMeter {
     const alive = new Set<string>()
     for (const bucket of this.buckets) { for (const id of bucket.perSession.keys()) alive.add(id) }
     for (const id of this.lastTypeBySession.keys()) { if (!alive.has(id)) this.lastTypeBySession.delete(id) }
+    for (const id of this.agentStatus.keys()) { if (!alive.has(id)) this.agentStatus.delete(id) }
   }
 
   /** 窗口内聚合: 总速率 / 每会话速率 / 事件类型分布。 */
@@ -192,6 +205,7 @@ export class PerfMeter {
         id,
         eventsPerSec: Math.round((n / seconds) * 10) / 10,
         lastType: this.lastTypeBySession.get(id) ?? 'unknown',
+        status: this.agentStatus.get(id)?.status,
       }))
     return {
       perSec: Math.round((count / seconds) * 10) / 10,
