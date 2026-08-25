@@ -105,10 +105,9 @@ export async function prompt(sessionId: string, text: string): Promise<void> {
 
 /** Send one slash command line (e.g. `/permission workspace-write`). */
 export async function sendCommand(sessionId: string, line: string): Promise<unknown> {
-  return await callUnary<unknown>('session.prompt', {
+  return await callUnary<unknown>('mobile.command', {
     sessionId,
-    mode: 'queue',
-    content: [{ type: 'text', text: line }],
+    line,
   })
 }
 

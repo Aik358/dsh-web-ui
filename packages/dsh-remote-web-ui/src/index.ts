@@ -16,6 +16,8 @@ import type { Context } from '@deepseek-ai/cordis'
 import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
 import z from 'schemastery'
 import type {} from '@deepseek-ai/dsh-host-webserver'
+import type {} from '@deepseek-ai/dsh-agent'
+import type {} from '@deepseek-ai/dsh-commands'
 import { DEFAULT_IDLE_EXPIRE_MS, PairingService, type PairingConfig } from './pairing.ts'
 import { dshHome } from './dsh-home.ts'
 import { isPairedDeviceRequest, makeGateListener } from './gate.ts'
@@ -66,7 +68,7 @@ declare module '@deepseek-ai/cordis' {
 export const name = 'remote-web-ui'
 
 /** Services required before the pairing surfaces can mount. */
-export const inject = ['webServer', 'apiProxy']
+export const inject = ['webServer', 'apiProxy', 'commands', 'agents']
 
 /**
  * Settings namespace of the remote-control capability — the section the web
@@ -374,7 +376,23 @@ function applyImpl(ctx: Context, config?: Config): void {
     ...makeRoutes({ service, lanAddresses, requirePairingForLan: () => resolve().requirePairingForLan }),
     ...makeMobileRoutes(),
     ...(apiProxy !== undefined
-      ? makeMobileApiRoutes({ service, apiProxy, pendingTracker: new PendingTracker(), mobileEnterToSend: () => resolve().mobileEnterToSend })
+      ? makeMobileApiRoutes({
+          service,
+          apiProxy,
+          pendingTracker: new PendingTracker(),
+          mobileEnterToSend: () => resolve().mobileEnterToSend,
+          commandDispatcher: ctx.commands !== undefined && ctx.agents !== undefined
+            ? {
+                async execute(sessionId, line, signal) {
+                  const agent = ctx.agents.get(sessionId as never)
+                  if (agent === undefined) return { error: 'session-not-found' as const }
+                  const execution = await ctx.commands.execute(agent, line, [], signal)
+                  if (execution === undefined) return { error: 'unknown-command' as const }
+                  return { ok: true as const, result: execution.result }
+                },
+              }
+            : undefined,
+        })
       : []),
     ...(apiProxy !== undefined ? makePairedModelCatalogRoutes({ service, apiProxy, lanAddresses }) : []),
     // The remote desktop channel: policy-gated `/remote` prefix that

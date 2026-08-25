@@ -64,6 +64,8 @@ const MOBILE_ALLOWLIST = new Set([
 const MOBILE_PREFERENCES_METHOD = 'mobile.preferences'
 const MOBILE_PENDING_METHOD = 'mobile.pending'
 const MOBILE_RESPOND_METHOD = 'mobile.respond'
+/** Execute a slash command through the host command registry (#1125). */
+const MOBILE_COMMAND_METHOD = 'mobile.command'
 
 /** One session.list page (thin phones load incrementally). */
 const SESSION_PAGE_SIZE = 20
@@ -102,6 +104,19 @@ export interface MobileApiDeps {
   mobileEnterToSend: () => boolean
   /** SSE keep-alive ping cadence for the mux stream (default 15000 ms; test seam). */
   eventsHeartbeatMs?: number
+  /**
+   * Optional command dispatcher for executing slash commands on the mobile
+   * surface. When absent, `mobile.command` returns an error; the mobile UI
+   * can still fall back to `session.prompt` (which sends the line to the
+   * model, not the command registry).
+   */
+  commandDispatcher?: {
+    execute(
+      sessionId: string,
+      line: string,
+      signal: AbortSignal,
+    ): Promise<{ ok: true; result: unknown } | { error: string }>
+  }
 }
 
 /** Mobile API route paths. */
@@ -161,6 +176,7 @@ export function makeMobileApiRoutes(deps: MobileApiDeps): WebRoute[] {
     const local = method === MOBILE_PREFERENCES_METHOD 
       || method === MOBILE_PENDING_METHOD 
       || method === MOBILE_RESPOND_METHOD
+      || method === MOBILE_COMMAND_METHOD
     if (!MOBILE_ALLOWLIST.has(method) && !local) {
       writeJson(res, 403, { ok: false, error: { code: 'forbidden', message: `method ${method} is not exposed to the mobile surface` } })
       return
@@ -212,6 +228,49 @@ export function makeMobileApiRoutes(deps: MobileApiDeps): WebRoute[] {
             rpcId,
             result: { ok: false, error: { code: 'internal', message } },
           })
+        }
+      } else if (method === MOBILE_COMMAND_METHOD) {
+        const payload = parsed.payload as { sessionId?: string; line?: string } | undefined
+        const sessionId = payload?.sessionId
+        const line = payload?.line
+        if (typeof sessionId !== 'string' || typeof line !== 'string') {
+          writeJson(res, 200, {
+            type: 'server-response',
+            rpcId,
+            result: { ok: false, error: { code: 'bad-request', message: 'missing sessionId or line' } },
+          })
+        } else if (deps.commandDispatcher === undefined) {
+          writeJson(res, 200, {
+            type: 'server-response',
+            rpcId,
+            result: { ok: false, error: { code: 'unavailable', message: 'command dispatcher is not available' } },
+          })
+        } else {
+          try {
+            const abort = new AbortController()
+            res.on('close', () => { if (!res.writableEnded) abort.abort() })
+            const outcome = await deps.commandDispatcher.execute(sessionId, line, abort.signal)
+            if ('error' in outcome) {
+              writeJson(res, 200, {
+                type: 'server-response',
+                rpcId,
+                result: { ok: false, error: { code: outcome.error, message: outcome.error } },
+              })
+            } else {
+              writeJson(res, 200, {
+                type: 'server-response',
+                rpcId,
+                result: { ok: true, value: { matched: true, result: outcome.result } },
+              })
+            }
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error)
+            writeJson(res, 200, {
+              type: 'server-response',
+              rpcId,
+              result: { ok: false, error: { code: 'internal', message } },
+            })
+          }
         }
       }
       return
