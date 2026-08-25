@@ -1,6 +1,0 @@
-# dsh-miku-pet bundle patch: inserts its plugin row into the web plugin roster.
-# The entry id uses miku-pet (not pet / web-ui-*) so it coexists with the
-# built-in dsh-pet under the /miku-pet namespace.
-- insert:
-    - id: miku-pet
-      name: '@linxin666/dsh-miku-pet'

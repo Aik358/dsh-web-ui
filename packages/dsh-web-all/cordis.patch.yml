@@ -88,11 +88,6 @@
     - id: web-ui-doctor
       name: '@linxin666/dsh-doctor'
 
-# from ../dsh-miku-pet
-- insert:
-    - id: web-ui-miku-pet
-      name: '@linxin666/dsh-miku-pet'
-
 # from ../skins/skin-center
 - insert:
     - id: web-ui-skin-center
