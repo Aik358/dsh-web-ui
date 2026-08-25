@@ -306,7 +306,7 @@ function resetToControlled(state, session) {
  */
 function applyPresentation(agent, state, policy) {
   if (state.presentationApplied || policy.promotedPresentation !== 'code') return
-  const tools = agent.ctx.tools
+  const tools = agent?.ctx?.tools
   // Latch only after the switch really happened: without a tools view there
   // is nothing to present, and latching early would skip PTC Mode forever.
   if (tools === undefined) return
@@ -317,7 +317,7 @@ function applyPresentation(agent, state, policy) {
   state.presentationApplied = true
   // #1128: Broadcast presentation switch so external discipline / analysis
   // plugins decouple presentation mode from tool failure detection.
-  if (typeof agent.ctx.emit === 'function') {
+  if (typeof agent?.ctx?.emit === 'function') {
     agent.ctx.emit('tools/presentation-changed', { mode: 'code', session: agent.session?.id })
   }
 }
@@ -379,6 +379,8 @@ function refresh(agent, policy) {
   return state
 }
 
+const PTC_INSTRUCTION = '\n\nNote: You are in Programmatic Tool Calling (PTC) mode. All actions (running shell commands, file operations, web tools) MUST be performed via the `run_code` tool by writing and executing TypeScript/JavaScript programs. Do not attempt to invoke tools like `bash` or `str_replace_editor` directly on the wire.'
+
 /**
  * Append the session's working directory to the persona section of a promoted
  * assembly. Returns the assembly unchanged when there is no persona section,
@@ -398,6 +400,25 @@ function withWorkspaceLine(assembly, agent) {
     ...assembly,
     sections: assembly.sections.map(section => section === persona
       ? { ...section, text: `${persona.text}${line}` }
+      : section),
+  }
+}
+
+/**
+ * Append PTC mode instructions to the persona section when promoted to code presentation.
+ */
+function withPtcInstruction(assembly, policy) {
+  if (policy?.promotedPresentation !== 'code') return assembly
+  if (!Array.isArray(assembly.sections)) return assembly
+  const persona = assembly.sections.find(section =>
+    PERSONA_SECTION_NAMES.has(section?.name)
+    && typeof section?.text === 'string'
+    && !section.text.includes('PTC) mode'))
+  if (persona === undefined) return assembly
+  return {
+    ...assembly,
+    sections: assembly.sections.map(section => section === persona
+      ? { ...section, text: `${persona.text}${PTC_INSTRUCTION}` }
       : section),
   }
 }
@@ -486,7 +507,7 @@ export function apply(ctx, config) {
     const agent = context.agent
     if (agent === undefined) return assembled
     const state = refresh(agent, policy)
-    if (state.promoted) return withWorkspaceLine(assembled, agent)
+    if (state.promoted) return withPtcInstruction(withWorkspaceLine(assembled, agent), policy)
 
     const available = new Set(assembled.tools.map(tool => tool.name))
     const selectedShells = shellTools.filter(toolName => available.has(toolName))

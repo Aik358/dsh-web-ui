@@ -540,6 +540,13 @@ export class WallpaperController implements WallpaperHandle {
     void this.scope.set('weLibraryDirs', this.dirsValue)
   }
 
+  private failedIds = new Set<string>()
+
+  isDisplaying = (): boolean => {
+    const id = this.activeId()
+    return this.enabledValue && id !== null && !this.failedIds.has(id)
+  }
+
   activeId = (): string | null => {
     const current = this.previewing ?? this.applied
     return this.mediaLayer !== null && current !== null ? current.id : null
@@ -614,6 +621,7 @@ export class WallpaperController implements WallpaperHandle {
   }
 
   applySelection(descriptor: WallpaperDescriptor): void {
+    this.failedIds.delete(descriptor.id)
     this.applied = descriptor
     this.previewing = null
     this.selectionValue = descriptor.id
@@ -656,6 +664,7 @@ export class WallpaperController implements WallpaperHandle {
   }
 
   tryOn(descriptor: WallpaperDescriptor): void {
+    this.failedIds.delete(descriptor.id)
     this.previewing = descriptor
     this.render()
     this.publish()
@@ -1061,6 +1070,22 @@ export class WallpaperController implements WallpaperHandle {
         const img = this.buildImage(nextUrl, nextFallback)
         if (img && video.parentElement) {
           video.parentElement.replaceChild(img, video)
+        } else {
+          const currentId = this.previewing?.id ?? this.applied?.id
+          if (currentId) {
+            this.failedIds.add(currentId)
+            this.render()
+            this.publish()
+          }
+        }
+      }, { once: true })
+    } else {
+      video.addEventListener('error', () => {
+        const currentId = this.previewing?.id ?? this.applied?.id
+        if (currentId) {
+          this.failedIds.add(currentId)
+          this.render()
+          this.publish()
         }
       }, { once: true })
     }
@@ -1125,13 +1150,18 @@ export class WallpaperController implements WallpaperHandle {
     const image = this.doc.createElement('img')
     image.src = url
     image.alt = ''
-    if (fallbackUrl !== null && fallbackUrl !== url) {
-      image.addEventListener('error', () => {
-        if (image.src !== fallbackUrl) {
-          image.src = fallbackUrl
-        }
-      }, { once: true })
-    }
+    image.addEventListener('error', () => {
+      if (fallbackUrl !== null && fallbackUrl !== url && image.src !== fallbackUrl) {
+        image.src = fallbackUrl
+        return
+      }
+      const currentId = this.previewing?.id ?? this.applied?.id
+      if (currentId) {
+        this.failedIds.add(currentId)
+        this.render()
+        this.publish()
+      }
+    })
     styleCover(image, this.fitValue)
     return image
   }

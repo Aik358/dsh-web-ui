@@ -856,4 +856,14 @@ describe('anchored-tool-bootstrap', () => {
     expect(() => register({ phase1FirstCallInstruction: 42 as any })).toThrow(/phase1FirstCallInstruction/)
     expect(() => register({ phase1FirstCallInstruction: {} as any })).toThrow(/phase1FirstCallInstruction/)
   })
+
+  test('promotedPresentation code injects PTC mode instruction into the promoted persona (#1149)', async () => {
+    const result = await assemble(
+      listener(register({ promotedPresentation: 'code' }), 'system-prompt/assemble'),
+      [{ type: 'tool/call' }],
+      [{ name: 'bash' }, { name: 'read' }, { name: 'edit' }],
+    )
+    expect(result.sections[0].text).toContain('Programmatic Tool Calling (PTC) mode')
+    expect(result.sections[0].text).toContain('run_code')
+  })
 })

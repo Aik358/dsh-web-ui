@@ -15,7 +15,7 @@ import type { PropsRuntime, TranslateNS } from '@deepseek-ai/dsh-client-ui-slots
 import type { TurnTailOwnerProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { SessionId } from '@deepseek-ai/dsh-client-runtime/client'
-import { lastCompletedUserTarget } from '../core/transcript.ts'
+import { lastCompletedUserTarget, hostRetryPending } from '../core/transcript.ts'
 import { failureOfLastTurn } from '../core/retry-policy.ts'
 import type { RetrySupervisor } from '../core/retry-supervisor.ts'
 import type { SubmitEditInput } from './wiring.ts'
@@ -50,12 +50,16 @@ export const TurnActionsView = memo(function TurnActionsView(props: TurnActionsP
     (s) => failureOfLastTurn(s),
     (a, b) => a?.turn === b?.turn && a?.kind === b?.kind && a?.message === b?.message && a?.code === b?.code,
   )
+  const isHostPending = useSession(
+    (s) => failure !== null && hostRetryPending(s, failure.turn),
+  )
   const running = useSession((s) => s.running)
   const retryState = useSyncExternalStore(supervisor.subscribe, supervisor.getSnapshot)
 
   const canEdit = target !== null && target.turn === turn && !running
   const busy = retryState.phase === 'waiting' || retryState.phase === 'running'
-  const canRetry = failure !== null && failure.turn === turn && !running && !busy
+  const canRetry = failure !== null && failure.turn === turn && !running
+  const retryDisabled = busy || isHostPending
 
   if (!editing && !canEdit && !canRetry) return null
 
@@ -137,10 +141,13 @@ export const TurnActionsView = memo(function TurnActionsView(props: TurnActionsP
         <button
           type="button"
           className={styles.button}
-          title={t('retry.forkHint')}
-          onClick={() => manualRetry(sessionId)}
+          disabled={retryDisabled}
+          title={isHostPending ? t('retry.waiting') : busy ? t('retry.running') : t('retry.forkHint')}
+          onClick={() => {
+            if (!retryDisabled) manualRetry(sessionId)
+          }}
         >
-          {t('retry.button')}
+          {isHostPending ? t('retry.waiting') : t('retry.button')}
         </button>
       ) : null}
     </div>

@@ -162,17 +162,17 @@
       "displayName": "鲸鱼娘（原版）",
       "rank": 3,
       "renderer": "sprite2d",
-      "spritesheet": "assets/pets/whale/spritesheet.webp",
+      "spritesheet": "assets/pets/whale-girl/spritesheet.webp",
       "previews": [
-        "assets/pets/whale/previews/idle.gif",
-        "assets/pets/whale/previews/running-right.gif",
-        "assets/pets/whale/previews/running-left.gif",
-        "assets/pets/whale/previews/waving.gif",
-        "assets/pets/whale/previews/jumping.gif",
-        "assets/pets/whale/previews/failed.gif",
-        "assets/pets/whale/previews/waiting.gif",
-        "assets/pets/whale/previews/running.gif",
-        "assets/pets/whale/previews/review.gif"
+        "assets/pets/whale-girl/previews/idle.gif",
+        "assets/pets/whale-girl/previews/running-right.gif",
+        "assets/pets/whale-girl/previews/running-left.gif",
+        "assets/pets/whale-girl/previews/waving.gif",
+        "assets/pets/whale-girl/previews/jumping.gif",
+        "assets/pets/whale-girl/previews/failed.gif",
+        "assets/pets/whale-girl/previews/waiting.gif",
+        "assets/pets/whale-girl/previews/running.gif",
+        "assets/pets/whale-girl/previews/review.gif"
       ],
       "frames": [
         6,
@@ -215,9 +215,9 @@
       "displayName": "鲸鱼娘（精致版）",
       "rank": 4,
       "renderer": "sprite2d",
-      "spritesheet": "assets/pets/whale-refined/spritesheet.webp",
+      "spritesheet": "assets/pets/whale-girl-refined/spritesheet.webp",
       "previews": [
-        "assets/pets/whale-refined/previews/idle.gif"
+        "assets/pets/whale-girl-refined/previews/idle.gif"
       ],
       "frames": [
         6,

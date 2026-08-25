@@ -2075,9 +2075,10 @@ function makeSkinCenterV2Routes(deps = {}) {
 	};
 	const activeGetHandler = (_req, res) => {
 		const state = readActiveState(activeStatePath);
+		const catalog = loadCatalog();
 		writeJson(res, 200, {
 			ok: true,
-			active: state.active,
+			active: state.active !== null && !findSkin(catalog, state.active) ? null : state.active,
 			background: state.background
 		});
 	};

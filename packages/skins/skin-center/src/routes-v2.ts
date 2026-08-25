@@ -212,7 +212,9 @@ export function makeSkinCenterV2Routes(deps: RoutesV2Deps = {}): WebRoute[] {
 
   const activeGetHandler: WebRoute['handler'] = (_req, res) => {
     const state = readActiveState(activeStatePath)
-    writeJson(res, 200, { ok: true, active: state.active, background: state.background })
+    const catalog = loadCatalog()
+    const effectiveActive = state.active !== null && !findSkin(catalog, state.active) ? null : state.active
+    writeJson(res, 200, { ok: true, active: effectiveActive, background: state.background })
   }
 
   // POST accepts { active?, background? } with merge semantics (issue #996):

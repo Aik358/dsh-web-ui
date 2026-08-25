@@ -261,9 +261,15 @@ export class RetrySupervisor {
     const snapshot = this.ports.snapshot(sourceId)
     if (snapshot === undefined) return
     const verdict = verdictFor(snapshot)
-    if (verdict.action === 'none') return
+    if (verdict.action === 'none') {
+      console.warn(`[chat-recovery] manual retry ignored: no retryable failure found for session ${sourceId}`)
+      return
+    }
     const plan = verdict.action === 'auto' ? verdict.plan : planForTurn(snapshot, verdict.failure.turn)
-    if (plan === null) return
+    if (plan === null) {
+      console.warn(`[chat-recovery] manual retry ignored: could not produce prompt plan for turn ${verdict.failure.turn}`)
+      return
+    }
     this.invalidateAttempt()
     this.resolveCycleTarget(sourceId)
     this.plan = plan

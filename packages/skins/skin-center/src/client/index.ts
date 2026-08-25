@@ -232,7 +232,7 @@ export function apply(ctx: ClientContext): void {
   // toggling the wallpaper re-activates the current skin so the priority
   // flip paints immediately.
   const runtime = bootSkinRuntime({
-    suppressBackgroundMedia: () => wallpaper.enabled() && wallpaper.activeId() !== null && wallpaper.activeId() !== '',
+    suppressBackgroundMedia: () => wallpaper.enabled() && wallpaper.isDisplaying(),
   })
   ctx.effect(() => () => runtime.shutdown(), 'ui-skin-center: runtime shutdown')
   ctx.effect(

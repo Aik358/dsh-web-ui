@@ -1149,6 +1149,14 @@ window.__ModuleLoader__.load({
 					callout(id, t("installedAt", { path: result.dest }));
 					const list = await gateway.list();
 					setInstalled(list);
+					if (kind === "skin") try {
+						await fetch("/api/skin-center/v2/active", {
+							method: "POST",
+							headers: { "content-type": "application/json" },
+							body: JSON.stringify({ active: id })
+						});
+						if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("dsh-skin-applied", { detail: { id } }));
+					} catch {}
 				} catch (err) {
 					if (err.code === "conflict" && !force) setConflict({
 						kind,

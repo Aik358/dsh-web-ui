@@ -60,6 +60,12 @@ describe('planDownload', () => {
       { rel: 'skin.json', url: MARKET_ORIGIN + '/assets/skins/whale-song/skin.json' },
       { rel: 'assets/whale-art.webp', url: MARKET_ORIGIN + '/assets/skins/whale-song/assets/whale-art.webp' },
     ])
+
+    const petPlan = planDownload('pet', 'whale-girl', ['pet.json', 'spritesheet.webp'])
+    expect(petPlan).toEqual([
+      { rel: 'pet.json', url: MARKET_ORIGIN + '/assets/pets/whale-girl/pet.json' },
+      { rel: 'spritesheet.webp', url: MARKET_ORIGIN + '/assets/pets/whale-girl/spritesheet.webp' },
+    ])
   })
 
   it('rejects unsafe rels and duplicates', () => {

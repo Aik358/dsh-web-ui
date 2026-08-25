@@ -213,14 +213,14 @@ function scanPets() {
         if (ib !== -1) return 1
         return a.localeCompare(b)
       })
-      previews = files.map((f) => `assets/pets/${name}/previews/${f}`)
+      previews = files.map((f) => `assets/pets/${meta.id}/previews/${f}`)
     }
     const item = {
       id: meta.id,
       displayName: meta.displayName,
       rank: pets.length + 1,
       renderer,
-      ...(renderer === 'frames2d' ? {} : { spritesheet: `assets/pets/${name}/${sprite2d.spritesheetPath}` }),
+      ...(renderer === 'frames2d' ? {} : { spritesheet: `assets/pets/${meta.id}/${sprite2d.spritesheetPath}` }),
     }
     if (previews.length) item.previews = previews
     if (Array.isArray(sprite2d.frames)) item.frames = sprite2d.frames
@@ -585,7 +585,7 @@ async function main() {
   }
   for (const { name, dir, item } of pets) {
     for (const rel of item.files) {
-      binary.set(`assets/pets/${name}/${rel}`, assertInside(dir, rel, 'pet file'))
+      binary.set(`assets/pets/${item.id}/${rel}`, assertInside(dir, rel, 'pet file'))
     }
   }
 

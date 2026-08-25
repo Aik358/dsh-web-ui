@@ -746,6 +746,11 @@ window.__ModuleLoader__.load({
 				this.publish();
 				this.scope.set("weLibraryDirs", this.dirsValue);
 			}
+			failedIds = /* @__PURE__ */ new Set();
+			isDisplaying = () => {
+				const id = this.activeId();
+				return this.enabledValue && id !== null && !this.failedIds.has(id);
+			};
 			activeId = () => {
 				const current = this.previewing ?? this.applied;
 				return this.mediaLayer !== null && current !== null ? current.id : null;
@@ -811,6 +816,7 @@ window.__ModuleLoader__.load({
 				this.scope.set("volume", this.volumeValue);
 			}
 			applySelection(descriptor) {
+				this.failedIds.delete(descriptor.id);
 				this.applied = descriptor;
 				this.previewing = null;
 				this.selectionValue = descriptor.id;
@@ -842,6 +848,7 @@ window.__ModuleLoader__.load({
 				if (descriptor !== null) this.probeSceneCapabilitiesIfNeeded(descriptor);
 			}
 			tryOn(descriptor) {
+				this.failedIds.delete(descriptor.id);
 				this.previewing = descriptor;
 				this.render();
 				this.publish();
@@ -1111,6 +1118,22 @@ window.__ModuleLoader__.load({
 					const nextFallback = frameUrl !== null ? previewUrl : null;
 					const img = this.buildImage(nextUrl, nextFallback);
 					if (img && video.parentElement) video.parentElement.replaceChild(img, video);
+					else {
+						const currentId = this.previewing?.id ?? this.applied?.id;
+						if (currentId) {
+							this.failedIds.add(currentId);
+							this.render();
+							this.publish();
+						}
+					}
+				}, { once: true });
+				else video.addEventListener("error", () => {
+					const currentId = this.previewing?.id ?? this.applied?.id;
+					if (currentId) {
+						this.failedIds.add(currentId);
+						this.render();
+						this.publish();
+					}
 				}, { once: true });
 				video.play()?.catch(() => {});
 				return video;
@@ -1161,9 +1184,18 @@ window.__ModuleLoader__.load({
 				const image = this.doc.createElement("img");
 				image.src = url;
 				image.alt = "";
-				if (fallbackUrl !== null && fallbackUrl !== url) image.addEventListener("error", () => {
-					if (image.src !== fallbackUrl) image.src = fallbackUrl;
-				}, { once: true });
+				image.addEventListener("error", () => {
+					if (fallbackUrl !== null && fallbackUrl !== url && image.src !== fallbackUrl) {
+						image.src = fallbackUrl;
+						return;
+					}
+					const currentId = this.previewing?.id ?? this.applied?.id;
+					if (currentId) {
+						this.failedIds.add(currentId);
+						this.render();
+						this.publish();
+					}
+				});
 				styleCover(image, this.fitValue);
 				return image;
 			}
@@ -4195,9 +4227,11 @@ window.__ModuleLoader__.load({
 						active = payload.ok && typeof payload.active === "string" ? payload.active : null;
 					}
 					if (active === null) return;
-					const entry = store.find(active);
+					let entry = store.find(active);
 					if (entry === null) {
-						await controller.switchTo(null, null);
+						const defaultEntry = store.find("blue-fantasy");
+						if (defaultEntry !== null) await controller.switchTo("blue-fantasy", defaultEntry);
+						else await controller.switchTo(null, null);
 						return;
 					}
 					await controller.switchTo(active, entry);
@@ -4205,6 +4239,18 @@ window.__ModuleLoader__.load({
 					await controller.switchTo(null, null).catch(() => {});
 				}
 			})();
+			if (typeof doc.defaultView !== "undefined" && doc.defaultView !== null) {
+				const win = doc.defaultView;
+				const onSkinApplied = (e) => {
+					const detail = e.detail;
+					if (detail && typeof detail.id === "string") refreshCatalog().then(async () => {
+						const entry = store.find(detail.id);
+						if (entry !== null) await controller.switchTo(detail.id, entry);
+					});
+				};
+				win.addEventListener("dsh-skin-applied", onSkinApplied);
+				listeners.add(() => win.removeEventListener("dsh-skin-applied", onSkinApplied));
+			}
 			return store;
 		}
 		//#endregion
@@ -4780,7 +4826,7 @@ window.__ModuleLoader__.load({
 			const wallpaper = new WallpaperController(binder.bind({ namespace: SKIN_WALLPAPER_NS }));
 			ctx.effect(() => () => wallpaper.dispose(), "ui-skin-center: wallpaper dispose");
 			installBootRestore(wallpaper);
-			const runtime = bootSkinRuntime({ suppressBackgroundMedia: () => wallpaper.enabled() && wallpaper.activeId() !== null && wallpaper.activeId() !== "" });
+			const runtime = bootSkinRuntime({ suppressBackgroundMedia: () => wallpaper.enabled() && wallpaper.isDisplaying() });
 			ctx.effect(() => () => runtime.shutdown(), "ui-skin-center: runtime shutdown");
 			ctx.effect(() => wallpaper.subscribe(() => {
 				runtime.controller.refresh();
