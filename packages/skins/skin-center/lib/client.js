@@ -4634,7 +4634,7 @@ window.__ModuleLoader__.load({
 		/** The building package's version, when the bundle carries it. */
 		function bakedVersion() {
 			try {
-				return "0.3.3";
+				return "0.3.4";
 			} catch {
 				return;
 			}
