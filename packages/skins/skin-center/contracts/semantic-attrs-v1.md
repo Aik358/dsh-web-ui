@@ -45,7 +45,7 @@
 | `data-dsh-wallpaper-active` | html + body（body/html 级，另行管理） | WE 壁纸挂载期间置 `true`，卸载 / 禁用清除；供皮肤 CSS 与壁纸中和规则锚定（#734） |
 | `data-dsh-wallpaper-surface` | 官方 shell 全视口背景元素 + 侧栏工作区淡化条（元素级） | `WallpaperController.markWallpaperSurfaces()` 在 WE 壁纸挂载期间打标（全视口 bg-base 背景 + `data-slot="sidebar.workspaces"` 内渐变淡化条），命中 `html[data-dsh-wallpaper-active] [data-dsh-wallpaper-surface]` 中和；卸载清除，不含哈希类依赖（#734） |
 
-## part 组（32 行，含各 owner 行）
+## part 组（38 行，含各 owner 行）
 
 shell 区域（owner: shell）：
 
@@ -102,8 +102,14 @@ family / 插件区域：
 | `row` | session-id | 会话列表行；面板内行容器（`[data-dsh-part="row"]`） |
 | `copy` | session-id | 每行复制按钮；`button[data-dsh-part="copy"]` |
 | `search` | session-id | 面板搜索输入框；`input[type="search"][data-dsh-part="search"]` |
+| `sprite` | miku-pet | 宠物帧舞台；`[data-dsh-plugin="miku-pet"] [data-dsh-part="sprite"]` |
+| `menu` | miku-pet | 悬停菜单（两级）；`[data-dsh-part="menu"]` |
+| `stats` | miku-pet | 左侧属性彩条；`[data-dsh-part="stats"]` |
+| `shop` | miku-pet | 商店居中窗口；`[data-dsh-part="shop"]` |
+| `bubble` | miku-pet | 对话气泡；`[data-dsh-part="bubble"]` |
+| `float` | miku-pet | 互动飘字；`[data-dsh-part="float"]` |
 
-## plugin 组（12 个，含停更 aionui-panel）
+## plugin 组（13 个，含停更 aionui-panel）
 
 | data-dsh-plugin | owner | 锚定方式 |
 | --- | --- | --- |
@@ -119,6 +125,7 @@ family / 插件区域：
 | `dsh-web-ui-market` | dsh-market | 创意工坊商店一级页（settings.section id `dsh-web-ui-market`），商店卡与目录条目容器 |
 | `skin-center` | skins/skin-center | 一级设置分区 settings.section id `skin-center`（列已安装皮肤，属内置源时显式标记） |
 | `session-id` | dsh-session-id | footer action slot entry id `session-id`；`[data-dsh-plugin="session-id"]`（面板 overlay 根 + 入口触发器） |
+| `miku-pet` | dsh-miku-pet | 宠物浮层根 `[data-dsh-plugin="miku-pet"]`；host 路由前缀 `/miku-pet/*`；设置页 settings.section id `miku-pet-config` |
 
 ## 已知脆弱点（上游主题缝 PR 诉求）
 

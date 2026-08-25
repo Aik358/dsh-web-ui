@@ -521,6 +521,51 @@ importers:
         specifier: ^4.1.1
         version: 4.1.11(@types/node@22.20.1)(esbuild@0.28.2)(jsdom@26.1.0)(yaml@2.9.0)
 
+  packages/dsh-miku-pet:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.0.1
+        version: 4.0.1(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
+      '@deepseek-ai/dsh-client-locale':
+        specifier: ^0.1.1-rc.2
+        version: 0.1.1-rc.2(43fc99526226959f2baf26bb6c2f2030)
+      '@deepseek-ai/dsh-client-runtime':
+        specifier: ^0.1.1-rc.2
+        version: 0.1.1-rc.2(899e679ba1f0bdafa061368d2832faf2)
+      '@deepseek-ai/dsh-client-ui-slots':
+        specifier: ^0.1.1-rc.2
+        version: 0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1))
+      '@deepseek-ai/dsh-home-paths':
+        specifier: ^0.1.1-rc.2
+        version: 0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1))
+      '@deepseek-ai/dsh-host-webserver':
+        specifier: ^0.1.1-rc.2
+        version: 0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1))
+      '@types/node':
+        specifier: ^22.20.0
+        version: 22.20.1
+      '@types/react':
+        specifier: ~18.3.1
+        version: 18.3.31
+      jsdom:
+        specifier: 29.1.1
+        version: 29.1.1
+      react:
+        specifier: ^18.3.1
+        version: 18.3.1
+      react-dom:
+        specifier: ^18.3.1
+        version: 18.3.1(react@18.3.1)
+      tsdown:
+        specifier: 0.22.2
+        version: 0.22.2(typescript@5.7.3)
+      typescript:
+        specifier: ~5.7.2
+        version: 5.7.3
+      vitest:
+        specifier: ^4.1.8
+        version: 4.1.11(@types/node@22.20.1)(esbuild@0.28.2)(jsdom@29.1.1)(yaml@2.9.0)
+
   packages/dsh-pet:
     dependencies:
       clsx:
@@ -1147,6 +1192,9 @@ importers:
       '@linxin666/dsh-liangshen':
         specifier: workspace:*
         version: link:../dsh-liangshen
+      '@linxin666/dsh-miku-pet':
+        specifier: workspace:*
+        version: link:../dsh-miku-pet
       '@linxin666/dsh-pet':
         specifier: workspace:*
         version: link:../dsh-pet
@@ -1774,6 +1822,12 @@ packages:
       '@deepseek-ai/dsh-session': ^0.1.1-rc.2
       '@deepseek-ai/dsh-session-projection': ^0.1.1-rc.2
       '@deepseek-ai/dsh-typert-protocol': ^0.1.1-rc.2
+
+  '@deepseek-ai/dsh-home-paths@0.1.1-rc.2':
+    resolution: {integrity: sha512-lGsP7sbnu20AiRAb+gxYiKx9oa9r1D/8Fr6BwWHXpaPx6ZE4Qg0+ybh5SZVfGQ+XhLcQisu3nwWemEjtTJGiig==}
+    peerDependencies:
+      '@deepseek-ai/cordis': ^4.0.1
+      '@deepseek-ai/dsh-invariants': ^0.1.1-rc.2
 
   '@deepseek-ai/dsh-host-apiproxy@0.1.1-rc.2':
     resolution: {integrity: sha512-dplRnGGXXsQYFQ1KMHymAM0iaxuE9Z153JHYcGEgOwXNkS3HA20gSi3yMt6fz+zi/cMHYXvY1JQhS54BTc761A==}
@@ -5100,6 +5154,11 @@ snapshots:
       '@deepseek-ai/dsh-typert-protocol': 0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1))
       '@deepseek-ai/schemastery': 3.18.1
       zod: 4.4.3
+
+  '@deepseek-ai/dsh-home-paths@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1))':
+    dependencies:
+      '@deepseek-ai/cordis': 4.0.1(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
+      '@deepseek-ai/dsh-invariants': 0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)
 
   '@deepseek-ai/dsh-host-apiproxy@0.1.1-rc.2(73bb34f881f3291b26a2607af4c34648)':
     dependencies:
