@@ -340,14 +340,43 @@ A: 可以。聚合包的行 id 统一带 `web-ui-` 前缀（如 `web-ui-describe
 
 ### 来源与版权
 
-| 包 | 来源 | 版权 |
-| --- | --- | --- |
-| dsh-task-board / dsh-git-graph / dsh-aionui-panel / dsh-pet / dsh-remote-web-ui / dsh-web-settings / dsh-doctor / dsh-ssh / dsh-chat-recovery / dsh-skill-explorer / dsh-desktop-launcher / dsh-market / dsh-plugin-manager / dsh-community-plugins / dsh-web-all / skins | 作者 zhu1090093659 个人开发 | Apache-2.0（zhu1090093659） |
-| dsh-client-ui-skin-matrix | 贡献者原创（Matrix 深夜护眼暗色皮肤） | Apache-2.0（贡献者 seanchen 声明） |
-| dsh-tool-describe-image | 移植自 [whitelonng/dsh-plugin-describe-image](https://github.com/whitelonng/dsh-plugin-describe-image)（deepseek-harness `packages/vision/tool-describe-image`） | Apache-2.0（zhu1090093659） |
-| dsh-liangshen | 插件本体原创；preset 派生自 DeepSeek Harness 内置 Minimal / Standard preset 与 [xiaobright/dsh-anchored-standard](https://github.com/xiaobright/dsh-anchored-standard)（声明见 preset 内 NOTICE） | Apache-2.0（zhu1090093659）+ MIT（preset 派生件） |
-| dsh-better-sidebar | 外部集成插件 [omdsh-dev/DSH-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar)（右侧面板，npm 依赖引用） | MIT（omdsh-dev） |
-| dsh-archive-manager | 外部集成插件 [z953218350/dsh-archive-manager](https://github.com/z953218350/dsh-archive-manager)（设置页归档管理，npm 依赖引用） | MIT（z953218350） |
+<details>
+<summary>第三方来源与版权登记（点击展开 · 插件 / 皮肤 / 宠物）</summary>
+
+**插件**
+
+- **dsh-task-board / dsh-git-graph / dsh-aionui-panel / dsh-pet / dsh-remote-web-ui / dsh-web-settings / dsh-doctor / dsh-ssh / dsh-chat-recovery / dsh-skill-explorer / dsh-desktop-launcher / dsh-market / dsh-plugin-manager / dsh-community-plugins / dsh-web-all** — 本仓库原创（zhu1090093659），Apache-2.0（zhu1090093659）
+- **dsh-tool-describe-image** — 移植自 [whitelonng/dsh-plugin-describe-image](https://github.com/whitelonng/dsh-plugin-describe-image)（deepseek-harness `packages/vision/tool-describe-image`），Apache-2.0（zhu1090093659）
+- **dsh-liangshen** — 插件本体原创；preset 派生自 DeepSeek Harness 内置 Minimal / Standard preset 与 [xiaobright/dsh-anchored-standard](https://github.com/xiaobright/dsh-anchored-standard)，Apache-2.0（zhu1090093659）+ MIT（preset 派生件）
+- **dsh-better-sidebar** — 外部集成插件 [omdsh-dev/DSH-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar)（右侧面板，npm 依赖引用），MIT（omdsh-dev）
+- **dsh-archive-manager** — 外部集成插件 [z953218350/dsh-archive-manager](https://github.com/z953218350/dsh-archive-manager)（设置页归档管理，npm 依赖引用），MIT（z953218350）
+- **dsh-ssh** — 依据 [badseal/ssh-skill](https://github.com/badseal/ssh-skill) 的能力清单实现；代码为本仓库 Apache-2.0（zhu1090093659），上游能力清单归属 badseal/ssh-skill
+- **dsh-miku-pet** — 代码与素材布局沿用 [PC2005-cloud/dsh-pet](https://github.com/PC2005-cloud/dsh-pet) 结构（MIT）；角色「初音未来（Hatsune Miku）」的名称、形象与肖像权归 Crypton Future Media, INC.，使用遵循 Piapro Character License（详见包内 [NOTICE.md](packages/dsh-miku-pet/NOTICE.md)）
+- **社区插件索引** — 37 项外部插件，来源与版权由各作者声明，登记于 [community.json](packages/dsh-community-plugins/community.json)，可在「设置 → 社区插件」与 dsh-market.com 查看
+
+**皮肤（第三方作者或第三方素材）**
+
+- **maid-atelier / orca-link** — [Small-tailqwq/dsh-deep-whale](https://github.com/Small-tailqwq/dsh-deep-whale)，CC BY-NC-SA 4.0；署名链见包内 LICENSE/NOTICE（maid：上善 → zipzip → Small-tailqwq；orca：上善 → Small-tailqwq）
+- **cyber-night** — logan0116；代码按仓库许可，背景图由作者以 OpenAI GPT 生成并按 CC0 1.0 贡献公有领域
+- **future-window** — zhuqin；背景与装饰原件 Apache-2.0（包内 LICENSE/NOTICE，attribution 见 skin.json）
+- **matrix** — 贡献者 seanchen 原创（Matrix 深夜护眼暗色皮肤），Apache-2.0（seanchen 声明）
+- **blue-fantasy** — powerdog996（DreamSkin 社区）× dsh-web 适配；皮肤目录内未附第三方许可声明（待作者确认补声明）
+- **deep-current** — Twelveeee；皮肤目录内未附许可声明（待作者确认补声明）
+- **furina** — 立绘/角色素材 sclass53，皮肤代码 zhu1090093659（目录内 LICENSE 为 BSD-3-Clause）；角色「芙宁娜」版权属米哈游（《原神》），作为粉丝创作使用
+- **harbor** — moeblack；皮肤目录内未附许可声明（待作者确认补声明）
+- **miku** — 立绘素材 涂山苏苏，皮肤代码 zhu1090093659；角色「初音未来」版权属 Crypton Future Media, INC.（Piapro Character License）
+- **pink-sakura** — 立绘素材 guomengjia618-dot，皮肤代码 zhu1090093659（目录内 LICENSE 为 Apache-2.0）
+- **war-thunder** — 皮肤代码为本仓库（Apache-2.0）；背景美术与启动器星徽取文本机 War Thunder 游戏客户端，版权归 Gaijin Entertainment，仅供个人非商业使用（见 skin.json attribution）
+
+> 其余皮肤（mint / whale-song / whale-mom / dragon-heir / minecraft / trading / summer-liquid-glass / wallpaper-exclusive / xp）为本仓库原创，Apache-2.0。
+
+**宠物**
+
+- **ouo-neko** — Pessimist0906，MIT（贡献记录见 [PR #1118](https://github.com/zhu1090093659/dsh-web/pull/1118) 与 dsh-pet [THIRD_PARTY_NOTICES.md](packages/dsh-pet/THIRD_PARTY_NOTICES.md)）
+- **whale / whale-refined** — 基于 DeepSeek wordmark 衍生的鲸鱼挂件（MIT / BSD-3-Clause；材料与声明见 dsh-pet THIRD_PARTY_NOTICES.md）
+- **miku-pet** — 见上文插件条目（角色权利按 Piapro Character License）
+
+</details>
 
 ## 贡献者
 
