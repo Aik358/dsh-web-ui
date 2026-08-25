@@ -54,7 +54,7 @@ export const BUNDLE_WRITE_BATCH_DELAY_MS = 500
 /** 尽力从运行时读取 persistence 行实际生效的 writeBatchMaxDelayMs(只读, 不修改)。 */
 function readAppliedBatchDelay(ctx: Context): number | undefined {
   try {
-    const service = (ctx as unknown as { get?: (name: string) => unknown }).get?.('session-persistence-jsonl')
+    const service = (ctx as unknown as { get?: (name: string) => unknown }).get?.('sessionPersistence')
     const config = (service as { config?: { writeBatchMaxDelayMs?: unknown } } | undefined)?.config
     return typeof config?.writeBatchMaxDelayMs === 'number' ? config.writeBatchMaxDelayMs : undefined
   } catch {

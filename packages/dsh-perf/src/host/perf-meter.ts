@@ -77,17 +77,25 @@ export class PerfMeter {
   /** (Re)apply host-side options; cheap, safe to call on settings change. */
   applyOptions(options: PerfMeterOptions): void {
     this.windowMs = options.statsWindowSeconds * 1000
+    const intervalChanged = options.meterIntervalMs !== this.options.meterIntervalMs
     const wasOff = this.options.mode === 'off'
     this.options = options
-    if (wasOff && options.mode !== 'off' && this.started) this.attach()
-    if (!wasOff && options.mode === 'off' && this.started) this.detach()
+    if (wasOff && options.mode !== 'off' && this.started) { this.el.enable(); this.attach() }
+    if (!wasOff && options.mode === 'off' && this.started) { this.detach(); this.el.disable() }
+    if (intervalChanged && this.timer !== undefined) {
+      clearInterval(this.timer)
+      this.timer = setInterval(() => this.tick(), options.meterIntervalMs)
+      this.timer.unref?.()
+    }
   }
 
   start(): void {
     if (this.started) return
     this.started = true
-    this.el.enable()
-    this.attach()
+    if (this.options.mode !== 'off') {
+      this.el.enable()
+      this.attach()
+    }
     this.timer = setInterval(() => this.tick(), this.options.meterIntervalMs)
     this.timer.unref?.()
   }
@@ -150,6 +158,10 @@ export class PerfMeter {
   private compactBuckets(at: number): void {
     const cutoff = at - this.windowMs
     while (this.buckets.length > 0 && this.buckets[0].at < cutoff) this.buckets.shift()
+    // 窗口外会话的 lastType 无界增长防护: 按当前窗口活跃集清理。
+    const alive = new Set<string>()
+    for (const bucket of this.buckets) { for (const id of bucket.perSession.keys()) alive.add(id) }
+    for (const id of this.lastTypeBySession.keys()) { if (!alive.has(id)) this.lastTypeBySession.delete(id) }
   }
 
   /** 窗口内聚合: 总速率 / 每会话速率 / 事件类型分布。 */

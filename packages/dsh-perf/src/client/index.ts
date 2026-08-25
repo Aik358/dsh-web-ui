@@ -147,7 +147,23 @@ function boot(): void {
     observer.observe({ entryTypes: ['longtask'] })
   } catch { /* Safari/旧 Chrome 无 longtask: 静默 */ }
 
-  // --- 轮询 host -----------------------------------------------------
+  // --- CSS 降载(P0): 屏外消息行 content-visibility 近似虚拟化 ----------
+  try {
+    if (localStorage.getItem('dsh-perf-css') !== 'off') {
+      const style = document.createElement('style')
+      style.dataset.dshPerf = 'css'
+      style.textContent = [
+        '[data-chat-flow-kind="assistant-step"],',
+        '[data-chat-flow-kind="tool-call"]',
+        '  content-visibility: auto;',
+        '  contain-intrinsic-size: auto 120px;',
+        '}',
+      ].join('\n')
+      document.head.appendChild(style)
+    }
+  } catch { /* noop */ }
+
+// --- 轮询 host -----------------------------------------------------
   const poll = async (): Promise<void> => {
     let wire: StatsWire | undefined
     try {
@@ -167,8 +183,13 @@ function boot(): void {
     cache.failures = 0
     cache.stats = wire
     cache.stale = false
-    root.style.display = currentVisible() ? 'block' : 'none'
-    render(root, cache, fps, longtasks.length)
+    try {
+      render(root, cache, fps, longtasks.length)
+    } catch (error) {
+      // 畸形 wire(host 版本漂移)按缺失处理: 静默, 不产生 unhandled rejection。
+      console.debug('[dsh-perf] render degraded:', error)
+      root.style.display = 'none'
+    }
   }
 
   // --- 渲染 -----------------------------------------------------------
@@ -179,7 +200,7 @@ function boot(): void {
     const lines: string[] = []
     const mode = s.mode ?? '?'
     const batch = s.batchDelayMs ?? '?'
-    const alert = s.alert
+    const alert = typeof s.alert === 'object' && s.alert !== null ? s.alert : undefined
     if (alert) {
       const reason = alert.kind === 'sessions'
         ? '会话 ' + (alert.activeSessions ?? '?') + ' 个 ≥ 阈值 ' + (alert.maxSessions ?? '?')
@@ -196,11 +217,13 @@ function boot(): void {
     lines.push('fps=' + currentFps + '  longtasks(60s)=' + longtaskCount)
     const mem = s.mem ?? {}
     lines.push('rss=' + (mem.rssMB ?? '?') + 'MB  heap=' + (mem.heapUsedMB ?? '?') + 'MB')
-    for (const session of (s.topSessions ?? []).slice(0, 3)) {
+    const top = Array.isArray(s.topSessions) ? s.topSessions : []
+    for (const session of top.slice(0, 3)) {
       const id = shortId(session.id ?? '?')
       lines.push('  · ' + id + '  ' + (session.eventsPerSec ?? '?') + '/s [' + (session.lastType ?? '') + ']')
     }
     hostEl.style.borderColor = alert ? '#ff8a65' : 'transparent'
+    if (peekBtn !== undefined) peekBtn.style.display = currentVisible() ? 'none' : 'block'
     if (renderInto !== undefined) renderInto.textContent = lines.join('\n')
     else hostEl.textContent = lines.join('\n')
   }
@@ -220,7 +243,17 @@ function boot(): void {
     const target = event.target as HTMLElement | null
     if (target?.dataset.dshPerfAction === 'close') {
       localStorage.setItem(STORAGE_KEY, 'hidden')
-      root.style.display = 'none'
+      applyCollapse()
+      return
+    }
+    if (target?.dataset.dshPerfAction === 'peek') {
+      localStorage.setItem(STORAGE_KEY, 'shown')
+      applyCollapse()
+    }
+    // 收缩状态下点击面板任意处也可展开
+    if (!currentVisible() && target !== null) {
+      localStorage.setItem(STORAGE_KEY, 'shown')
+      applyCollapse()
     }
   })
 
@@ -228,6 +261,11 @@ function boot(): void {
   closeBtn.dataset.dshPerfAction = 'close'
   closeBtn.textContent = '×'
   closeBtn.style.cssText = 'position:absolute;top:2px;right:4px;border:0;background:none;color:#8fa3b8;cursor:pointer;font:12px/1 monospace;padding:2px'
+  const peekBtn = document.createElement('button')
+  peekBtn.dataset.dshPerfAction = 'peek'
+  peekBtn.textContent = '▲'
+  peekBtn.style.cssText = 'position:absolute;top:2px;right:20px;border:0;background:none;color:#8fa3b8;cursor:pointer;font:12px/1 monospace;padding:2px;display:none'
+  root.appendChild(peekBtn)
   root.appendChild(closeBtn)
 
   // 数据区与关闭按钮分离: textContent 更新不得清掉按钮。
@@ -238,8 +276,16 @@ function boot(): void {
   // render 状态注入容器
   renderInto = dataEl
 
-  if (!currentVisible()) root.style.display = 'none'
-  else document.body.appendChild(root)
+  document.body.appendChild(root)
+  const applyCollapse = (): void => {
+    const collapsed = !currentVisible()
+    root.style.width = collapsed ? 'auto' : ''
+    root.style.maxWidth = collapsed ? 'none' : '340px'
+    if (renderInto !== undefined) {
+      renderInto.textContent = collapsed ? 'PERF ' : renderInto.textContent
+    }
+  }
+  applyCollapse()
   void poll()
   setInterval(poll, POLL_MS)
 }
