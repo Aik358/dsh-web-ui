@@ -1,4 +1,4 @@
-# dsh-web · Aggregate Plugin Ecosystem for DSH Web
+# dsh-web · DeepSeek Harness (DSH) Web GUI Plugin Ecosystem
 
 [中文](README.md) | English
 
@@ -37,7 +37,7 @@
 
 ## What It Is
 
-dsh-web is the aggregate plugin ecosystem for DeepSeek Harness (DSH) Web — the most complete realization of "everything is development, everything is a plugin" on the web: the task board, mobile remote, SSH ops, image understanding and the right panel each ship as an independent, self-contained plugin — pluggable, swappable, re-developable. Install the whole family to assemble a complete dev workbench, or pick one or two and they melt quietly into the stock UI. Everything mounts into `dsh web` through the official profile mechanism, no DSH source changes; the aggregate can even bolt on external plugins like `dsh-better-sidebar`, while other skin and pet assets come from the Workshop — see the [dsh-web-all README](packages/dsh-web-all/README.md).
+dsh-web is the aggregate plugin ecosystem for the DeepSeek Harness (DSH) Web GUI — the most complete realization of "everything is development, everything is a plugin" on the web: the task board, mobile remote control, SSH ops, image understanding, the LiangShen anchored agent preset, rescue mode and the right panel each ship as an independent, self-contained plugin — pluggable, swappable, re-developable. Install the whole family to assemble a complete AI dev workbench, or pick one or two and they melt quietly into the stock UI. Everything mounts into `dsh web` through the official profile mechanism, no DSH source changes; the aggregate can even bolt on external plugins like `dsh-better-sidebar`, while other skin and pet assets come from the Workshop — see the [dsh-web-all README](packages/dsh-web-all/README.md).
 
 Skins live inside the same plugin system: a v2 skin is not a standalone product but a pure asset pack of the skins plugin (a skin.json manifest plus styles, art and optional effect scripts), loaded on demand by that plugin, the single loader — official upgrades no longer touch any skin, and adding one means dropping in a directory: no publish, no install. Plugins own the logic, skin assets own the look; Blue Fantasy ships with the plugin, while other skin and pet assets are distributed through the [Workshop](#workshop-dsh-marketcom) (dsh-market.com).
 
@@ -66,7 +66,7 @@ The Workshop takes its cue from the Steam Workshop: a place where community crea
 
 ## Feature Plugins
 
-### Task Board
+### Task Board（任务看板）
 
 Open it from the sidebar. Tasks sit in five columns: Planned, To-do, In Progress, Done, Failed. Click "Run" on a card and the task goes to a real DSH agent session; the card status updates itself when it finishes. Want to see what happened? Jump back into the execution session for the full transcript.
 
@@ -76,7 +76,7 @@ Tasks can also run on schedule: set a cron expression in the detail view (auto-u
 | --- | --- |
 | ![Task board](docs/screenshots/09-task-board.png) | ![Scheduled task detail](docs/screenshots/10-task-board-detail-cron.png) |
 
-### Mobile Remote Control
+### Mobile Remote Control（移动端远程控制）
 
 The phone icon at the bottom of the sidebar opens the pairing panel. Scan the QR code (or copy the link) and the phone lands on a standalone mobile surface for the current dsh web workspace: browse and create sessions, send and receive messages, switch models and reasoning effort, adjust the permission preset, all in sync with the desktop. The same pairing link also pairs a **PC browser** (the phone pairing flow extended to the desktop Web GUI): open the desktop-URL form of the link on another computer and the full Web GUI runs there, its traffic on the pairing-gated `/remote/api` channel — unpaired devices get a banner and no data. Pairing tokens are one-time and time-limited; "Stop" revokes every device at any time. The QR targets the LAN by default; turn on the cloudflared public tunnel and the phone (and PC) can pair from any network. PC remote desktop should prefer this plugin's device-pairing channel; setting `--trusted-host` for a tunnel domain is not recommended on security grounds because that flag lets the SDK's `/api` bypass the pairing gate (see the [plugin README](packages/dsh-remote-web-ui/README.md)).
 
@@ -88,7 +88,7 @@ The phone icon at the bottom of the sidebar opens the pairing panel. Scan the QR
 | Chat (folded reasoning & tool calls) | Model & reasoning-effort picker |
 | ![Mobile chat](docs/screenshots/22-mobile-chat.png) | ![Model picker](docs/screenshots/23-mobile-model-sheet.png) |
 
-### Remote Connection (SSH)
+### SSH Remote Ops（远程连接）
 
 The "SSH" sidebar entry opens the remote-ops panel. Hosts support key / password auth and one-click import from `~/.ssh/config`; config lives in `~/.dsh/dsh-ssh.json`. Real operations on configured hosts:
 
@@ -98,11 +98,11 @@ The "SSH" sidebar entry opens the remote-ops panel. Hosts support key / password
 - **Cluster runs**: one command across many hosts, filtered by alias / environment / tags;
 - **Agent direct control**: agents share the same host config. Say "check xxx" in chat and the agent runs the remote command.
 
-### Image Understanding
+### Image Understanding（图像理解）
 
 Gives text-only models vision. When a conversation mentions an image (local path, http(s) URL, or session attachment), `describe_image` sends it to a configured OpenAI-compatible vision endpoint (Qwen-VL, GLM-4V, GPT-4o, a local Ollama endpoint, whatever you have) and returns the answer. **Only the returned text enters the conversation; the image itself never enters the session log.** Text-only models have no image entry in the input box, so the plugin adds an image button: pick a file, an attachment reference lands in your draft, and the model can analyze it via `describe_image`. A `prompt` argument takes custom instructions (OCR, UI diagnosis, translation) that beat the generic description. Endpoint, model, key and default instruction live under Settings > Plugin config > "Image understanding", applied immediately.
 
-### Right Panel
+### Right Panel（右侧面板）
 
 The right panel is provided by the external plugin [dsh-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) (integrated into the aggregate bundle and enabled by default), with its built-in features and third-party plugin registration — see its [README](https://github.com/omdsh-dev/DSH-better-sidebar).
 
@@ -110,19 +110,26 @@ The right panel is provided by the external plugin [dsh-better-sidebar](https://
 
 > The previous aionui-panel right panel is **no longer supported**: it is off by default, receives no maintenance, tests, or fixes, and will be removed from the family bundle in a future release; Settings → Web UI Plugins → Side Card edits its everyday settings inline.
 
-### Git Graph
+### Git Graph（Git 图谱）
 
 The branch picker above the input box switches branches and browses commit history. The Git graph draws branch lanes and commits on a timeline, which stays readable even in big repositories.
 
 ![Git graph](docs/screenshots/04-git-graph.png)
 
-### More Plugins
+### LiangShen Mode (Anchored Agent Preset)（梁神模式）
+
+LiangShen Mode (`dsh-liangshen`) is a two-phase anchored agent preset that installs with the family bundle: pick "梁神模式" in the preset picker of a new session. The first model request sees only the builtin Minimal preset's exact two tools (persistent `bash` and `str_replace_editor`) plus a one-line persona — no runtime context, no injected instructions. After the first tool call, promotion waits for the first minimal-like reasoning block, then the wire switches to PTC Mode (a single `run_code` backed by the full tool registry through a generated SDK) and every prompt section and ordinary injection returns. It separates the first-trajectory choice from full later capability: in the community eval, Standard / PTC scored 91/92 while Minimal reached 99/96, and the two-phase setup measures a 98.5 mean on native Windows without sacrificing tool capability. The phase derives from persisted session events, so resume never loses state, and plan mode is supported. See the [dsh-liangshen README](packages/dsh-liangshen/README.md) for the rationale and stabilization controls.
+
+### Rescue Mode（救助模式）
+
+Rescue mode (`dsh-doctor`) is a transactional rescue system for DSH profiles, **on by default**: a user-level Doctor Supervisor service and a transparent Doctor Launcher maintain an isolated rescue capsule, detecting boot failures, process crashes, heartbeat loss, web faults and browser white-screens. Every repair is a transaction: snapshot the current profile, apply deterministic rules in a candidate environment, pass isolated dump-config and web health gates, then promote atomically — or roll back byte-for-byte. Profiles change only through the official `dsh plugin` command, and no unverified `latest` is ever installed. The web console (the Doctor card under Settings → Plugin config → Web UI Plugins) shows fault events with diagnose, repair and rollback actions; "Send to Harness" composes the latest fault's summary and error stack into a troubleshooting prompt delivered back into the current session so your agent can diagnose in place. The Supervisor listens only on a local socket (0600 token) and the web API is loopback-only; see the [dsh-doctor README](packages/dsh-doctor/README.md) for the security model and the `dsh-doctor` CLI.
+
+### More Plugins（更多插件）
 
 - **Skill center** (`dsh-client-ui-skill-explorer`): browse loaded skills by source; enable, disable, create and delete.
 - **Plugin manager** (`dsh-client-ui-plugin-manager`): install plugins from npm or git through the official host channels; manage enablement and configuration.
 - **Chat recovery** (`dsh-chat-recovery`): fork-based editing of past messages and one-click retry of a failed turn, leaving the original session intact.
 - **Desktop launcher** (`dsh-desktop-launcher`): a double-click desktop icon starts `dsh web` and opens the Web GUI; a floating power button exits the host process gracefully.
-- **Rescue mode** (`dsh-doctor`): transactionally repairs a broken DSH profile — supervised launcher, isolated recovery capsule and a local web recovery console; off by default, enable it in settings.
 - **Archive manager** (external plugin [@mlgbnb/dsh-archive-manager](https://github.com/z953218350/dsh-archive-manager), bundled in the aggregate): group sessions by project, search and filter, preview conversations, restore or delete in one click.
 
 ### Skins
@@ -187,7 +194,8 @@ dsh plugin --profile web add @linxin666/dsh-client-ui-task-board@latest    # Tas
 dsh plugin --profile web add @linxin666/dsh-ssh@latest                     # Remote connection (SSH)
 dsh plugin --profile web add @linxin666/dsh-tool-describe-image@latest     # Image understanding tool
 dsh plugin --profile web add @linxin666/dsh-pet@latest                     # Whale-girl pet
-dsh plugin --profile web add @linxin666/dsh-doctor@latest                  # Rescue mode (off by default, enable in settings)
+dsh plugin --profile web add @linxin666/dsh-liangshen@latest               # LiangShen mode (two-phase anchored preset, pick in new sessions)
+dsh plugin --profile web add @linxin666/dsh-doctor@latest                  # Rescue mode (on by default, can be disabled in the Doctor card)
 dsh plugin --profile web add dsh-better-sidebar@latest                     # Right panel (recommended; explorer/editor/terminal/git/browser)
 dsh plugin --profile web add @linxin666/dsh-client-ui-aionui-panel@latest  # Legacy right panel (aionui-panel, unsupported, transitional only)
 ```
@@ -205,6 +213,7 @@ Every plugin is published on npm under the `@linxin666/dsh-*` scope and can be v
 | [@linxin666/dsh-ssh](https://www.npmjs.com/package/@linxin666/dsh-ssh) | SSH panel: terminal / transfer / tunnel / cluster |
 | [@linxin666/dsh-tool-describe-image](https://www.npmjs.com/package/@linxin666/dsh-tool-describe-image) | `describe_image` vision tool |
 | [@linxin666/dsh-pet](https://www.npmjs.com/package/@linxin666/dsh-pet) | Registry-driven floating pet companion |
+| [@linxin666/dsh-liangshen](https://www.npmjs.com/package/@linxin666/dsh-liangshen) | LiangShen mode: two-phase anchored agent preset |
 | [@linxin666/dsh-client-ui-git-graph](https://www.npmjs.com/package/@linxin666/dsh-client-ui-git-graph) | Git branch selector and commit history graph |
 | [@linxin666/dsh-client-ui-skin-center](https://www.npmjs.com/package/@linxin666/dsh-client-ui-skin-center) | Skins: the single loader for every skin, with skin assets installed on demand from the Workshop |
 | [@linxin666/dsh-client-ui-market](https://www.npmjs.com/package/@linxin666/dsh-client-ui-market) | Workshop card: browse skins / pets / plugins from dsh-market.com and install with one click |
@@ -212,7 +221,7 @@ Every plugin is published on npm under the `@linxin666/dsh-*` scope and can be v
 | [@linxin666/dsh-client-ui-skill-explorer](https://www.npmjs.com/package/@linxin666/dsh-client-ui-skill-explorer) | Skill center: browse, toggle and manage skills |
 | [@linxin666/dsh-chat-recovery](https://www.npmjs.com/package/@linxin666/dsh-chat-recovery) | Chat recovery: fork-based edit and failed-turn retry |
 | [@linxin666/dsh-desktop-launcher](https://www.npmjs.com/package/@linxin666/dsh-desktop-launcher) | Desktop launcher: one-click start and shutdown for dsh |
-| [@linxin666/dsh-doctor](https://www.npmjs.com/package/@linxin666/dsh-doctor) | Transactional rescue mode: repairs DSH profiles |
+| [@linxin666/dsh-doctor](https://www.npmjs.com/package/@linxin666/dsh-doctor) | Transactional rescue mode: repairs DSH profiles (on by default) |
 | [@linxin666/dsh-client-ui-community-plugins](https://www.npmjs.com/package/@linxin666/dsh-client-ui-community-plugins) | Community plugin data source: the market plugin list is generated from it |
 | [@linxin666/dsh-client-ui-web-ui-settings](https://www.npmjs.com/package/@linxin666/dsh-client-ui-web-ui-settings) | Settings section for the dsh-web plugin group |
 | [@linxin666/dsh-client-ui-aionui-panel](https://www.npmjs.com/package/@linxin666/dsh-client-ui-aionui-panel) | Legacy right panel (no longer supported, off by default) |
@@ -339,6 +348,7 @@ This repository is licensed under [Apache-2.0](LICENSE). Third-party code merged
 | dsh-task-board / dsh-git-graph / dsh-aionui-panel / dsh-pet / dsh-remote-web-ui / dsh-web-settings / dsh-doctor / dsh-ssh / dsh-chat-recovery / dsh-skill-explorer / dsh-desktop-launcher / dsh-market / dsh-plugin-manager / dsh-community-plugins / dsh-web-all / skins | Authored by zhu1090093659 | Apache-2.0 (zhu1090093659) |
 | dsh-client-ui-skin-matrix | Contributor original (Matrix dark eye-care skin) | Apache-2.0 (declared by contributor seanchen) |
 | dsh-tool-describe-image | Ported from [whitelonng/dsh-plugin-describe-image](https://github.com/whitelonng/dsh-plugin-describe-image) (deepseek-harness `packages/vision/tool-describe-image`) | Apache-2.0 (zhu1090093659) |
+| dsh-liangshen | Plugin body original; preset derives from the DeepSeek Harness builtin Minimal / Standard presets and [xiaobright/dsh-anchored-standard](https://github.com/xiaobright/dsh-anchored-standard) (see NOTICE inside the preset) | Apache-2.0 (zhu1090093659) + MIT (preset derivations) |
 | dsh-better-sidebar | External integrated plugin [omdsh-dev/DSH-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) (right panel, npm dependency reference) | MIT (omdsh-dev) |
 | dsh-archive-manager | External integrated plugin [z953218350/dsh-archive-manager](https://github.com/z953218350/dsh-archive-manager) (settings-page archive manager, npm dependency reference) | MIT (z953218350) |
 

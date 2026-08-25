@@ -26,6 +26,7 @@ Status: implemented
 - Blue Fantasy 仍是根 README 中唯一展示的皮肤，且继续由皮肤中心包随包提供；其他皮肤按需从创意工坊安装。
 - 根 README 仍由中英文手工配对维护，不属于 packages/docs 三件套门禁，因此提交前必须人工核对两侧的标题、表格、链接与图片。
 - 皮肤图片资源与现有生成器保持不变，避免把文档简化误解为删除皮肤或市场资产。
+- 被 [根 README SEO 优化与特色功能章节](../docs/2026-08-25-root-readme-seo-feature-sections.zh.md) 部分取代：梁神模式已回归根 README（功能章节、安装命令、npm 清单行与许可证行）；皮肤与宠物的目录精简仍然有效。
 
 ## Testing
 
