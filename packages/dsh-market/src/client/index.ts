@@ -21,6 +21,7 @@ export type { MarketCardProps, MarketSectionProps } from './MarketCard.tsx'
 export type { InstalledPluginItem, InstallProgressItem, PluginManagerService } from './plugin-manager-bridge.ts'
 
 const MARKET_NS = 'dsh-web-ui-market'
+const SECTION_ID = 'dsh-workshop'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -68,7 +69,7 @@ export function apply(ctx: ClientContext): void {
     try {
       const unregister = ctx.slots.register({
         name: 'settings.section',
-        id: MARKET_NS,
+        id: SECTION_ID,
         order: 150,
         label: () => ctx.locale.bind(MARKET_NS)('settings.title'),
         locale: MARKET_NS,

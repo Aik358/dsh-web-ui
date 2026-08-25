@@ -3,6 +3,7 @@ import z from "schemastery";
 import { mkdirSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path, { isAbsolute, join, sep } from "node:path";
 import { homedir } from "node:os";
+import { isAbsolute as isAbsolute$1, join as join$1 } from "node:path/posix";
 import { createHash } from "node:crypto";
 //#region src/mount-once.ts
 /**
@@ -53,8 +54,9 @@ function mountOnce(packageName, fn) {
 */
 /** Expand a leading ~ (or ~user) in a path, platform-style. */
 function expandHome(path, home = homedir()) {
+	const j = home.startsWith("/") ? join$1 : join;
 	if (path === "~") return home;
-	if (path.startsWith("~/") || path.startsWith("~\\")) return join(home, path.slice(2));
+	if (path.startsWith("~/") || path.startsWith("~\\")) return j(home, path.slice(2));
 	return path;
 }
 /**
@@ -64,12 +66,15 @@ function expandHome(path, home = homedir()) {
 * @returns the absolute DSH home path.
 */
 function resolveDshHome(env = process.env, home = homedir()) {
+	const isPosix = home.startsWith("/");
+	const j = isPosix ? join$1 : join;
+	const isAbs = isPosix ? isAbsolute$1 : isAbsolute;
 	const raw = env.DSH_HOME;
 	if (raw !== void 0 && raw.trim() !== "") {
 		const expanded = expandHome(raw.trim(), home);
-		return isAbsolute(expanded) ? expanded : join(process.cwd(), expanded);
+		return isAbs(expanded) ? expanded : j(process.cwd(), expanded);
 	}
-	return join(home, ".dsh");
+	return j(home, ".dsh");
 }
 /** Resolve the DSH home directory from the live environment. */
 function dshHome() {

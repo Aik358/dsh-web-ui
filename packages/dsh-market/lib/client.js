@@ -1701,6 +1701,7 @@ window.__ModuleLoader__.load({
 		//#endregion
 		//#region src/client/index.ts
 		const MARKET_NS = "dsh-web-ui-market";
+		const SECTION_ID = "dsh-workshop";
 		const inject = [
 			"slots",
 			"locale",
@@ -1727,7 +1728,7 @@ window.__ModuleLoader__.load({
 				try {
 					const unregister = ctx.slots.register({
 						name: "settings.section",
-						id: MARKET_NS,
+						id: SECTION_ID,
 						order: 150,
 						label: () => ctx.locale.bind(MARKET_NS)("settings.title"),
 						locale: MARKET_NS,
