@@ -57,7 +57,6 @@
     "@linxin666/dsh-desktop-launcher": "workspace:*",
     "@linxin666/dsh-doctor": "workspace:*",
     "@linxin666/dsh-client-ui-web-ui-settings": "workspace:*",
-    "@linxin666/dsh-miku-pet": "workspace:*",
     "@linxin666/dsh-client-ui-skin-center": "workspace:*",
     "@mlgbnb/dsh-archive-manager": "1.0.7",
     "dsh-better-sidebar": "0.15.2"
