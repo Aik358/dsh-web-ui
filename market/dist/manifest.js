@@ -495,6 +495,23 @@ window.SKIN_MANIFEST = {
           }
         }
       }
+    },
+    {
+      "id": "orca-link",
+      "name": "虎鲸链路",
+      "nameEn": "ORCA LINK",
+      "author": "Small-tailqwq",
+      "tagline": "珍珠白机械舱 · 黑曜虎鲸操作员 · 电蓝链路信号",
+      "description": "为原创虎鲸操作员定制的轻量二次元科幻皮肤：亮色空态以眨眼角色迎接用户，任务开始后交叉淡化为操作台工作场景；暗色空态以持杯角色迎接用户，任务开始后切换为阅读工作场景；石墨黑结构件和克制的电蓝信号贯穿侧栏、会话、输入区与扩展面板。",
+      "accent": "#086cff",
+      "preview": {
+        "light": "assets/skins/orca-link/preview/light.jpg",
+        "dark": "assets/skins/orca-link/preview/dark.jpg"
+      },
+      "contributes": {
+        "stylesheet": "skin.css",
+        "patches": "patches.css"
+      }
     }
   ]
 }

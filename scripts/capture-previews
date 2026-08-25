@@ -90,7 +90,7 @@ async function main() {
   console.log(`capture-previews: ${skins.length} skins × {light,dark} @ ${base}`)
 
   // hooks 动态场景皮肤清单（作用于 capture 渲染，不影响模拟器默认行为）
-  const HOOK_SCENE_SKINS = ['maid-atelier']
+  const HOOK_SCENE_SKINS = ['maid-atelier', 'orca-link']
 
   const { chromium } = loadPlaywright()
   const browser = await chromium.launch()
