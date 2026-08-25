@@ -320,5 +320,39 @@ describe('MarketCard', () => {
     await waitFor(() => expect(execMock).toHaveBeenCalledWith('copy'))
     expect(screen.queryByText('已复制')).toBeNull()
   })
+  it('filters plugins by category and second-level subcategory', () => {
+    const remote = {
+      items: {
+        skin: [],
+        pet: [],
+        plugin: [
+          { id: 'p-terminal', name: '终端 A', rank: 1, repo: 'https://github.com/x/p-terminal', category: 'ui', subcategory: 'terminal' },
+          { id: 'p-chat', name: '对话 B', rank: 2, repo: 'https://github.com/x/p-chat', category: 'ui', subcategory: 'chat' },
+          { id: 'p-dev', name: '工具 C', rank: 3, repo: 'https://github.com/x/p-dev', category: 'tools', subcategory: 'dev' },
+        ],
+      },
+      stats: { skin: {}, pet: {}, plugin: {} },
+    }
+    render(<MarketCard {...cardProps(new FakeScope({}), { remote, gateway: null, pluginManager: null })} />)
+    fireEvent.click(screen.getByRole('tab', { name: /插件/ }))
+    // Category chips show labels and counts; the two-level row appears only after a category is picked.
+    expect(screen.getAllByRole('button', { name: /^全部/ })).toHaveLength(1)
+    expect(screen.getByRole('button', { name: /^界面/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^工具/ })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /^界面/ }))
+    expect(screen.getAllByRole('button', { name: /^全部/ })).toHaveLength(2)
+    expect(screen.getByRole('button', { name: /^终端界面/ })).toBeTruthy()
+    expect(screen.queryByText('工具 C')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /^终端界面/ }))
+    expect(screen.getByText('终端 A')).toBeTruthy()
+    expect(screen.queryByText('对话 B')).toBeNull()
+    // Card badges show localized labels instead of raw ids.
+    expect(screen.getAllByText('界面').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('终端界面').length).toBeGreaterThan(0)
+    // Switching tabs resets both filter levels.
+    fireEvent.click(screen.getByRole('tab', { name: /皮肤/ }))
+    fireEvent.click(screen.getByRole('tab', { name: /插件/ }))
+    expect(screen.getByText('工具 C')).toBeTruthy()
+  })
 })
 

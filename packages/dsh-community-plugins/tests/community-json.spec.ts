@@ -9,6 +9,15 @@ import entries from '../community.json'
 
 const REQUIRED = ['id', 'name', 'nameEn', 'author', 'repo'] as const
 const CATEGORIES = ['ui', 'agent', 'tools', 'knowledge', 'integration', 'security', 'utility'] as const
+const SUBCATEGORIES: Record<string, readonly string[]> = {
+  ui: ['terminal', 'chat', 'render', 'panel'],
+  agent: ['preset'],
+  tools: ['context', 'browser', 'api', 'model', 'dev'],
+  knowledge: ['memory', 'reading', 'qa'],
+  integration: ['remote', 'bridge', 'sync', 'external-ai'],
+  security: ['access', 'policy'],
+  utility: ['cleanup', 'stats', 'notify', 'net'],
+} as const
 
 describe('community.json index contract', () => {
   it('is a non-empty array of fully specified entries', () => {
@@ -27,6 +36,10 @@ describe('community.json index contract', () => {
       }
       if (entry.category !== undefined) {
         expect(CATEGORIES).toContain(entry.category)
+      }
+      if (entry.subcategory !== undefined) {
+        expect(entry.category, 'subcategory requires a category: ' + String(entry.id)).toBeDefined()
+        expect(SUBCATEGORIES[String(entry.category)]).toContain(entry.subcategory)
       }
     }
   })

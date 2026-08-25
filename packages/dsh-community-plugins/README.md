@@ -6,7 +6,7 @@ The community plugin index data source of the dsh web ecosystem: `community.json
 
 ## What it does
 
-- Index data: `community.json` is merged by maintainer review (see the "社区插件索引登记" section of [docs/plugins.md](../../docs/plugins.md)); every entry requires `id` / `name` / `nameEn` / `author` / `repo` plus optional `description` / `descriptionEn` / `npm` / `category`.
+- Index data: `community.json` is merged by maintainer review (see the "社区插件索引登记" section of [docs/plugins.md](../../docs/plugins.md)); every entry requires `id` / `name` / `nameEn` / `author` / `repo` plus optional `description` / `descriptionEn` / `npm` / `category` / `subcategory` (`subcategory` is the second-level classification under `category`; see the enums in `scripts/community-index`, and it is accepted only when `category` is set).
 - Consumers: `scripts/market-build` derives the Workshop store and dsh-market.com plugin manifests from this file.
 - Validation: `node scripts/community-index` checks the index contract (the `pnpm community:check` CI gate runs the same check).
 - No settings surface: this package no longer ships any UI (the community plugin card was replaced by the Workshop store's plugin catalog); the inert cordis row only keeps existing profiles and the aggregate resolving it — it contributes no UI after install.

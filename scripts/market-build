@@ -254,6 +254,7 @@ function scanPlugins() {
     if (p.repo) item.repo = p.repo
     if (p.npm) item.npm = p.npm
     item.category = typeof p.category === 'string' && p.category ? p.category : 'other'
+    if (typeof p.subcategory === 'string' && p.subcategory) item.subcategory = p.subcategory
     plugins.push({ item })
   }
   return plugins

@@ -206,6 +206,44 @@
 .market .actionRowPrimary > .installPrimary:disabled { opacity: 0.55; cursor: default; }
 .error { margin: 0; font-size: 12px; line-height: 1.4; color: var(--dsw-alias-label-error, #c53030); }
 .callout { margin: 0; font-size: 12px; line-height: 1.4; color: var(--dsw-alias-state-success-primary); }
+/* Two-level plugin filter: a category pill row plus a subcategory pill row
+ * (dashed border, one size smaller) shown once a category is selected. Scoped
+ * under .market so skins' html[data-dsh-skin] resets cannot strip the chrome. */
+.filterRows { display: flex; flex-direction: column; gap: 6px; }
+.filterRow { display: flex; flex-wrap: wrap; gap: 6px; }
+.market .filterRow > button.filterChip {
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--dsw-alias-label-secondary);
+  background: var(--dsw-alias-bg-layer-1);
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 999px;
+  padding: 2px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.market .filterRow > button.filterChip:hover:enabled {
+  color: var(--dsw-alias-label-primary);
+  border-color: var(--dsw-alias-label-dimmed);
+}
+.market .filterRow > button.filterChip.filterChipSub {
+  font-size: 11px;
+  color: var(--dsw-alias-label-tertiary);
+  border-style: dashed;
+}
+.market .filterRow > button.filterChip.filterChipOn {
+  color: var(--dsw-alias-bg-layer-3);
+  background: var(--dsw-alias-label-primary);
+  border-color: var(--dsw-alias-label-primary);
+  border-style: solid;
+  font-weight: 600;
+}
+.market .filterRow > button.filterChip.filterChipOn:hover:enabled {
+  color: var(--dsw-alias-bg-layer-3);
+  border-color: var(--dsw-alias-label-primary);
+}
+.filterCount { margin-left: 6px; font-size: 11px; opacity: .72; }
 .empty { color: var(--dsw-alias-label-tertiary); font-size: 13px; display: flex; align-items: center; gap: 8px; }
 .retry { font-size: 12px; padding: 3px 10px; }
 .remoteNote { margin: 6px 0 0; font-size: 12px; line-height: 1.4; color: var(--dsw-alias-label-tertiary); }

@@ -20,6 +20,7 @@ const VALID = [
     repo: 'https://github.com/author-a/dsh-a',
     npm: '@author-a/dsh-a',
     category: 'ui',
+    subcategory: 'terminal',
   },
   {
     id: 'dsh-b',
@@ -62,6 +63,20 @@ test('validateEntries rejects an unknown category', () => {
   const bad = structuredClone(VALID)
   bad[0].category = 'unknown'
   assert.throws(() => validateEntries(bad), /category must be one of/)
+})
+
+test('validateEntries rejects a subcategory without a category', () => {
+  const bad = structuredClone(VALID)
+  bad[1].subcategory = 'terminal'
+  assert.throws(() => validateEntries(bad), /subcategory requires a category/)
+})
+
+test('validateEntries rejects a subcategory outside its category', () => {
+  const bad = structuredClone(VALID)
+  bad[0].subcategory = 'memory'
+  assert.throws(() => validateEntries(bad), /subcategory must be one of/)
+  bad[0].subcategory = 'unknown'
+  assert.throws(() => validateEntries(bad), /subcategory must be one of/)
 })
 
 test('CLI gate passes against the committed community.json', () => {

@@ -104,7 +104,7 @@ dsh plugin --profile web add link:<dsh-web>/packages/dsh-web-all
 
 第三方插件作者可把自己的插件登记进创意工坊商店的插件目录（设置 → 创意工坊 → 插件）与 dsh-market.com 创意工坊站：
 
-1. 在 `packages/dsh-community-plugins/community.json` 追加条目：`id` / `name` / `nameEn` / `author` / `repo`（https:// 仓库 URL）必填，`description` / `descriptionEn` / `npm` 可选；
+1. 在 `packages/dsh-community-plugins/community.json` 追加条目：`id` / `name` / `nameEn` / `author` / `repo`（https:// 仓库 URL）必填，`description` / `descriptionEn` / `npm` 可选；`category`（一级分类）与 `subcategory`（二级分类）可选，合法枚举见 `scripts/community-index` 的 `CATEGORIES` 与 `SUBCATEGORIES`，且 `subcategory` 只在 `category` 已填时被接受——分类与二级分类一同驱动创意工坊的两级筛选；
 2. 运行 `node scripts/community-index` 校验数据（CI 门禁同款校验）；
 3. 运行 `node scripts/market-build` 重新生成 `market/dist` 清单（`manifest/plugins.json` 由 community.json 派生）并提交生成物（`market:check` 校验一致）。
 

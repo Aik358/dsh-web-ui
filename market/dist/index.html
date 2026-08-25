@@ -201,10 +201,14 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .mk-chip {
   border: 1px solid var(--g-line); background: var(--g-bg-soft);
   color: var(--g-muted); padding: 5px 12px; cursor: pointer;
-  font-size: 12px; border-radius: 999px;
+  font-size: 12px; border-radius: 999px; white-space: nowrap;
 }
 .mk-chip:hover { color: var(--g-text); }
 .mk-chip.on { background: var(--g-accent-soft); color: var(--g-text); border-color: rgba(58, 101, 194, .6); }
+/* 二级分类行：略小一号、虚线描边，与一级筛选在视觉上区分层级。 */
+.mk-chip-sub { font-size: 11px; padding: 4px 10px; border-style: dashed; color: var(--g-faint); }
+.mk-chip-sub:hover { color: var(--g-text); }
+.mk-chip-sub.on { border-style: dashed; color: var(--g-text); }
 .mk-toolbar-info { margin-left: auto; font-size: 12px; color: var(--g-faint); }
 .mk-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(245px, 1fr));
@@ -426,6 +430,7 @@ dialog.mk-dialog::backdrop { background: rgba(5, 12, 26, .66); backdrop-filter: 
       <button type="button" class="mk-chip" data-sort="rank">按默认</button>
     </div>
     <div class="mk-sort" id="catFilter" role="group" aria-label="分类筛选"></div>
+    <div class="mk-sort" id="subCatFilter" role="group" aria-label="二级分类筛选"></div>
     <div class="mk-toolbar-info" id="toolbarInfo"></div>
   </div>
 

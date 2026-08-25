@@ -20,6 +20,8 @@ import {
   type PluginManagerService,
 } from './plugin-manager-bridge.ts'
 import { entryInstalled, installCommand, installSpec, isInstallSpecValid } from './install-source.ts'
+import { byCategory, bySubcategory, categoryCounts, subcategoryCounts } from './filter.ts'
+import { CATEGORY_LABEL_KEY, SUBCATEGORY_IDS, SUBCATEGORY_LABEL_KEY } from './categories.ts'
 import type { MarketKey } from './locales.ts'
 import css from './market.module.css'
 
@@ -90,6 +92,7 @@ interface MarketRecord {
   spritesheet?: string
   previews?: string[]
   category?: string
+  subcategory?: string
   npm?: string
   repo?: string
   tags?: string[]
@@ -176,6 +179,8 @@ export function MarketCard(props: MarketCardProps): ReactNode {
 
   const [tab, setTab] = useState<Kind>('skin')
   const [query, setQuery] = useState('')
+  const [cat, setCat] = useState('all')
+  const [subcat, setSubcat] = useState('all')
   const [data, setData] = useState<MarketData | null>(null)
   const [failed, setFailed] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -302,10 +307,22 @@ export function MarketCard(props: MarketCardProps): ReactNode {
     return items
   }
 
+  const categoryLabel = (id: string): string => CATEGORY_LABEL_KEY[id] ? t(CATEGORY_LABEL_KEY[id]) : id
+  const subcategoryLabel = (id: string): string => SUBCATEGORY_LABEL_KEY[id] ? t(SUBCATEGORY_LABEL_KEY[id]) : id
+
   const matches = (item: MarketRecord): boolean => {
+    if (tab === 'plugin') {
+      if (cat !== 'all' && (item.category ?? 'other') !== cat) return false
+      if (subcat !== 'all' && item.subcategory !== subcat) return false
+    }
     if (!query) return true
     const q = query.toLowerCase()
-    const hay = [item.name, item.nameEn, item.displayName, item.author, item.description, item.descriptionEn, item.category]
+    const hay = [
+      item.name, item.nameEn, item.displayName, item.author,
+      item.description, item.descriptionEn,
+      item.category ? categoryLabel(item.category) : '',
+      item.subcategory ? subcategoryLabel(item.subcategory) : '',
+    ]
       .filter(Boolean).join(' ').toLowerCase()
     return hay.includes(q)
   }
@@ -434,6 +451,13 @@ export function MarketCard(props: MarketCardProps): ReactNode {
     }
   }
 
+  const pluginItems = data?.items.plugin ?? []
+  const chipClass = (isOn: boolean, isSub: boolean): string => {
+    const cls = [css.filterChip]
+    if (isSub) cls.push(css.filterChipSub)
+    if (isOn) cls.push(css.filterChipOn)
+    return cls.join(' ')
+  }
   const visible = sorted(tab).filter(matches)
   const total = (data?.items[tab] ?? []).length
 
@@ -476,7 +500,7 @@ export function MarketCard(props: MarketCardProps): ReactNode {
                 role="tab"
                 aria-selected={tab === kind}
                 className={tab === kind ? css.tab + ' ' + css.tabActive : css.tab}
-                onClick={() => { setTab(kind) }}
+                onClick={() => { setTab(kind); setCat('all'); setSubcat('all') }}
               >
                 {t(KIND_LABEL[kind])}
                 <span className={css.tabCount}>{(data?.items[kind] ?? []).length}</span>
@@ -491,6 +515,32 @@ export function MarketCard(props: MarketCardProps): ReactNode {
             value={query}
             onChange={(event) => { setQuery(event.target.value) }}
           />
+          {tab === 'plugin' ? (
+            <div className={css.filterRows}>
+              <div className={css.filterRow} role="group" aria-label={t('filter.category')}>
+                <button type="button" className={chipClass(cat === 'all', false)} onClick={() => { setCat('all'); setSubcat('all') }}>
+                  {t('filter.all')} <span className={css.filterCount}>{pluginItems.length}</span>
+                </button>
+                {categoryCounts(pluginItems).map(({ id, count }) => (
+                  <button key={id} type="button" className={chipClass(cat === id, false)} onClick={() => { setCat(id); setSubcat('all') }}>
+                    {categoryLabel(id)} <span className={css.filterCount}>{count}</span>
+                  </button>
+                ))}
+              </div>
+              {cat !== 'all' ? (
+                <div className={css.filterRow} role="group" aria-label={t('filter.subcategory')}>
+                  <button type="button" className={chipClass(subcat === 'all', true)} onClick={() => { setSubcat('all') }}>
+                    {t('filter.all')} <span className={css.filterCount}>{subcategoryCounts(pluginItems, cat, SUBCATEGORY_IDS[cat]).reduce((sum, entry) => sum + entry.count, 0)}</span>
+                  </button>
+                  {subcategoryCounts(pluginItems, cat, SUBCATEGORY_IDS[cat]).map(({ id, count }) => (
+                    <button key={id} type="button" className={chipClass(subcat === id, true)} onClick={() => { setSubcat(id) }}>
+                      {subcategoryLabel(id)} <span className={css.filterCount}>{count}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           {failed ? (
             <p className={css.empty} role="status">
               {t('empty')}
@@ -532,7 +582,8 @@ export function MarketCard(props: MarketCardProps): ReactNode {
                       )}
                       <span className={css.cardMeta}>
                         {item.author ?? ''}
-                        {item.category ? <span className={css.badge}>{item.category}</span> : null}
+                        {item.category ? <span className={css.badge}>{categoryLabel(item.category)}</span> : null}
+                        {item.subcategory ? <span className={css.badge}>{subcategoryLabel(item.subcategory)}</span> : null}
                         {installedHere ? <span className={css.badge + ' ' + css.badgeInstalled}>{t('installed')}</span> : null}
                       </span>
                       {item.description || item.descriptionEn ? (

@@ -81,6 +81,13 @@ test('plugins.json 契约', () => {
     assert.ok(item.id && item.name, 'plugin fields: ' + item.id)
     assert.equal(typeof item.rank, 'number', 'plugin rank: ' + item.id)
     assert.ok(typeof item.category === 'string' && item.category, 'plugin category: ' + item.id)
+    // Second-level classification: every categorized plugin carries a
+    // subcategory; the 'other' bucket (uncategorized) keeps none.
+    if (item.category === 'other') {
+      assert.equal(item.subcategory, undefined, 'other plugins have no subcategory: ' + item.id)
+    } else {
+      assert.ok(typeof item.subcategory === 'string' && item.subcategory, 'plugin subcategory: ' + item.id)
+    }
     if (item.repo) assert.ok(/^https:\/\//.test(item.repo), 'plugin repo must be https: ' + item.id)
   }
 })

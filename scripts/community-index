@@ -27,9 +27,21 @@ const NPM_RE = /^(@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/
 /** Required entry fields. */
 const REQUIRED = ['id', 'name', 'nameEn', 'author', 'repo']
 /** Optional entry fields. */
-const OPTIONAL = ['description', 'descriptionEn', 'npm', 'category']
+const OPTIONAL = ['description', 'descriptionEn', 'npm', 'category', 'subcategory']
 /** Stable category ids rendered as filter pills on the market surfaces. */
 const CATEGORIES = ['ui', 'agent', 'tools', 'knowledge', 'integration', 'security', 'utility']
+/** Second-level classification: the legal subcategory ids per category, also
+ * rendered as a filter pill row beneath the category row. An entry may set a
+ * subcategory only when it has a category, and only from its category's list. */
+const SUBCATEGORIES = {
+  ui: ['terminal', 'chat', 'render', 'panel'],
+  agent: ['preset'],
+  tools: ['context', 'browser', 'api', 'model', 'dev'],
+  knowledge: ['memory', 'reading', 'qa'],
+  integration: ['remote', 'bridge', 'sync', 'external-ai'],
+  security: ['access', 'policy'],
+  utility: ['cleanup', 'stats', 'notify', 'net'],
+}
 
 /**
  * Validate the parsed community.json body.
@@ -67,6 +79,15 @@ function validateEntries(raw) {
     }
     if (entry.category !== undefined && !CATEGORIES.includes(entry.category)) {
       throw new Error('community.json: entry ' + entry.id + ' category must be one of ' + CATEGORIES.join(' / '))
+    }
+    if (entry.subcategory !== undefined) {
+      if (entry.category === undefined) {
+        throw new Error('community.json: entry ' + entry.id + ' subcategory requires a category')
+      }
+      const legal = SUBCATEGORIES[entry.category]
+      if (!legal || !legal.includes(entry.subcategory)) {
+        throw new Error('community.json: entry ' + entry.id + ' subcategory must be one of ' + legal.join(' / '))
+      }
     }
   }
 }

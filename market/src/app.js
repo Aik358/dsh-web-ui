@@ -184,11 +184,31 @@
     agent: 'Agent', ui: '界面', tools: '工具', knowledge: '知识',
     integration: '集成', security: '安全', utility: '实用', other: '其他'
   }
+  // 二级分类（category → subcategory）：词表与合法集合见 community-index 的同名映射。
+  var SUB_ORDER = {
+    ui: ['terminal', 'chat', 'render', 'panel'],
+    agent: ['preset'],
+    tools: ['context', 'browser', 'api', 'model', 'dev'],
+    knowledge: ['memory', 'reading', 'qa'],
+    integration: ['remote', 'bridge', 'sync', 'external-ai'],
+    security: ['access', 'policy'],
+    utility: ['cleanup', 'stats', 'notify', 'net'],
+  }
+  var SUB_LABEL = {
+    terminal: '终端界面', chat: '对话增强', render: '回复内容渲染', panel: '侧栏面板',
+    preset: 'Agent 预设', context: '上下文洞察', browser: '浏览器自动化',
+    api: '接口与网络调试', model: '模型与多模态', dev: '开发工作流',
+    memory: '记忆', reading: '深度阅读', qa: '知识库问答',
+    remote: '远程访问', bridge: '跨系统桥', sync: '云同步', 'external-ai': '外部 AI 接入',
+    access: '访问控制', policy: '审批策略', cleanup: '系统整理',
+    stats: '统计', notify: '通知', net: '网络与传输',
+  }
   var state = {
     kind: 'skin',
     sort: 'hot',
     query: '',
     cat: 'all',
+    subcat: 'all',
     data: { skin: [], pet: [], plugin: [] },
     votes: { skin: {}, pet: {}, plugin: {} },
     apiOk: false,
@@ -275,10 +295,12 @@
   }
   function matches(item) {
     if (state.cat !== 'all' && item.category !== state.cat) return false
+    if (state.cat !== 'all' && state.subcat !== 'all' && item.subcategory !== state.subcat) return false
     if (!state.query) return true
     var q = state.query.toLowerCase()
     var parts = [item.name, item.nameEn, item.displayName, item.author, item.description, item.descriptionEn, item.tagline]
     if (item.tags) parts = parts.concat(item.tags)
+    parts.push(CAT_LABEL[item.category] || '', SUB_LABEL[item.subcategory] || '')
     var hay = parts.filter(Boolean).join(' ').toLowerCase()
     return hay.indexOf(q) !== -1
   }
@@ -337,17 +359,40 @@
 
   function renderCatFilter() {
     var box = $('#catFilter')
+    var subBox = $('#subCatFilter')
     box.innerHTML = ''
-    if (state.kind !== 'plugin') { box.style.display = 'none'; return }
+    subBox.innerHTML = ''
+    if (state.kind !== 'plugin') { box.style.display = 'none'; subBox.style.display = 'none'; return }
     box.style.display = ''
     var cats = {}
     state.data.plugin.forEach(function (p) { var c = p.category || 'other'; cats[c] = (cats[c] || 0) + 1 })
     box.appendChild(mkChipKey('all', '全部', state.data.plugin.length))
     Object.keys(cats).sort().forEach(function (c) { box.appendChild(mkChipKey(c, CAT_LABEL[c] || c, cats[c])) })
+    // 二级行只在选中具体一级分类时出现；切换一级分类时复位二级。
+    if (state.cat === 'all') { subBox.style.display = 'none'; return }
+    subBox.style.display = ''
+    var subs = {}
+    state.data.plugin.forEach(function (p) {
+      if (p.category !== state.cat || !p.subcategory) return
+      subs[p.subcategory] = (subs[p.subcategory] || 0) + 1
+    })
+    var subTotal = 0
+    Object.keys(subs).forEach(function (k) { subTotal += subs[k] })
+    subBox.appendChild(mkSubChipKey('all', '全部', subTotal))
+    var order = SUB_ORDER[state.cat] || []
+    var keys = order.filter(function (k) { return subs[k] })
+    Object.keys(subs).sort().forEach(function (k) { if (keys.indexOf(k) === -1) keys.push(k) })
+    keys.forEach(function (k) { subBox.appendChild(mkSubChipKey(k, SUB_LABEL[k] || k, subs[k])) })
+    function mkSubChipKey(key, label, count) {
+      var b = el('button', 'mk-chip mk-chip-sub' + (state.subcat === key ? ' on' : ''), label + (count ? ' ' + count : ''))
+      b.type = 'button'
+      b.addEventListener('click', function () { state.subcat = key; renderCatFilter(); renderGrid() })
+      return b
+    }
     function mkChipKey(key, label, count) {
       var b = el('button', 'mk-chip' + (state.cat === key ? ' on' : ''), label + (count ? ' ' + count : ''))
       b.type = 'button'
-      b.addEventListener('click', function () { state.cat = key; renderCatFilter(); renderGrid() })
+      b.addEventListener('click', function () { state.cat = key; state.subcat = 'all'; renderCatFilter(); renderGrid() })
       return b
     }
   }
@@ -396,6 +441,7 @@
     if (item.author) meta.push(item.author)
     if (kind === 'skin' && item.version) meta.push('v' + item.version)
     if (kind === 'plugin') meta.push(CAT_LABEL[item.category] || item.category)
+    if (kind === 'plugin' && item.subcategory) meta.push(SUB_LABEL[item.subcategory] || item.subcategory)
     if (kind === 'pet' && item.renderer) meta.push(item.renderer)
     body.appendChild(el('div', 'mk-card-meta', meta.join(' · ')))
     var desc = item.tagline || item.description || item.descriptionEn || (kind === 'pet' ? '' : '')
@@ -596,6 +642,7 @@
       logo2.style.minHeight = '200px'
       media.appendChild(logo2)
       var metaParts = [CAT_LABEL[item.category] || item.category]
+      if (item.subcategory) metaParts.push(SUB_LABEL[item.subcategory] || item.subcategory)
       if (item.author) metaParts.push(item.author)
       info.appendChild(el('div', 'mk-dialog-tagline', metaParts.join(' · ')))
       if (item.description) info.appendChild(el('div', 'mk-dialog-text', item.description))
@@ -679,6 +726,7 @@
       tab.addEventListener('click', function () {
         state.kind = tab.getAttribute('data-kind')
         state.cat = 'all'
+        state.subcat = 'all'
         document.querySelectorAll('.mk-tab').forEach(function (t) {
           var on = t === tab
           t.classList.toggle('on', on)

@@ -827,8 +827,118 @@ window.__ModuleLoader__.load({
 			return installed.find((item) => item.id === entry.id) ?? null;
 		}
 		//#endregion
+		//#region src/client/filter.ts
+		/** Present categories with counts (missing category counts as 'other'). */
+		function categoryCounts(items) {
+			const counts = /* @__PURE__ */ new Map();
+			for (const it of items) {
+				const id = it.category ?? "other";
+				counts.set(id, (counts.get(id) ?? 0) + 1);
+			}
+			return [...counts.entries()].map(([id, count]) => ({
+				id,
+				count
+			})).sort((a, b) => a.id.localeCompare(b.id));
+		}
+		/**
+		* Present subcategory counts of one category. Canonical order (the
+		* category's legal subcategory list) first, extras after, then alphabetical.
+		*/
+		function subcategoryCounts(items, cat, order = []) {
+			const counts = /* @__PURE__ */ new Map();
+			for (const it of items) {
+				if (it.category !== cat || !it.subcategory) continue;
+				counts.set(it.subcategory, (counts.get(it.subcategory) ?? 0) + 1);
+			}
+			return [...counts.entries()].map(([id, count]) => ({
+				id,
+				count
+			})).sort((a, b) => {
+				const ia = order.indexOf(a.id);
+				const ib = order.indexOf(b.id);
+				if (ia !== -1 && ib !== -1) return ia - ib;
+				if (ia !== -1) return -1;
+				if (ib !== -1) return 1;
+				return a.id.localeCompare(b.id);
+			});
+		}
+		//#endregion
+		//#region src/client/categories.ts
+		/** Canonical category → subcategory mapping (scripts/community-index mirrors this). */
+		const SUBCATEGORY_IDS = {
+			ui: [
+				"terminal",
+				"chat",
+				"render",
+				"panel"
+			],
+			agent: ["preset"],
+			tools: [
+				"context",
+				"browser",
+				"api",
+				"model",
+				"dev"
+			],
+			knowledge: [
+				"memory",
+				"reading",
+				"qa"
+			],
+			integration: [
+				"remote",
+				"bridge",
+				"sync",
+				"external-ai"
+			],
+			security: ["access", "policy"],
+			utility: [
+				"cleanup",
+				"stats",
+				"notify",
+				"net"
+			]
+		};
+		/** Locale-key lookup for category ids (including the manifest default 'other'). */
+		const CATEGORY_LABEL_KEY = {
+			ui: "category.ui",
+			agent: "category.agent",
+			tools: "category.tools",
+			knowledge: "category.knowledge",
+			integration: "category.integration",
+			security: "category.security",
+			utility: "category.utility",
+			other: "category.other"
+		};
+		/** Locale-key lookup for subcategory ids. */
+		const SUBCATEGORY_LABEL_KEY = {
+			terminal: "subcategory.terminal",
+			chat: "subcategory.chat",
+			render: "subcategory.render",
+			panel: "subcategory.panel",
+			preset: "subcategory.preset",
+			context: "subcategory.context",
+			browser: "subcategory.browser",
+			api: "subcategory.api",
+			model: "subcategory.model",
+			dev: "subcategory.dev",
+			memory: "subcategory.memory",
+			reading: "subcategory.reading",
+			qa: "subcategory.qa",
+			remote: "subcategory.remote",
+			bridge: "subcategory.bridge",
+			sync: "subcategory.sync",
+			"external-ai": "subcategory.external-ai",
+			access: "subcategory.access",
+			policy: "subcategory.policy",
+			cleanup: "subcategory.cleanup",
+			stats: "subcategory.stats",
+			notify: "subcategory.notify",
+			net: "subcategory.net"
+		};
+		//#endregion
 		//#region \0dsh-css:packages/dsh-market/src/client/market.module.css.mjs
-		const css = ".bkhjFa_market{flex-direction:column;gap:10px;display:flex}.bkhjFa_tabs{flex-wrap:wrap;gap:6px;display:flex}.bkhjFa_market .bkhjFa_tabs>button.bkhjFa_tab{font:inherit;color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l2);cursor:pointer;white-space:nowrap;border-radius:999px;padding:2px 10px;font-size:12px;line-height:1.6}.bkhjFa_market .bkhjFa_tabs>button.bkhjFa_tab:hover:enabled{color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-dimmed)}.bkhjFa_market .bkhjFa_tabs>button.bkhjFa_tab.bkhjFa_tabActive{color:var(--dsw-alias-bg-layer-3);background:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-primary);font-weight:600}.bkhjFa_market .bkhjFa_tabs>button.bkhjFa_tab.bkhjFa_tabActive:hover:enabled{color:var(--dsw-alias-bg-layer-3);border-color:var(--dsw-alias-label-primary)}.bkhjFa_market .bkhjFa_tabs>button.bkhjFa_tab:active:enabled{color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l2)}.bkhjFa_market .bkhjFa_tabs>button.bkhjFa_tab.bkhjFa_tabActive:active:enabled{color:var(--dsw-alias-bg-layer-3);background:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-label-primary)}.bkhjFa_tabCount{opacity:.72;margin-left:6px;font-size:12px}.bkhjFa_search{width:100%;max-width:460px;font:inherit;color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l2);border-radius:6px;padding:6px 10px;font-size:13px;line-height:1.5}.bkhjFa_search::placeholder{color:var(--dsw-alias-label-tertiary)}.bkhjFa_search:focus{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}.bkhjFa_grid{grid-template-columns:repeat(auto-fill,minmax(272px,1fr));gap:10px;margin:4px 0 0;padding:0;list-style:none;display:grid}.bkhjFa_card{border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);border-radius:8px;gap:10px;min-width:0;padding:12px;display:flex}.bkhjFa_card:hover{border-color:var(--dsw-alias-label-dimmed)}.bkhjFa_thumb{object-fit:cover;background:var(--dsw-alias-bg-layer-2);border-radius:6px;flex:none;place-items:center;width:72px;height:72px;display:grid}.bkhjFa_thumbPlaceholder{color:var(--dsw-alias-label-tertiary);font-size:22px;font-weight:700}.bkhjFa_cardBody{flex-direction:column;flex:1;gap:6px;min-width:0;display:flex}.bkhjFa_cardName{color:var(--dsw-alias-label-primary);text-overflow:ellipsis;white-space:nowrap;font-weight:600;overflow:hidden}.bkhjFa_cardVersion{color:var(--dsw-alias-label-tertiary);margin-left:6px;font-size:11px;font-weight:400}.bkhjFa_cardMeta{color:var(--dsw-alias-label-tertiary);white-space:nowrap;align-items:center;gap:6px;font-size:12px;line-height:1.4;display:flex;overflow:hidden}.bkhjFa_badge{color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-module-platform);border:1px solid var(--dsw-alias-border-l2);white-space:nowrap;border-radius:999px;flex:none;padding:0 8px;font-size:11px;line-height:1.6}.bkhjFa_badgeInstalled{color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-dimmed);background:var(--dsw-alias-bg-layer-2)}.bkhjFa_cardDesc{color:var(--dsw-alias-label-secondary);-webkit-line-clamp:2;overflow-wrap:anywhere;-webkit-box-orient:vertical;margin:0;font-size:13px;line-height:1.45;display:-webkit-box;overflow:hidden}.bkhjFa_cardFooter{flex-direction:column;gap:8px;margin-top:auto;padding-top:8px;display:flex}.bkhjFa_actionRow{flex-wrap:wrap;align-items:center;gap:6px;display:flex}.bkhjFa_market .bkhjFa_actionRow>.bkhjFa_like,.bkhjFa_market .bkhjFa_actionRow>.bkhjFa_previewLink{font:inherit;color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-module-platform);border:1px solid var(--dsw-alias-border-l2);cursor:pointer;white-space:nowrap;border-radius:999px;align-items:center;padding:1px 10px;font-size:12px;line-height:1.5;text-decoration:none;display:inline-flex}.bkhjFa_market .bkhjFa_actionRow>.bkhjFa_like{font-variant-numeric:tabular-nums}.bkhjFa_market .bkhjFa_actionRow>.bkhjFa_like:hover:enabled,.bkhjFa_market .bkhjFa_actionRow>.bkhjFa_previewLink:hover{color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-dimmed)}.bkhjFa_actionRowPrimary{align-items:stretch;gap:8px;display:flex}.bkhjFa_market .bkhjFa_actionRowPrimary>.bkhjFa_install{min-width:0;font:inherit;color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l2);cursor:pointer;white-space:nowrap;background:0 0;border-radius:6px;flex:1 1 0;justify-content:center;align-items:center;min-height:30px;padding:4px 14px;font-size:12px;font-weight:600;line-height:1.5;display:inline-flex}.bkhjFa_market .bkhjFa_actionRowPrimary>.bkhjFa_install:hover:enabled{border-color:var(--dsw-alias-label-dimmed)}.bkhjFa_market .bkhjFa_actionRowPrimary>.bkhjFa_installPrimary{color:var(--dsw-alias-label-primary-foreground);background:var(--dsw-alias-button-primary-fill);border-color:var(--dsw-alias-button-primary-fill);flex-grow:2}.bkhjFa_market .bkhjFa_actionRowPrimary>.bkhjFa_installPrimary:hover:enabled{background:var(--dsw-alias-button-primary-hover);border-color:var(--dsw-alias-button-primary-hover)}.bkhjFa_market .bkhjFa_actionRowPrimary>.bkhjFa_installPrimary:disabled{opacity:.55;cursor:default}.bkhjFa_error{color:var(--dsw-alias-label-error,#c53030);margin:0;font-size:12px;line-height:1.4}.bkhjFa_callout{color:var(--dsw-alias-state-success-primary);margin:0;font-size:12px;line-height:1.4}.bkhjFa_empty{color:var(--dsw-alias-label-tertiary);align-items:center;gap:8px;font-size:13px;display:flex}.bkhjFa_retry{padding:3px 10px;font-size:12px}.bkhjFa_remoteNote{color:var(--dsw-alias-label-tertiary);margin:6px 0 0;font-size:12px;line-height:1.4}.bkhjFa_modalActions{justify-content:flex-end;gap:8px;margin-top:10px;display:flex}";
+		const css = ".bkhjFa_market{flex-direction:column;gap:10px;display:flex}.bkhjFa_tabs{flex-wrap:wrap;gap:6px;display:flex}.bkhjFa_market .bkhjFa_tabs>button.bkhjFa_tab{font:inherit;color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l2);cursor:pointer;white-space:nowrap;border-radius:999px;padding:2px 10px;font-size:12px;line-height:1.6}.bkhjFa_market .bkhjFa_tabs>button.bkhjFa_tab:hover:enabled{color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-dimmed)}.bkhjFa_market .bkhjFa_tabs>button.bkhjFa_tab.bkhjFa_tabActive{color:var(--dsw-alias-bg-layer-3);background:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-primary);font-weight:600}.bkhjFa_market .bkhjFa_tabs>button.bkhjFa_tab.bkhjFa_tabActive:hover:enabled{color:var(--dsw-alias-bg-layer-3);border-color:var(--dsw-alias-label-primary)}.bkhjFa_market .bkhjFa_tabs>button.bkhjFa_tab:active:enabled{color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l2)}.bkhjFa_market .bkhjFa_tabs>button.bkhjFa_tab.bkhjFa_tabActive:active:enabled{color:var(--dsw-alias-bg-layer-3);background:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-label-primary)}.bkhjFa_tabCount{opacity:.72;margin-left:6px;font-size:12px}.bkhjFa_search{width:100%;max-width:460px;font:inherit;color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l2);border-radius:6px;padding:6px 10px;font-size:13px;line-height:1.5}.bkhjFa_search::placeholder{color:var(--dsw-alias-label-tertiary)}.bkhjFa_search:focus{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}.bkhjFa_grid{grid-template-columns:repeat(auto-fill,minmax(272px,1fr));gap:10px;margin:4px 0 0;padding:0;list-style:none;display:grid}.bkhjFa_card{border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);border-radius:8px;gap:10px;min-width:0;padding:12px;display:flex}.bkhjFa_card:hover{border-color:var(--dsw-alias-label-dimmed)}.bkhjFa_thumb{object-fit:cover;background:var(--dsw-alias-bg-layer-2);border-radius:6px;flex:none;place-items:center;width:72px;height:72px;display:grid}.bkhjFa_thumbPlaceholder{color:var(--dsw-alias-label-tertiary);font-size:22px;font-weight:700}.bkhjFa_cardBody{flex-direction:column;flex:1;gap:6px;min-width:0;display:flex}.bkhjFa_cardName{color:var(--dsw-alias-label-primary);text-overflow:ellipsis;white-space:nowrap;font-weight:600;overflow:hidden}.bkhjFa_cardVersion{color:var(--dsw-alias-label-tertiary);margin-left:6px;font-size:11px;font-weight:400}.bkhjFa_cardMeta{color:var(--dsw-alias-label-tertiary);white-space:nowrap;align-items:center;gap:6px;font-size:12px;line-height:1.4;display:flex;overflow:hidden}.bkhjFa_badge{color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-module-platform);border:1px solid var(--dsw-alias-border-l2);white-space:nowrap;border-radius:999px;flex:none;padding:0 8px;font-size:11px;line-height:1.6}.bkhjFa_badgeInstalled{color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-dimmed);background:var(--dsw-alias-bg-layer-2)}.bkhjFa_cardDesc{color:var(--dsw-alias-label-secondary);-webkit-line-clamp:2;overflow-wrap:anywhere;-webkit-box-orient:vertical;margin:0;font-size:13px;line-height:1.45;display:-webkit-box;overflow:hidden}.bkhjFa_cardFooter{flex-direction:column;gap:8px;margin-top:auto;padding-top:8px;display:flex}.bkhjFa_actionRow{flex-wrap:wrap;align-items:center;gap:6px;display:flex}.bkhjFa_market .bkhjFa_actionRow>.bkhjFa_like,.bkhjFa_market .bkhjFa_actionRow>.bkhjFa_previewLink{font:inherit;color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-module-platform);border:1px solid var(--dsw-alias-border-l2);cursor:pointer;white-space:nowrap;border-radius:999px;align-items:center;padding:1px 10px;font-size:12px;line-height:1.5;text-decoration:none;display:inline-flex}.bkhjFa_market .bkhjFa_actionRow>.bkhjFa_like{font-variant-numeric:tabular-nums}.bkhjFa_market .bkhjFa_actionRow>.bkhjFa_like:hover:enabled,.bkhjFa_market .bkhjFa_actionRow>.bkhjFa_previewLink:hover{color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-dimmed)}.bkhjFa_actionRowPrimary{align-items:stretch;gap:8px;display:flex}.bkhjFa_market .bkhjFa_actionRowPrimary>.bkhjFa_install{min-width:0;font:inherit;color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l2);cursor:pointer;white-space:nowrap;background:0 0;border-radius:6px;flex:1 1 0;justify-content:center;align-items:center;min-height:30px;padding:4px 14px;font-size:12px;font-weight:600;line-height:1.5;display:inline-flex}.bkhjFa_market .bkhjFa_actionRowPrimary>.bkhjFa_install:hover:enabled{border-color:var(--dsw-alias-label-dimmed)}.bkhjFa_market .bkhjFa_actionRowPrimary>.bkhjFa_installPrimary{color:var(--dsw-alias-label-primary-foreground);background:var(--dsw-alias-button-primary-fill);border-color:var(--dsw-alias-button-primary-fill);flex-grow:2}.bkhjFa_market .bkhjFa_actionRowPrimary>.bkhjFa_installPrimary:hover:enabled{background:var(--dsw-alias-button-primary-hover);border-color:var(--dsw-alias-button-primary-hover)}.bkhjFa_market .bkhjFa_actionRowPrimary>.bkhjFa_installPrimary:disabled{opacity:.55;cursor:default}.bkhjFa_error{color:var(--dsw-alias-label-error,#c53030);margin:0;font-size:12px;line-height:1.4}.bkhjFa_callout{color:var(--dsw-alias-state-success-primary);margin:0;font-size:12px;line-height:1.4}.bkhjFa_filterRows{flex-direction:column;gap:6px;display:flex}.bkhjFa_filterRow{flex-wrap:wrap;gap:6px;display:flex}.bkhjFa_market .bkhjFa_filterRow>button.bkhjFa_filterChip{font:inherit;color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l2);cursor:pointer;white-space:nowrap;border-radius:999px;padding:2px 10px;font-size:12px;line-height:1.6}.bkhjFa_market .bkhjFa_filterRow>button.bkhjFa_filterChip:hover:enabled{color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-dimmed)}.bkhjFa_market .bkhjFa_filterRow>button.bkhjFa_filterChip.bkhjFa_filterChipSub{color:var(--dsw-alias-label-tertiary);border-style:dashed;font-size:11px}.bkhjFa_market .bkhjFa_filterRow>button.bkhjFa_filterChip.bkhjFa_filterChipOn{color:var(--dsw-alias-bg-layer-3);background:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-primary);border-style:solid;font-weight:600}.bkhjFa_market .bkhjFa_filterRow>button.bkhjFa_filterChip.bkhjFa_filterChipOn:hover:enabled{color:var(--dsw-alias-bg-layer-3);border-color:var(--dsw-alias-label-primary)}.bkhjFa_filterCount{opacity:.72;margin-left:6px;font-size:11px}.bkhjFa_empty{color:var(--dsw-alias-label-tertiary);align-items:center;gap:8px;font-size:13px;display:flex}.bkhjFa_retry{padding:3px 10px;font-size:12px}.bkhjFa_remoteNote{color:var(--dsw-alias-label-tertiary);margin:6px 0 0;font-size:12px;line-height:1.4}.bkhjFa_modalActions{justify-content:flex-end;gap:8px;margin-top:10px;display:flex}";
 		const tagId = "@linxin666/dsh-client-ui-market/market.module.css";
 		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId) + "]") === null) {
 			const tag = document.createElement("style");
@@ -852,6 +962,12 @@ window.__ModuleLoader__.load({
 			"cardVersion": "bkhjFa_cardVersion",
 			"empty": "bkhjFa_empty",
 			"error": "bkhjFa_error",
+			"filterChip": "bkhjFa_filterChip",
+			"filterChipOn": "bkhjFa_filterChipOn",
+			"filterChipSub": "bkhjFa_filterChipSub",
+			"filterCount": "bkhjFa_filterCount",
+			"filterRow": "bkhjFa_filterRow",
+			"filterRows": "bkhjFa_filterRows",
 			"grid": "bkhjFa_grid",
 			"install": "bkhjFa_install",
 			"installPrimary": "bkhjFa_installPrimary",
@@ -949,6 +1065,8 @@ window.__ModuleLoader__.load({
 			};
 			const [tab, setTab] = (0, react.useState)("skin");
 			const [query, setQuery] = (0, react.useState)("");
+			const [cat, setCat] = (0, react.useState)("all");
+			const [subcat, setSubcat] = (0, react.useState)("all");
 			const [data, setData] = (0, react.useState)(null);
 			const [failed, setFailed] = (0, react.useState)(false);
 			const [loading, setLoading] = (0, react.useState)(true);
@@ -1090,7 +1208,13 @@ window.__ModuleLoader__.load({
 				});
 				return items;
 			};
+			const categoryLabel = (id) => CATEGORY_LABEL_KEY[id] ? t(CATEGORY_LABEL_KEY[id]) : id;
+			const subcategoryLabel = (id) => SUBCATEGORY_LABEL_KEY[id] ? t(SUBCATEGORY_LABEL_KEY[id]) : id;
 			const matches = (item) => {
+				if (tab === "plugin") {
+					if (cat !== "all" && (item.category ?? "other") !== cat) return false;
+					if (subcat !== "all" && item.subcategory !== subcat) return false;
+				}
 				if (!query) return true;
 				const q = query.toLowerCase();
 				return [
@@ -1100,7 +1224,8 @@ window.__ModuleLoader__.load({
 					item.author,
 					item.description,
 					item.descriptionEn,
-					item.category
+					item.category ? categoryLabel(item.category) : "",
+					item.subcategory ? subcategoryLabel(item.subcategory) : ""
 				].filter(Boolean).join(" ").toLowerCase().includes(q);
 			};
 			const callout = (id, text) => {
@@ -1252,6 +1377,13 @@ window.__ModuleLoader__.load({
 					}));
 				}
 			};
+			const pluginItems = data?.items.plugin ?? [];
+			const chipClass = (isOn, isSub) => {
+				const cls = [market_module_css_default.filterChip];
+				if (isSub) cls.push(market_module_css_default.filterChipSub);
+				if (isOn) cls.push(market_module_css_default.filterChipOn);
+				return cls.join(" ");
+			};
 			const visible = sorted(tab).filter(matches);
 			const total = (data?.items[tab] ?? []).length;
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(PluginSettingsCard, {
@@ -1308,6 +1440,8 @@ window.__ModuleLoader__.load({
 									className: tab === kind ? market_module_css_default.tab + " " + market_module_css_default.tabActive : market_module_css_default.tab,
 									onClick: () => {
 										setTab(kind);
+										setCat("all");
+										setSubcat("all");
 									},
 									children: [t(KIND_LABEL[kind]), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 										className: market_module_css_default.tabCount,
@@ -1325,6 +1459,78 @@ window.__ModuleLoader__.load({
 									setQuery(event.target.value);
 								}
 							}),
+							tab === "plugin" ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+								className: market_module_css_default.filterRows,
+								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+									className: market_module_css_default.filterRow,
+									role: "group",
+									"aria-label": t("filter.category"),
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+										type: "button",
+										className: chipClass(cat === "all", false),
+										onClick: () => {
+											setCat("all");
+											setSubcat("all");
+										},
+										children: [
+											t("filter.all"),
+											" ",
+											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+												className: market_module_css_default.filterCount,
+												children: pluginItems.length
+											})
+										]
+									}), categoryCounts(pluginItems).map(({ id, count }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+										type: "button",
+										className: chipClass(cat === id, false),
+										onClick: () => {
+											setCat(id);
+											setSubcat("all");
+										},
+										children: [
+											categoryLabel(id),
+											" ",
+											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+												className: market_module_css_default.filterCount,
+												children: count
+											})
+										]
+									}, id))]
+								}), cat !== "all" ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+									className: market_module_css_default.filterRow,
+									role: "group",
+									"aria-label": t("filter.subcategory"),
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+										type: "button",
+										className: chipClass(subcat === "all", true),
+										onClick: () => {
+											setSubcat("all");
+										},
+										children: [
+											t("filter.all"),
+											" ",
+											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+												className: market_module_css_default.filterCount,
+												children: subcategoryCounts(pluginItems, cat, SUBCATEGORY_IDS[cat]).reduce((sum, entry) => sum + entry.count, 0)
+											})
+										]
+									}), subcategoryCounts(pluginItems, cat, SUBCATEGORY_IDS[cat]).map(({ id, count }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+										type: "button",
+										className: chipClass(subcat === id, true),
+										onClick: () => {
+											setSubcat(id);
+										},
+										children: [
+											subcategoryLabel(id),
+											" ",
+											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+												className: market_module_css_default.filterCount,
+												children: count
+											})
+										]
+									}, id))]
+								}) : null]
+							}) : null,
 							failed ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("p", {
 								className: market_module_css_default.empty,
 								role: "status",
@@ -1389,7 +1595,11 @@ window.__ModuleLoader__.load({
 														item.author ?? "",
 														item.category ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 															className: market_module_css_default.badge,
-															children: item.category
+															children: categoryLabel(item.category)
+														}) : null,
+														item.subcategory ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+															className: market_module_css_default.badge,
+															children: subcategoryLabel(item.subcategory)
 														}) : null,
 														installedHere ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 															className: market_module_css_default.badge + " " + market_module_css_default.badgeInstalled,
@@ -1546,6 +1756,40 @@ window.__ModuleLoader__.load({
 			"tab.pet": "宠物",
 			"tab.plugin": "插件",
 			"search.label": "搜索名称、作者或描述…",
+			"filter.all": "全部",
+			"filter.category": "分类筛选",
+			"filter.subcategory": "二级分类",
+			"category.ui": "界面",
+			"category.agent": "Agent",
+			"category.tools": "工具",
+			"category.knowledge": "知识",
+			"category.integration": "集成",
+			"category.security": "安全",
+			"category.utility": "实用",
+			"category.other": "其他",
+			"subcategory.terminal": "终端界面",
+			"subcategory.chat": "对话增强",
+			"subcategory.render": "回复内容渲染",
+			"subcategory.panel": "侧栏面板",
+			"subcategory.preset": "Agent 预设",
+			"subcategory.context": "上下文洞察",
+			"subcategory.browser": "浏览器自动化",
+			"subcategory.api": "接口与网络调试",
+			"subcategory.model": "模型与多模态",
+			"subcategory.dev": "开发工作流",
+			"subcategory.memory": "记忆",
+			"subcategory.reading": "深度阅读",
+			"subcategory.qa": "知识库问答",
+			"subcategory.remote": "远程访问",
+			"subcategory.bridge": "跨系统桥",
+			"subcategory.sync": "云同步",
+			"subcategory.external-ai": "外部 AI 接入",
+			"subcategory.access": "访问控制",
+			"subcategory.policy": "审批策略",
+			"subcategory.cleanup": "系统整理",
+			"subcategory.stats": "统计",
+			"subcategory.notify": "通知",
+			"subcategory.net": "网络与传输",
 			"result.count": "共 {shown} / {total} 个条目",
 			"empty": "创意工坊清单为空（网络不可达？点击重试）",
 			"noMatch": "没有匹配的条目",
@@ -1604,6 +1848,40 @@ window.__ModuleLoader__.load({
 			"tab.pet": "Pets",
 			"tab.plugin": "Plugins",
 			"search.label": "Search name, author or description…",
+			"filter.all": "All",
+			"filter.category": "Category filter",
+			"filter.subcategory": "Subcategory",
+			"category.ui": "UI",
+			"category.agent": "Agent",
+			"category.tools": "Tools",
+			"category.knowledge": "Knowledge",
+			"category.integration": "Integration",
+			"category.security": "Security",
+			"category.utility": "Utility",
+			"category.other": "Other",
+			"subcategory.terminal": "Terminal UI",
+			"subcategory.chat": "Chat enhancements",
+			"subcategory.render": "Reply rendering",
+			"subcategory.panel": "Sidebar panel",
+			"subcategory.preset": "Agent presets",
+			"subcategory.context": "Context insights",
+			"subcategory.browser": "Browser automation",
+			"subcategory.api": "API & network tools",
+			"subcategory.model": "Models & multimodal",
+			"subcategory.dev": "Dev workflow",
+			"subcategory.memory": "Memory",
+			"subcategory.reading": "Deep reading",
+			"subcategory.qa": "Knowledge-base Q&A",
+			"subcategory.remote": "Remote access",
+			"subcategory.bridge": "Cross-system bridge",
+			"subcategory.sync": "Cloud sync",
+			"subcategory.external-ai": "External AI",
+			"subcategory.access": "Access control",
+			"subcategory.policy": "Approval policy",
+			"subcategory.cleanup": "System cleanup",
+			"subcategory.stats": "Statistics",
+			"subcategory.notify": "Notifications",
+			"subcategory.net": "Networking",
 			"result.count": "{shown} / {total} entries",
 			"empty": "Workshop list empty (network unreachable? click retry)",
 			"noMatch": "No matching entries",
