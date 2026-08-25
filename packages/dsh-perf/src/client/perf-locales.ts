@@ -37,7 +37,7 @@ export type PerfKey = keyof typeof zh
 /** English dictionary, checked complete against the zh key set. */
 export const en = {
   'settings.title': 'Performance engine',
-  'settings.description': 'Performance engine for streaming and multi-session loads: metrics, write-batch pacing, alert thresholds and render throttling.'
+  'settings.description': 'Performance engine for streaming and multi-session loads: metrics, write-batch pacing, alert thresholds and render throttling.',
   'settings.enabled': 'Enable performance monitoring',
   'settings.enabledHint': 'Off: the host stops subscribing and sampling (the HUD goes empty).',
   'settings.mode': 'Mode',
