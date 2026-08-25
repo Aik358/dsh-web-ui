@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 import { SkinCssSafetyError, transformSkinCss } from '../src/core/css-safety/transform.ts'
+import { auditTokenContract } from '../src/core/css-safety/token-audit.ts'
 
 const ID = 'harbor'
 const SCOPE = 'html[data-dsh-skin="harbor"]'
@@ -329,5 +330,30 @@ describe('primary-action derivation (issue #506 follow-up)', () => {
     expect(done.code).not.toContain('--dsw-alias-button-primary-hover: color-mix')
     const none = transformSkinCss('.a { color: red; }', { skinId: ID, filename: 'skin.css', deriveFallbacks: true })
     expect(none.code).not.toContain('--dsw-alias-button-primary-')
+  })
+})
+
+describe('token audit traversal', () => {
+  it('bounds at-rule recursion to its own block (nested @media chains stay linear)', () => {
+    const nested = [
+      '@media (min-width: 1100px) {',
+      '  @media (max-width: 1099px), (max-height: 680px) {',
+      '    @supports (appearance: base-select) {',
+      '      :root { --dsw-alias-button-primary-fill: #12203a; }',
+      '      @keyframes orca-pulse { 0% { opacity: 0 } to { opacity: 1 } }',
+      '    }',
+      '  }',
+      '  @media (max-width: 420px) { :root { --dsw-alias-button-primary-fill: #101828; } }',
+      '}',
+    ].join('\n')
+    const started = Date.now()
+    const result = auditTokenContract([{ filename: 'patches.css', css: nested }])
+    expect(Date.now() - started).toBeLessThan(1000)
+    // The fill is declared only inside the nested at-rule chain; a traversal
+    // that escapes its block or re-walks the file would either miss the
+    // token (widening the missing-anchor warnings) or never finish.
+    expect(result.warnings.every((warning) => !warning.includes('"button-primary-fill" is not defined')))
+      .toBe(true)
+    expect(result.warnings.every((warning) => !warning.includes('primary action contrast'))).toBe(true)
   })
 })

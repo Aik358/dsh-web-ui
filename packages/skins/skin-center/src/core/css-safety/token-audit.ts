@@ -111,19 +111,23 @@ function parseDefinitions(css: string): ParsedTokens {
   const dark = new Map<string, string>()
   const source = withoutComments(css)
 
-  const visit = (start: number, parentDark: boolean): void => {
+  const visit = (start: number, limit: number, parentDark: boolean): void => {
     let i = start
     for (;;) {
       const open = source.indexOf('{', i)
-      if (open === -1) return
-      const close = matchClose(source, open)
+      if (open === -1 || open >= limit) return
+      // An at-rule recurses only INSIDE its own block: without the bound, the
+      // nested scan would re-walk every remaining block of the file for each
+      // at-rule (exponential on nested @media/@supports/@container chains).
+      const rawClose = matchClose(source, open)
+      const close = rawClose === -1 || rawClose >= limit ? -1 : rawClose
       const head = source.slice(i, open)
       const atRule = head.trimStart().startsWith('@')
       const darkHere = parentDark
         || /data-ds-dark-theme/.test(head)
         || /prefers-color-scheme\s*:\s*dark/i.test(head)
       if (atRule) {
-        visit(open + 1, darkHere)
+        visit(open + 1, close === -1 ? limit : close, darkHere)
         i = close === -1 ? source.length : close + 1
       } else {
         const end = close === -1 ? source.length : close
@@ -140,7 +144,7 @@ function parseDefinitions(css: string): ParsedTokens {
       }
     }
   }
-  visit(0, false)
+  visit(0, source.length, false)
   return { defined, byTheme: { light, dark } }
 }
 
