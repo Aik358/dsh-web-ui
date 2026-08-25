@@ -58,7 +58,15 @@ test('pets.json 契约与资产存在性', () => {
   for (const item of m.items) {
     assert.ok(item.id && item.displayName, 'pet fields: ' + item.id)
     assert.equal(typeof item.rank, 'number', 'pet rank: ' + item.id)
-    assert.ok(exists(item.spritesheet), 'spritesheet missing: ' + item.spritesheet)
+    // frames2d pets (directory frame sequences, e.g. miku) ship no
+    // spritesheet: the card rides the previews and the installer downloads
+    // the whole files list.
+    if (item.renderer === 'frames2d') {
+      assert.ok(Array.isArray(item.files) && item.files.length > 0, 'frames2d pet files: ' + item.id)
+      assert.ok(Array.isArray(item.previews) && item.previews.length > 0, 'frames2d pet previews: ' + item.id)
+    } else {
+      assert.ok(exists(item.spritesheet), 'spritesheet missing: ' + item.spritesheet)
+    }
     for (const pv of item.previews || []) {
       assert.ok(exists(pv), 'pet preview missing: ' + pv)
     }

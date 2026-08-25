@@ -29,7 +29,6 @@ patchFrom:
   - ../dsh-skill-explorer
   - ../dsh-desktop-launcher
   - ../dsh-doctor
-  - ../dsh-miku-pet
   - ../skins/skin-center
 self:
   - web-ui-compat
@@ -50,7 +49,6 @@ deps:
   - ../dsh-desktop-launcher
   - ../dsh-doctor
   - ../dsh-web-settings
-  - ../dsh-miku-pet
   - ../skins/skin-center
 # 外部 npm 插件：dsh-better-sidebar 接管右侧面板位置。行名从 profile 顶层
 # 解析（hoisted 布局下由 web-ui-all 的 dependencies 提升），dependencies 里
