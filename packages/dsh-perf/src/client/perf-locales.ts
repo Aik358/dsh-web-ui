@@ -4,8 +4,8 @@
 
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export const zh = {
-  'settings.title': '性能观测与治理',
-  'settings.description': 'HUD 指标、事件速率/事件循环延迟监测、写批频控与告警阈值。',
+  'settings.title': '性能引擎',
+  'settings.description': '流式/多会话场景的性能引擎：指标监测、写批频控、告警阈值与渲染降载。',
   'settings.enabled': '启用性能观测',
   'settings.enabledHint': '关闭后 host 停止订阅事件与采样（HUD 随之无数据）。',
   'settings.mode': '模式',
@@ -36,8 +36,8 @@ export type PerfKey = keyof typeof zh
 
 /** English dictionary, checked complete against the zh key set. */
 export const en = {
-  'settings.title': 'Performance observability',
-  'settings.description': 'HUD metrics, event-rate and event-loop delay monitoring, write-batch pacing and alert thresholds.',
+  'settings.title': 'Performance engine',
+  'settings.description': 'Performance engine for streaming and multi-session loads: metrics, write-batch pacing, alert thresholds and render throttling.'
   'settings.enabled': 'Enable performance monitoring',
   'settings.enabledHint': 'Off: the host stops subscribing and sampling (the HUD goes empty).',
   'settings.mode': 'Mode',

@@ -70,8 +70,20 @@ const FPS_WINDOW_MS = 1000
 const LONGTASK_WINDOW_MS = 60_000
 
 export function apply(ctx: ClientContext): void {
+  // 全局开关: 与 host 共用 dsh-perf 命名空间; false 时 HUD 与 CSS 降载一并停用。
+  let perfScope: SettingsScope<PerfSettings> | undefined
   try {
-    boot()
+    const binder = ctx.get('webUiSettings') ?? ctx.settingsScope
+    perfScope = binder.bind<PerfSettings>({ namespace: NS })
+  } catch { /* 无设置面时按默认开启 */ }
+  const isEnabled = (): boolean => {
+    try {
+      const snapshot = perfScope?.getSnapshot()
+      return snapshot?.status === 'ready' ? (snapshot.value?.enabled ?? true) : true
+    } catch { return true }
+  }
+  try {
+    boot(isEnabled)
   } catch (error) {
     console.debug('[dsh-perf] HUD boot degraded:', error)
   }
@@ -103,7 +115,7 @@ export function apply(ctx: ClientContext): void {
   }
 }
 
-function boot(): void {
+function boot(isEnabled: () => boolean): void {
   const host = document.documentElement
   if (host === null || host === undefined) return
 
@@ -149,7 +161,7 @@ function boot(): void {
 
   // --- CSS 降载(P0): 屏外消息行 content-visibility 近似虚拟化 ----------
   try {
-    if (localStorage.getItem('dsh-perf-css') !== 'off') {
+    if (localStorage.getItem('dsh-perf-css') !== 'off' && isEnabled()) {
       const style = document.createElement('style')
       style.dataset.dshPerf = 'css'
       style.textContent = [
@@ -183,6 +195,10 @@ function boot(): void {
     cache.failures = 0
     cache.stats = wire
     cache.stale = false
+    if (!isEnabled()) {
+      root.style.display = 'none'
+      return
+    }
     try {
       render(root, cache, fps, longtasks.length)
     } catch (error) {
