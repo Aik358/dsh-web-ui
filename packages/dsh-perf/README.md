@@ -51,6 +51,14 @@ pnpm add @linxin666/dsh-perf
 - 服务端：events/s、活跃会话数、事件循环 p99/mean 延迟、RSS/Heap、写批延迟（显示 patch 生效值）。
 - 浏览器：FPS（近 1s）、Longtask（近 60s）。× 关闭后写 localStorage（`dsh-perf-hud-visible`）。
 - host 端点连续 3 次不可达时自动隐藏（无 host 半 / 未启用时静默降级）。
+- agent 空闲会话在会话行尾显示 ·idle 徽标（agent/status 迁移事件，零上游）。
+
+## 消息渲染降载（P1 代理式 shadow）
+
+assistant-step 消息使用代理式 shadow：轻节点转发官方渲染（零行为差异），
+超重节点（`blocks` 文本 > 20KB，localStorage `dsh-perf-shadow-threshold` 可调，
+默认开）降载为流式渲染（不打代码高亮）+ 代码/推理折叠，点击「完整渲染」
+恢复官方全量。官方组件捕获失败时自动降级为纯降载渲染（永不空白）。
 
 ## 多 subagent 场景
 

@@ -14,9 +14,13 @@ import type { ClientContext, SettingsScope, SettingsScopeSpec } from '@deepseek-
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
+// Type-only: pulls the official conversation SlotMap augmentation (conversation.chat.node).
+import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 
+import type { ComponentType } from 'react'
 import { zh, en, type PerfKey } from './perf-locales.ts'
 import { PerfSettingsCard, PerfSettingsCardController, type PerfSettings, type PerfSettingsCardFace } from './perf-settings-card.tsx'
+import { makePerfAssistantShadow, type ShadowOwner } from './perf-assistant-shadow.tsx'
 
 /** Locale namespace owned by this plugin. */
 export const NS = 'dsh-perf'
@@ -112,6 +116,36 @@ export function apply(ctx: ClientContext): void {
     })
   } catch (error) {
     console.debug('[dsh-perf] settings card degraded:', error)
+  }
+  // P1: 代理式 assistant-step shadow —— 轻节点转发官方, 重节点降载(懒高亮+折叠)。
+  try {
+    const slotsCore = ctx.get('slots') as unknown as {
+      entries?: (key: string) => readonly { component?: unknown; options?: { priority?: number; key?: string } }[]
+    } | undefined
+    let official: ComponentType<ShadowOwner> | undefined
+    for (const entry of slotsCore?.entries?.('conversation.chat.node') ?? []) {
+      if (entry?.options?.key === 'assistant-step' && typeof entry.component === 'function') {
+        official = entry.component as ComponentType<ShadowOwner>
+        break
+      }
+    }
+    ctx.slots.inject('conversation.chat.node', () => {
+      try {
+        // 类型擦除: 官方注册同款 options 形态(仅 name/key/priority/locale); inject 面由 slot 声明提供。
+        const registerAny = ctx.slots.register as unknown as (options: Record<string, unknown>, component: unknown) => () => void
+        const unregister = registerAny({
+          name: 'conversation.chat.node',
+          key: 'assistant-step',
+          priority: -1,
+          locale: NS,
+        }, makePerfAssistantShadow(official))
+        return () => { unregister() }
+      } catch {
+        return () => {}
+      }
+    })
+  } catch (error) {
+    console.debug('[dsh-perf] assistant shadow degraded:', error)
   }
 }
 
