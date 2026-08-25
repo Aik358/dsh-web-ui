@@ -565,9 +565,8 @@ export function MarketCard(props: MarketCardProps): ReactNode {
                   : ''
                 return (
                   <li key={id} className={css.card}>
-                    {thumb ? <img className={css.thumb} src={MARKET_ORIGIN + '/' + thumb} alt="" loading="lazy" /> : (
-                      <span className={css.thumb + ' ' + css.thumbPlaceholder}>{(name[0] ?? '?').toUpperCase()}</span>
-                    )}
+                    {/* Community plugins carry no artwork; only skins and pets render a thumbnail. */}
+                    {thumb ? <img className={css.thumb} src={MARKET_ORIGIN + '/' + thumb} alt="" loading="lazy" /> : null}
                     <span className={css.cardBody}>
                       {item.repo ? (
                         <a className={css.cardName} href={item.repo} target="_blank" rel="noreferrer" title={name}>

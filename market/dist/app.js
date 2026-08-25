@@ -399,14 +399,12 @@
 
   function renderCard(kind, item) {
     var card = el('article', 'mk-card')
-    var media = el('div', 'mk-card-media')
-    if (kind === 'plugin') {
-      var logo = el('div', 'mk-plugin-logo', (item.name || '?').charAt(0).toUpperCase())
-      logo.style.background = 'linear-gradient(135deg, rgba(46, 81, 155, .85), rgba(69, 111, 202, .55))'
-      media.appendChild(logo)
-      var cat = el('span', 'mk-cat', CAT_LABEL[item.category] || item.category)
-      media.appendChild(cat)
-    } else {
+    // Community plugins carry no artwork: skip the media block so the card
+    // renders text only; classification labels live in the meta line.
+    var media = null
+    if (kind !== 'plugin') {
+      media = el('div', 'mk-card-media')
+      // (plugin branch removed; skins and pets keep their media below)
       var src = thumbSrc(kind, item)
       if (src) {
         var img = el('img')
@@ -425,7 +423,7 @@
         }
       }
     }
-    card.appendChild(media)
+    if (media) card.appendChild(media)
     var body = el('div', 'mk-card-body')
     var name = (kind !== 'pet' && item.repo)
       ? el('a', 'mk-card-name', item.name || item.displayName)
@@ -637,10 +635,8 @@
       install2.appendChild(steps2)
       info.appendChild(install2)
     } else {
-      var logo2 = el('div', 'mk-plugin-logo', (item.name || '?').charAt(0).toUpperCase())
-      logo2.style.background = 'linear-gradient(135deg, rgba(46, 81, 155, .85), rgba(69, 111, 202, .55))'
-      logo2.style.minHeight = '200px'
-      media.appendChild(logo2)
+      // Plugin detail is text only: no artwork block, the classification and
+      // author line opens the info column.
       var metaParts = [CAT_LABEL[item.category] || item.category]
       if (item.subcategory) metaParts.push(SUB_LABEL[item.subcategory] || item.subcategory)
       if (item.author) metaParts.push(item.author)
@@ -682,7 +678,7 @@
       info.appendChild(install3)
     }
 
-    inner.appendChild(media)
+    if (kind !== 'plugin') inner.appendChild(media)
     inner.appendChild(info)
     dlg.appendChild(close)
     dlg.appendChild(inner)
