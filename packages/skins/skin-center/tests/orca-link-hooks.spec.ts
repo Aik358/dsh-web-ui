@@ -159,3 +159,62 @@ describe('orca-link hooks: scene layers and chrome', () => {
     expect(document.body.querySelector('[data-orca-link-character]')).toBeNull()
   })
 })
+
+describe('orca-link hooks: icon reconciler', () => {
+  const makeSvg = (d: string) => {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+    svg.setAttribute('viewBox', '0 0 16 16')
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+    path.setAttribute('d', d)
+    svg.append(path)
+    return svg
+  }
+
+  it('only reconciles host glyphs matching a fingerprint key', async () => {
+    const { ctx, runCleanup, flush } = setup()
+    const hit = makeSvg('M9.67272 0.522841C10.8339 2.1')
+    const miss = makeSvg('M0 0 C1 1 2 2 3 3 -- no fingerprint here')
+    document.body.append(hit, miss)
+    defineSkinHooks().apply(ctx)
+
+    expect(hit.getAttribute('data-orca-link-icon')).toBe('panel-collapse')
+    expect(hit.querySelector('[data-orca-link-icon-art]')).not.toBeNull()
+    expect(miss.getAttribute('data-orca-link-icon')).toBeNull()
+    expect(miss.querySelector('[data-orca-link-icon-art]')).toBeNull()
+
+    // Late-inserted svgs (session loads, skill pickers) reconcile through
+    // the mount observer as well.
+    const late = makeSvg('M4 4l8 8M12 4l-8 8')
+    document.body.append(late)
+    await flush()
+    expect(late.getAttribute('data-orca-link-icon')).toBe('close')
+
+    // Idempotent: further churn must not stack a second art group.
+    document.body.append(document.createElement('div'))
+    await flush()
+    expect(late.querySelectorAll('[data-orca-link-icon-art]')).toHaveLength(1)
+
+    runCleanup()
+    expect(hit.getAttribute('data-orca-link-icon')).toBeNull()
+  })
+})
+
+describe('orca-link hooks: background throttling', () => {
+  it('mirrors tab visibility onto body and resumes on return', () => {
+    const { ctx, runCleanup } = setup()
+    sidebarFixture()
+    defineSkinHooks().apply(ctx)
+
+    expect(document.body.hasAttribute('data-orca-page-hidden')).toBe(false)
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true })
+    document.dispatchEvent(new Event('visibilitychange'))
+    expect(document.body.hasAttribute('data-orca-page-hidden')).toBe(true)
+
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+    document.dispatchEvent(new Event('visibilitychange'))
+    expect(document.body.hasAttribute('data-orca-page-hidden')).toBe(false)
+
+    runCleanup()
+    expect(document.body.hasAttribute('data-orca-page-hidden')).toBe(false)
+  })
+})

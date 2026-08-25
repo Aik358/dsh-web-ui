@@ -1052,9 +1052,21 @@ export default function defineSkinHooks() {
 
       /* --------------------------- scene sync --------------------------- */
 
+      // Shared cache for the conversation root lookup. The root is only
+      // rebuilt on session switches; between switches the phase lives on the
+      // same node, so every observer callback can reuse the cached element
+      // instead of re-walking the whole [data-phase] tree (the dominant
+      // per-mutation cost during active chat streaming).
+      let memoConversationRoot = null
+      const conversationRootMemo = () => {
+        if (memoConversationRoot !== null && memoConversationRoot.isConnected) return memoConversationRoot
+        memoConversationRoot = conversationRootOf(body)
+        return memoConversationRoot
+      }
+
       const sceneDisposer = (() => {
         const sync = () => {
-          const root = conversationRootOf(body)
+          const root = conversationRootMemo()
           const phase = root?.dataset.phase
           const scene = phase === 'settling' || phase === 'active' ? 'active' : 'hero'
           if (body.getAttribute(SCENE_ATTRIBUTE) !== scene) body.setAttribute(SCENE_ATTRIBUTE, scene)
@@ -1076,7 +1088,7 @@ export default function defineSkinHooks() {
 
       const linkStatusDisposer = (() => {
         const synchronize = () => {
-          const status = resolveLinkStatus(conversationRootOf(body))
+          const status = resolveLinkStatus(conversationRootMemo())
           if (body.getAttribute('data-orca-link-status') !== status) body.setAttribute('data-orca-link-status', status)
           const chip = body.querySelector(SIGNAL_SELECTOR)
           if (chip === null) return
@@ -1205,6 +1217,22 @@ export default function defineSkinHooks() {
           if (timeout !== undefined) clearTimeout(timeout)
           timeout = setTimeout(tick, statusFrameDuration(status, sequenceIndex))
         }
+        // A hidden tab must not keep the frame loop and the gate-weave
+        // animation burning. The page-visible state mirrors onto body so the
+        // stylesheet can pause the weave; on return the loop resumes from the
+        // current frame without resetting the sequence.
+        const onVisibilityChange = () => {
+          const hidden = doc.visibilityState === 'hidden'
+          body.toggleAttribute('data-orca-page-hidden', hidden)
+          if (hidden) {
+            if (timeout !== undefined) clearTimeout(timeout)
+            timeout = undefined
+          } else if (timeout === undefined) {
+            scheduleTick()
+          }
+        }
+        doc.addEventListener('visibilitychange', onVisibilityChange)
+        onVisibilityChange()
         const observer = new MutationObserver((records) => {
           if (!hasMutationOutsideTerminal(records)) return
           const previousStatus = status
@@ -1221,7 +1249,9 @@ export default function defineSkinHooks() {
         scheduleTick()
         return () => {
           if (timeout !== undefined) clearTimeout(timeout)
+          doc.removeEventListener('visibilitychange', onVisibilityChange)
           observer.disconnect()
+          body.removeAttribute('data-orca-page-hidden')
           body.querySelectorAll(characterRootSelector).forEach((element) => element.remove())
         }
       })()
@@ -1900,12 +1930,25 @@ export default function defineSkinHooks() {
           const root = phaseRootOf(seat)
           const card = seat.querySelector(COMPOSER_CARD_SELECTOR_FILTERED)
           if (root === null || card === null) return
-          let binding = bindings.get(seat)
+          const phase = root.dataset.phase ?? ''
+          const binding = bindings.get(seat)
+          if (
+            binding !== undefined && binding.card === card && binding.root === root
+            && binding.mountedPhase === phase && binding.handles.length > 0
+          ) {
+            // The seat is fully mounted and untouched (only sibling DOM churn):
+            // skip phase/compose checks entirely. A collapsed seat still
+            // re-anchors its restore button because the mutation may have
+            // moved the card.
+            if (binding.restore !== null) positionRestore(binding)
+            return
+          }
           if (binding === undefined) {
-            binding = { seat, card, root, handles: [], restore: null, anchor: null, suppressClickUntil: 0, dragFullWidth: 0, dragMinWidth: 0 }
-            bindings.set(seat, binding)
+            const created = { seat, card, root, handles: [], restore: null, anchor: null, suppressClickUntil: 0, dragFullWidth: 0, dragMinWidth: 0, mountedPhase: phase }
+            bindings.set(seat, created)
           } else {
             binding.root = root
+            binding.mountedPhase = phase
             if (binding.card !== card) {
               binding.handles.forEach((handle) => { handle.remove() })
               binding.handles = []
@@ -2003,12 +2046,25 @@ export default function defineSkinHooks() {
       const iconsDisposer = (() => {
         const usageObservers = new Map()
         const normalizeHtml = (html) => html.replace(/\s+/g, ' ').trim()
+        // Compile the fingerprint table into one alternation regex used as a
+        // boolean pre-scan: during large DOM inserts (session load / switch,
+        // skill pickers) most svgs are unrelated host glyphs, and one regex
+        // test per svg replaces ~90 includes() calls. The ordered loop below
+        // still decides the name, preserving the original first-key-in-table
+        // precedence; the regex only answers "does any fingerprint appear?".
+        const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, (match) => '\\' + match)
+        const iconKeyRegex = new RegExp(ICON_KEYS.map(([key]) => escapeRegex(key)).join('|'))
         const hostHtml = (svg) => {
+          const preexistingArt = svg.querySelector('[' + ICON_ART_ATTRIBUTE + ']')
+          // A fresh, unreconciled svg carries only host markup: snapshot the
+          // live innerHTML and skip the clone/remove dance entirely.
+          if (preexistingArt === null) return normalizeHtml(svg.innerHTML)
           const clone = svg.cloneNode(true)
           clone.querySelectorAll('[' + ICON_ART_ATTRIBUTE + ']').forEach((node) => node.remove())
           return normalizeHtml(clone.innerHTML)
         }
         const matchIcon = (html) => {
+          if (!iconKeyRegex.test(html)) return null
           for (const [key, name] of ICON_KEYS) {
             if (html.includes(key)) return name
           }

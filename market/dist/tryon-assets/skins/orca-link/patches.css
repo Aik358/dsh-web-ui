@@ -59,7 +59,6 @@ html[data-dsh-skin="orca-link"] .orca-ch-lightSceneLayer {
   z-index: 1;
   opacity: 0;
   filter: saturate(.9) contrast(.98) blur();
-  will-change: opacity, transform, filter;
   background-position: 50%;
   background-repeat: no-repeat;
   background-size: cover;
@@ -121,7 +120,6 @@ html[data-dsh-skin="orca-link"] .orca-ch-darkSceneLayer {
   z-index: 1;
   opacity: 0;
   filter: brightness(.88) saturate(.74) contrast(1.05) blur();
-  will-change: opacity, transform, filter;
   background-position: 50%;
   background-repeat: no-repeat;
   background-size: cover;
@@ -663,7 +661,6 @@ html[data-dsh-skin="orca-link"] .orca-ch-dshWordmark {
   pointer-events: none;
   transform-origin: 0 0;
   filter: blur(.18px);
-  will-change: transform, opacity, filter;
   width: 118px;
   height: 30px;
   transition: opacity .13s ease-in, transform .16s cubic-bezier(.4, 0, 1, 1), filter .13s ease-in;
@@ -772,6 +769,10 @@ html[data-dsh-skin="orca-link"] body[data-orca-sidebar-wide] [data-dsh-surface="
   clip-path: inset(0);
   transition-timing-function: ease-out, cubic-bezier(.16, 1, .3, 1), cubic-bezier(.16, 1, .3, 1);
   transform: translate(0);
+}
+
+html[data-dsh-skin="orca-link"] body[data-orca-page-hidden] .orca-ch-statusCharacterFrame {
+  animation-play-state: paused;
 }
 
 html[data-dsh-skin="orca-link"] .orca-ch-statusCharacterFrame {
