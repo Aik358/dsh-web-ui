@@ -24,7 +24,7 @@
 
 <p align="center">
   <strong>DeepSeek Harness（DSH）Web 的插件聚合生态包 · 一切皆插件</strong><br>
-  <em>任务看板 · 移动端远程 · SSH 运维 · 图像理解 · 皮肤 · 创意工坊</em>
+  <em>性能引擎 · 任务看板 · 移动端远程 · SSH 运维 · 图像理解 · 皮肤 · 创意工坊</em>
 </p>
 
 <div align="center">
@@ -43,6 +43,7 @@ dsh-web 是 DeepSeek Harness（DSH）Web GUI 的插件聚合生态包（DSH Web 
 
 | 能力 | 原生 dsh web | dsh-web 全家桶 |
 | --- | --- | --- |
+| 性能观测与治理 | 无 | HUD 检测面板 + 事件/事件循环/内存指标 + 写批频控 + 渲染降载 + 三档告警 |
 | Agent 预设 | 官方预设（Standard / Minimal 等） | 官方与社区预设 |
 | 任务看板 | 无 | 多列看板 + cron 定时真实执行 |
 | 移动端远程 | 无 | 扫码配对、SSE 实时同步；同一链接也可配对 PC 浏览器 |
@@ -63,6 +64,12 @@ dsh-web 是 DeepSeek Harness（DSH）Web GUI 的插件聚合生态包（DSH Web 
 创意工坊对标 Steam Workshop 的定位：让社区创作被发现、被试穿、被一键装回家，让作者的作品被看见、被点赞——欢迎一起来建设。
 
 ## 功能插件
+
+### 性能引擎（dsh-perf）
+
+流式/多会话场景的性能观测与治理插件，dsh-web 全家桶的第一位功能插件：右下角 HUD 检测面板（默认关闭，可在插件设置中打开）实时显示每个会话的事件速率、事件循环 p99 延迟、前端 FPS / Longtask、内存与写批延迟，活跃会话数超过阈值（轻 / 标准 / 严格三档预设）时 HUD 亮警。治理面包括：写批延迟调谐（降低流式期 fsync 频率）、代理式消息渲染降载（超重助手消息折叠 + 懒代码高亮，消除开窗/回合结束的代码高亮尖峰）、agent 空闲状态徽标与 CSS 渲染降载。
+
+全部能力集中在「Web 插件 → 性能引擎」一张设置卡：总开关（全栈联动）、观测模式（off / balanced / aggressive）、告警阈值预设、HUD 检测面板、消息渲染降载，支持热切换（host 端模式与采样周期即时生效）。观测只读取聚合指标（事件速率、延迟分布、内存），不触碰任何会话内容；API 走 loopback 守卫（仅本机同源可读）。详见 [packages/dsh-perf/README.zh.md](packages/dsh-perf/README.zh.md)。
 
 ### 任务看板（Task Board）
 

@@ -43,6 +43,7 @@ Skins live inside the same plugin system: a v2 skin is not a standalone product 
 
 | Capability | Stock dsh web | dsh-web family |
 | --- | --- | --- |
+| Performance monitoring & governance | None | HUD panel + event / event-loop / memory metrics + write-batch pacing + render degrade + three-tier alerts |
 | Agent presets | Official presets (Standard / Minimal…) | Official and community presets |
 | Task board | None | Multi-column board + cron-scheduled real runs |
 | Mobile remote control | None | QR pairing with SSE real-time sync; the same link also pairs a PC browser |
@@ -64,6 +65,12 @@ The Workshop takes its cue from the Steam Workshop: a place where community crea
 
 ## Feature Plugins
 
+
+### Performance Engine (dsh-perf)
+
+The first feature plugin of the dsh-web family: performance monitoring and governance for streaming / multi-session workloads. A bottom-right HUD panel (off by default; enable it in the plugin settings) shows per-session event rate, event-loop p99 delay, front-end FPS / Longtask, memory and write-batch delay; the HUD alerts when active sessions cross the threshold (light / standard / strict presets). Governance covers write-batch pacing (fewer fsync batches while streaming), proxied message render degrade (heavy assistant messages are collapsed and lazily highlighted, removing the code-highlight spike at window open and turn end), agent idle badges and CSS render throttling.
+
+Everything is managed from one card: 'Web Plugins → Performance Engine' — master switch (full-stack), monitoring tier (off / balanced / aggressive), alert preset, HUD panel and render degrade, hot-swappable (host mode and sampling interval apply immediately). The observability surface reads aggregate metrics only (event rate, delay distribution, memory) and never session content; the API is loopback-fenced (local same-origin only). See packages/dsh-perf/README.md.
 ### Task Board（任务看板）
 
 Open it from the sidebar. Tasks sit in five columns: Planned, To-do, In Progress, Done, Failed. Click "Run" on a card and the task goes to a real DSH agent session; the card status updates itself when it finishes. Want to see what happened? Jump back into the execution session for the full transcript.
