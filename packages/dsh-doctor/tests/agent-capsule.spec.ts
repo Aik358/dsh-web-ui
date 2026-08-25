@@ -51,7 +51,7 @@ describe('rescue capsule provisioning', () => {
       expect(calls.some(c => c[0] === 'dsh' && c.includes('plugin'))).toBe(true)
       expect(calls.some(c => c.includes('--dump-config'))).toBe(true)
       const saved = JSON.parse(await readFile(join(dir, 'capsule', 'current', 'manifest.json'), 'utf8')) as typeof manifest
-      expect(saved.rescueHome).toContain('/current')
+      expect(saved.rescueHome).toMatch(/[\\/]current/)
     } finally {
       await rm(dir, { recursive: true, force: true })
     }
@@ -81,7 +81,7 @@ describe('rescue capsule provisioning', () => {
       expect(manifest.credentialsAt).toBe('2026-01-01T00:00:00Z')
       const rescueHome = join(dir, 'capsule', 'current', 'rescue-home')
       for (const rel of ['settings.yaml', '.credentials.yaml', '.env']) {
-        expect((await stat(join(rescueHome, rel))).mode & 0o777).toBe(0o600)
+        if (process.platform !== 'win32') expect((await stat(join(rescueHome, rel))).mode & 0o777).toBe(0o600)
       }
       await expect(readFile(join(rescueHome, 'settings.yaml'), 'utf8')).resolves.toContain('sk-secret-abc123')
       await expect(stat(join(rescueHome, 'unrelated.txt'))).rejects.toThrow()

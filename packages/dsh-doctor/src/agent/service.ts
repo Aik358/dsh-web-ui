@@ -1,6 +1,6 @@
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { basename, dirname, join, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path/posix'
 import { spawn } from 'node:child_process'
 
 export interface ServiceSpec { platform: NodeJS.Platform; label: string; executable: string; args: string[]; doctorHome: string }

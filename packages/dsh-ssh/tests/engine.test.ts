@@ -5,7 +5,7 @@
  * SFTP upload/download/ls, and the connection probe.
  */
 
-import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { connect, createServer, type AddressInfo } from 'node:net'
@@ -337,7 +337,7 @@ describe('tunnel', () => {
   })
 })
 
-describe('sftp (real sshd)', () => {
+describe.skipIf(process.platform === 'win32' || !existsSync('/usr/sbin/sshd'))('sftp (real sshd)', () => {
   it('uploads, lists, and downloads files', async () => {
     const sshd = await TestSshd.start()
     try {

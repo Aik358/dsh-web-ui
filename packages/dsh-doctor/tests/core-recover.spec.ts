@@ -1,6 +1,6 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join } from 'node:path/posix'
 import { describe, expect, it } from 'vitest'
 import { createMemoryFs, nodeFs, type FsLike } from '../src/core/fs.ts'
 import { createYamlEngine } from '../src/core/yaml.ts'
@@ -475,12 +475,7 @@ describe('recovery orchestration', () => {
       expect(observed).toEqual({ liveReads: 0, repairSettled: false })
       expect(rollbackOutcome).toMatchObject({ ok: true, phase: 'rolled-back' })
       expect(repairSettled).toBe(true)
-      if (process.platform === 'win32') {
-        expect(repairOutcome).toMatchObject({ ok: false, phase: 'failed' })
-        expect(repairOutcome.message).toContain('mkdir')
-      } else {
-        expect(repairOutcome, repairOutcome.message).toMatchObject({ ok: true, phase: 'noop' })
-      }
+      expect(repairOutcome, repairOutcome.message).toMatchObject({ ok: true, phase: 'noop' })
     })
   })
 

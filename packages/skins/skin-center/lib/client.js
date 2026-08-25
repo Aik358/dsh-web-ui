@@ -3055,20 +3055,30 @@ window.__ModuleLoader__.load({
 			}
 			return Object.keys(patch).length === 0 ? null : patch;
 		}
+		/** Deterministic serialization of the user layer for content-based dedup. */
+		function serializeSkinBackgroundUserLayer(user) {
+			const extracted = extractSkinBackgroundUserLayer(user);
+			return extracted === null ? "" : JSON.stringify(extracted);
+		}
 		/**
-		* Accept a scope publication only when its namespace revision is new. The
-		* caller records the returned revision even when there is no user patch, so a
-		* later mirror publication with the same revision stays inert.
+		* Accept a scope publication only when its namespace revision is new AND the
+		* user layer has actually changed. A revision bump with identical user-layer
+		* content is a replay (settings-mirror resync, WS reconnect, or another
+		* plugin writing to the global settings document) and must not overwrite the
+		* authoritative v2 state.
 		*/
-		function reconcileSkinBackgroundScope(current, snapshot, lastRevision) {
-			if (snapshot.revision === void 0 || snapshot.revision === lastRevision) return {
+		function reconcileSkinBackgroundScope(current, snapshot, lastRevision, lastUserJson) {
+			const currentUserJson = serializeSkinBackgroundUserLayer(snapshot.user);
+			if (snapshot.revision === void 0 || snapshot.revision === lastRevision || currentUserJson === lastUserJson) return {
 				accepted: false,
-				revision: lastRevision,
+				revision: snapshot.revision ?? lastRevision,
+				lastUserJson: currentUserJson,
 				patch: null
 			};
 			return {
 				accepted: true,
 				revision: snapshot.revision,
+				lastUserJson: currentUserJson,
 				patch: skinBackgroundUserPatch(current, snapshot.user)
 			};
 		}
@@ -3614,6 +3624,15 @@ window.__ModuleLoader__.load({
          clearance without changing either layout's geometry. */
       padding-bottom: 0 !important;
       scroll-padding-bottom: var(--dsh-composer-height, 100px) !important;
+    }
+    /* #1117: The upstream recommended badge pairs two background-fill tokens
+       as bg + text — in dark mode, skins like Blue Fantasy collapse them to
+       near-identical dark navy values (contrast ~1:1). Override the text
+       color to a readable foreground and tweak the background for contrast. */
+    body[data-ds-dark-theme] ${scoped("[data-question-key] [class*=\"_badge\"]")},
+    body[data-ds-dark-theme] ${scoped("[data-question-scroll] [class*=\"_badge\"]")} {
+      color: var(--dsw-alias-label-primary, #ffffff) !important;
+      background: var(--dsw-alias-interactive-bg-active, color-mix(in srgb, var(--dsw-alias-button-info-fill, #4a5fa8) 50%, transparent)) !important;
     }
   `;
 		}
@@ -4707,6 +4726,7 @@ window.__ModuleLoader__.load({
 			};
 			let v2Loaded = false;
 			let lastScopeRevision = backgroundScope.getSnapshot().revision;
+			let lastUserJson = serializeSkinBackgroundUserLayer(backgroundScope.getSnapshot().user);
 			const background = new BackgroundController(scopeConfig(), persistBackground);
 			const reconcileScope = () => {
 				if (!v2Loaded) return;
@@ -4714,10 +4734,10 @@ window.__ModuleLoader__.load({
 				const result = reconcileSkinBackgroundScope(background.snapshot(), {
 					revision: snapshot.revision,
 					user: snapshot.user
-				}, lastScopeRevision);
-				if (!result.accepted) return;
+				}, lastScopeRevision, lastUserJson);
 				lastScopeRevision = result.revision;
-				if (result.patch === null) return;
+				lastUserJson = result.lastUserJson;
+				if (!result.accepted || result.patch === null) return;
 				const current = background.snapshot();
 				background.init({
 					...current,

@@ -2,7 +2,7 @@
  * Profile install inventory: manifest deps against the lockfile importer and
  * the installed node_modules, plus workspace settings parsing.
  */
-import { join } from 'node:path'
+import { join } from 'node:path/posix'
 import type { FsLike } from './fs.ts'
 import { classifySpec } from './spec.ts'
 import type { DependencySpec, InventoryReport, InventoryRow, ManifestFacts, WorkspaceSettings } from './types.ts'

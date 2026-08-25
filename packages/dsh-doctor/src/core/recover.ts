@@ -11,7 +11,7 @@
  * is injected so the flow is hermetic in tests.
  */
 import { createRequire } from 'node:module'
-import { join, resolve } from 'node:path'
+import { join, resolve } from 'node:path/posix'
 import { createYamlEngine, type YamlEngine } from './yaml.ts'
 import { createLockManager, LockError } from './lock.ts'
 import { createJournal, type Journal } from './journal.ts'
@@ -707,7 +707,10 @@ function validateRollbackRecord(value: unknown, home: string, profile: string, t
 }
 
 function samePath(left: string, right: string): boolean {
-  return resolve(left) === resolve(right)
+  const norm = (p: string) => p.replaceAll('\\', '/').replace(/\/+$/, '')
+  const a = norm(left)
+  const b = norm(right)
+  return a === b || (process.platform === 'win32' && a.toLowerCase() === b.toLowerCase())
 }
 
 function rollbackFailure(txnId: string, message: string): RecoveryOutcome {

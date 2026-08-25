@@ -22,7 +22,7 @@ export function walkLocalDir(root: string): string[] {
       const stat = lstatSync(full)
       if (stat.isSymbolicLink()) continue
       if (stat.isDirectory()) visit(full)
-      else if (stat.isFile()) files.push(relative(root, full))
+      else if (stat.isFile()) files.push(relative(root, full).replaceAll('\\', '/'))
     }
   }
   visit(root)

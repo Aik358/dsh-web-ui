@@ -16,7 +16,7 @@ describe('DoctorSupervisor', () => {
     try {
       const token = (await readFile(paths.token, 'utf8')).trim()
       expect(token).toMatch(/^[0-9a-f]{64}$/)
-      expect((await stat(paths.token)).mode & 0o777).toBe(0o600)
+      if (process.platform !== 'win32') expect((await stat(paths.token)).mode & 0o777).toBe(0o600)
       const denied = await callSupervisor(paths.socket, 'wrong', { protocol: DOCTOR_PROTOCOL_VERSION, type: 'status' })
       expect(denied.ok).toBe(false)
       expect(denied.error?.code).toBe('UNAUTHORIZED')

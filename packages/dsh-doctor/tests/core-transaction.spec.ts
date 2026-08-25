@@ -3,7 +3,7 @@
  */
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join } from 'node:path/posix'
 import { describe, expect, it } from 'vitest'
 import { createMemoryFs, FsError, nodeFs, type FsLike } from '../src/core/fs.ts'
 import { createCandidateTransaction } from '../src/core/transaction.ts'

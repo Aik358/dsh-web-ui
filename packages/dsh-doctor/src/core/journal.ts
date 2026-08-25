@@ -5,7 +5,7 @@
  * counts corrupted lines instead of failing, so a torn write never prevents
  * recovery auditing.
  */
-import { join } from 'node:path'
+import { join } from 'node:path/posix'
 import type { FsLike } from './fs.ts'
 import type { JournalEntry } from './types.ts'
 

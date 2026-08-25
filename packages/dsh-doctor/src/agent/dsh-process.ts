@@ -18,8 +18,13 @@ export interface DshSpawnSpec {
 
 /** Return a platform-specific command without enabling general shell parsing. */
 export function dshSpawnSpec(binary: string, args: readonly string[], platform: NodeJS.Platform = process.platform): DshSpawnSpec {
-  if (platform === 'win32' && binary.toLowerCase().endsWith('.cmd')) {
-    return { command: 'cmd.exe', args: windowsCmdShimArgs(binary, args), windowsVerbatimArguments: true }
+  if (platform === 'win32') {
+    if (binary.toLowerCase().endsWith('.cmd') || binary.toLowerCase().endsWith('.bat')) {
+      return { command: 'cmd.exe', args: windowsCmdShimArgs(binary, args), windowsVerbatimArguments: true }
+    }
+    if (binary.toLowerCase().endsWith('.js') || binary.toLowerCase().endsWith('.mjs') || binary.toLowerCase().endsWith('.cjs')) {
+      return { command: process.execPath, args: [binary, ...args] }
+    }
   }
   return { command: binary, args: [...args] }
 }

@@ -7,7 +7,7 @@
  * FsLike so tests run against the in-memory tree and partial-write failures
  * are observable.
  */
-import { join } from 'node:path'
+import { join } from 'node:path/posix'
 import { sha256Hex, sha256Short } from './hash.ts'
 import type { FsLike } from './fs.ts'
 import { safeRelativePath } from './paths.ts'

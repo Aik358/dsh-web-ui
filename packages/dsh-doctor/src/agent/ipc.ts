@@ -1,6 +1,6 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises'
-import { dirname } from 'node:path'
+import { dirname } from 'node:path/posix'
 import type { SupervisorRequest, SupervisorResponse } from '../core/protocol.ts'
 
 export interface WireEnvelope { token: string; request: SupervisorRequest }
@@ -36,7 +36,7 @@ export async function callSupervisor(endpoint: string, token: string, request: S
     let received = ''
     const timer = setTimeout(() => { socket.destroy(new Error('doctor: supervisor timeout')) }, timeoutMs)
     socket.setEncoding('utf8')
-    socket.on('connect', () => { socket.end(body + '\n') })
+    socket.on('connect', () => { socket.write(body + '\n') })
     socket.on('data', chunk => { received += chunk })
     socket.on('end', () => {
       clearTimeout(timer)

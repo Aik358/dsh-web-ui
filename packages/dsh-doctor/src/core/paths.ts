@@ -5,7 +5,7 @@
  * resolution. This module adds the engine-specific roots (quarantine,
  * staging, capsule), profile-relative path safety, and profile discovery.
  */
-import { join } from 'node:path'
+import { join } from 'node:path/posix'
 import type { FsLike } from './fs.ts'
 import { assertSafeProfileName } from './profile.ts'
 import { sha256Short } from './hash.ts'

@@ -1,6 +1,6 @@
 import { mkdir, rm } from 'node:fs/promises'
 import { createServer, type Server } from 'node:net'
-import { join } from 'node:path'
+import { join } from 'node:path/posix'
 import { DEFAULT_DOCTOR_POLICY, isSupervisorRequest, type DoctorPolicy, type SupervisorRequest, type SupervisorResponse } from '../core/protocol.ts'
 import { appendJsonLine, readJson, writeJsonAtomic } from '../core/store.ts'
 import { ensureToken, tokensEqual, type WireEnvelope } from './ipc.ts'
@@ -48,14 +48,28 @@ export class DoctorSupervisor {
     this.state.phase = this.state.paused ? 'disabled' : 'armed'
     if (process.platform !== 'win32') await rm(this.paths.socket, { force: true })
     this.server = createServer({ allowHalfOpen: true }, socket => {
-      socket.setEncoding('utf8'); let body = ''
-      socket.on('data', chunk => { body += chunk; if (body.length > 256 * 1024) socket.destroy(new Error('doctor: IPC body too large')) })
+      socket.setEncoding('utf8')
+      let body = ''
+      let handled = false
       const respond = (value: SupervisorResponse): void => {
         if (socket.destroyed || socket.writableEnded) return
         socket.end(JSON.stringify(value))
       }
+      socket.on('data', chunk => {
+        body += chunk
+        if (body.length > 256 * 1024) socket.destroy(new Error('doctor: IPC body too large'))
+        if (!handled && body.includes('\n')) {
+          handled = true
+          void this.handleWire(body).then(respond, error => respond({ ok: false, error: { code: 'INTERNAL', message: String(error) } }))
+        }
+      })
       socket.on('error', () => undefined)
-      socket.on('end', () => { void this.handleWire(body).then(respond, error => respond({ ok: false, error: { code: 'INTERNAL', message: String(error) } })) })
+      socket.on('end', () => {
+        if (!handled) {
+          handled = true
+          void this.handleWire(body).then(respond, error => respond({ ok: false, error: { code: 'INTERNAL', message: String(error) } }))
+        }
+      })
     })
     await new Promise<void>((resolvePromise, reject) => { this.server!.once('error', reject); this.server!.listen(this.paths.socket, () => resolvePromise()) })
     this.sweep = setInterval(() => { void this.sweepHeartbeats() }, 5000); this.sweep.unref?.()

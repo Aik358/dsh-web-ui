@@ -9,6 +9,7 @@ import { transform } from "lightningcss";
 import { execFile, execFileSync } from "node:child_process";
 import { readFile, stat } from "node:fs/promises";
 import { pipeline } from "node:stream";
+import { dirname as dirname$1, join as join$1 } from "node:path/posix";
 import { Buffer as Buffer$1 } from "node:buffer";
 import { decode } from "jpeg-js";
 import { deflateSync, inflateSync } from "node:zlib";
@@ -2556,8 +2557,8 @@ function migrateLegacySelection(options) {
 /** Default roots for the current user (both modern and legacy layouts). */
 function defaultMacosWallpaperRoots(home = homedir()) {
 	return {
-		aerials: [join(home, "Library", "Application Support", "com.apple.wallpaper", "aerials"), join("/Library", "Application Support", "com.apple.idleassetsd", "Customer")],
-		pictures: [join("/System", "Library", "Desktop Pictures"), join("/Library", "Desktop Pictures")]
+		aerials: [join$1(home, "Library", "Application Support", "com.apple.wallpaper", "aerials"), join$1("/Library", "Application Support", "com.apple.idleassetsd", "Customer")],
+		pictures: [join$1("/System", "Library", "Desktop Pictures"), join$1("/Library", "Desktop Pictures")]
 	};
 }
 /** Default head reader: opens the file and reads at most `bytes` (never whole files — aerials are gigabytes). */
@@ -2662,7 +2663,7 @@ function aerialEntry(id, title, videoAbs, previewAbs, fs) {
 		type: "video",
 		file: videoAbs,
 		preview: previewAbs,
-		dir: dirname(videoAbs),
+		dir: dirname$1(videoAbs),
 		fileAbs: videoAbs,
 		previewAbs: previewAbs !== null && fs.exists(previewAbs) ? previewAbs : null,
 		source: "system",
@@ -2677,7 +2678,7 @@ function aerialEntry(id, title, videoAbs, previewAbs, fs) {
 * from <root>/manifest/entries.json and previews from <root>/thumbnails.
 */
 function scanAerialsModern(root, fs) {
-	const videosDir = join(root, "videos");
+	const videosDir = join$1(root, "videos");
 	if (!fs.exists(videosDir)) return [];
 	let names = [];
 	try {
@@ -2686,19 +2687,19 @@ function scanAerialsModern(root, fs) {
 		return [];
 	}
 	let titles = /* @__PURE__ */ new Map();
-	const manifestPath = join(root, "manifest", "entries.json");
+	const manifestPath = join$1(root, "manifest", "entries.json");
 	if (fs.exists(manifestPath)) try {
 		titles = readAerialManifest(fs.readFile(manifestPath));
 	} catch {}
-	const thumbnailsDir = join(root, "thumbnails");
+	const thumbnailsDir = join$1(root, "thumbnails");
 	const entries = [];
 	for (const name of names) {
 		if (!MOV_RE.test(name)) continue;
-		const videoAbs = join(videosDir, name);
+		const videoAbs = join$1(videosDir, name);
 		const head = readHeadOrNull(fs, videoAbs);
 		if (head === null || !isMovVideo(name, head)) continue;
 		const id = name.replace(MOV_RE, "");
-		const thumbnail = join(thumbnailsDir, id + ".png");
+		const thumbnail = join$1(thumbnailsDir, id + ".png");
 		entries.push(aerialEntry(id, titles.get(id) ?? id, videoAbs, thumbnail, fs));
 	}
 	return entries;
@@ -2716,13 +2717,13 @@ function scanAerialsLegacy(root, fs) {
 		return [];
 	}
 	let titles = /* @__PURE__ */ new Map();
-	const manifestPath = join(root, "entries.json");
+	const manifestPath = join$1(root, "entries.json");
 	if (fs.exists(manifestPath)) try {
 		titles = readAerialManifest(fs.readFile(manifestPath));
 	} catch {}
 	const entries = [];
 	for (const name of names) {
-		const sub = join(root, name);
+		const sub = join$1(root, name);
 		try {
 			if (!fs.stat(sub).isDirectory()) continue;
 		} catch {
@@ -2736,7 +2737,7 @@ function scanAerialsLegacy(root, fs) {
 		}
 		for (const video of videos) {
 			if (!MOV_RE.test(video)) continue;
-			const videoAbs = join(sub, video);
+			const videoAbs = join$1(sub, video);
 			const head = readHeadOrNull(fs, videoAbs);
 			if (head === null || !isMovVideo(video, head)) continue;
 			const id = video.replace(MOV_RE, "");
@@ -2754,7 +2755,7 @@ function scanMacAerials(roots, inject = {}) {
 	const fs = resolveFs(inject);
 	const found = /* @__PURE__ */ new Map();
 	for (const root of roots) {
-		const entries = fs.exists(join(root, "videos")) ? scanAerialsModern(root, fs) : scanAerialsLegacy(root, fs);
+		const entries = fs.exists(join$1(root, "videos")) ? scanAerialsModern(root, fs) : scanAerialsLegacy(root, fs);
 		for (const entry of entries) if (!found.has(entry.id)) found.set(entry.id, entry);
 	}
 	return [...found.values()];
@@ -2776,7 +2777,7 @@ function scanMacDesktopPictures(roots, inject = {}) {
 			continue;
 		}
 		for (const name of names) {
-			const fileAbs = join(root, name);
+			const fileAbs = join$1(root, name);
 			const head = readHeadOrNull(fs, fileAbs);
 			if (head === null || !isSupportedImage(name, head)) continue;
 			const stem = name.replace(/\.[a-z0-9]+$/i, "");

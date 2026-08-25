@@ -5,7 +5,7 @@
  * assemble the inputs (manifest, patch reports, inventory, fallback scan,
  * env scan, toolchain) and receive a sorted Diagnostic list.
  */
-import { join } from 'node:path'
+import { join } from 'node:path/posix'
 import type { FsLike } from './fs.ts'
 import { profilesNodeModulesDir } from './paths.ts'
 import { isPinned, isLocalSpec } from './spec.ts'

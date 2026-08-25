@@ -4,7 +4,7 @@ import { expandHome, resolveDshHome } from '../host/dsh-home.ts'
 describe('expandHome', () => {
   it('expands a leading tilde onto the home directory', () => {
     const expanded = expandHome('~/x')
-    expect(expanded.endsWith('/x')).toBe(true)
+    expect(expanded).toMatch(/[\\/]x$/)
     expect(expanded.startsWith('~')).toBe(false)
   })
 

@@ -6,7 +6,7 @@
  * win. Stale detection uses the token's heartbeat plus a pid-alive probe;
  * stealing renames the whole lock dir aside and retries once.
  */
-import { join } from 'node:path'
+import { join } from 'node:path/posix'
 import type { FsLike } from './fs.ts'
 import { locksDir } from './paths.ts'
 import type { LockScope, LockState, LockToken } from './types.ts'

@@ -7,7 +7,7 @@
  */
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join } from 'node:path/posix'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 // ---------- controllable rename mock ----------------------------------------

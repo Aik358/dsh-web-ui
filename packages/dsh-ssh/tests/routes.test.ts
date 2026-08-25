@@ -276,7 +276,7 @@ describe('upload', () => {
 
   it('keeps the staging directory private (0700)', () => {
     const mode = statSync(join(dir, 'staging')).mode & 0o777
-    expect(mode).toBe(0o700)
+    if (process.platform !== 'win32') expect(mode).toBe(0o700)
   })
 })
 
@@ -290,7 +290,7 @@ describe('download', () => {
 
   it('stages the download in a 0600 file', async () => {
     await fetch('http://127.0.0.1:' + port + SSH_API.download + '?alias=web-01&remotePath=/tmp/private.tar.gz')
-    expect(stub.downloadMode).toBe(0o600)
+    if (process.platform !== 'win32') expect(stub.downloadMode).toBe(0o600)
   })
 })
 

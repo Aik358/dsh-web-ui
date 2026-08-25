@@ -1,6 +1,6 @@
 import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join } from 'node:path/posix'
 import { describe, expect, it } from 'vitest'
 import { ensureServiceInstalled, removeService, servicePlan, type ServiceRunner } from '../src/agent/service.ts'
 

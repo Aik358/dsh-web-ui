@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { homedir } from 'node:os'
 import { isAbsolute, join, resolve } from 'node:path'
+import { join as posixJoin, resolve as posixResolve } from 'node:path/posix'
 import type { ProfileIdentity } from './protocol.ts'
 
 const PROFILE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
@@ -14,15 +15,21 @@ export function assertSafeProfileName(name: string): string {
 
 export function resolveDshHome(env: NodeJS.ProcessEnv = process.env, home = homedir(), cwd = process.cwd()): string {
   const raw = env.DSH_HOME?.trim()
-  if (!raw) return join(home, '.dsh')
-  const expanded = raw === '~' ? home : raw.startsWith('~/') || raw.startsWith('~\\') ? join(home, raw.slice(2)) : raw
+  const isPosix = home.startsWith('/') || (raw !== undefined && raw.startsWith('/'))
+  if (!raw) return isPosix ? posixJoin(home, '.dsh') : join(home, '.dsh')
+  const expanded = raw === '~'
+    ? home
+    : raw.startsWith('~/') || raw.startsWith('~\\')
+      ? (isPosix ? posixJoin(home, raw.slice(2)) : join(home, raw.slice(2)))
+      : raw
+  if (isPosix || expanded.startsWith('/')) return posixResolve(expanded.replaceAll('\\', '/'))
   return isAbsolute(expanded) ? resolve(expanded) : resolve(cwd, expanded)
 }
 
 export function profileIdentity(dshHome: string, name: string, dshExecutable: string, role: 'protected' | 'rescue' = 'protected'): ProfileIdentity {
   assertSafeProfileName(name)
-  const canonicalHome = resolve(dshHome)
-  const canonicalDsh = resolve(dshExecutable)
+  const canonicalHome = dshHome.startsWith('/') ? posixResolve(dshHome) : resolve(dshHome)
+  const canonicalDsh = dshExecutable.startsWith('/') ? posixResolve(dshExecutable) : resolve(dshExecutable)
   const id = role === 'rescue'
     ? 'system-rescue'
     : createHash('sha256').update([canonicalHome, name, canonicalDsh].join('\0')).digest('hex')
@@ -30,5 +37,8 @@ export function profileIdentity(dshHome: string, name: string, dshExecutable: st
 }
 
 export function profileDir(identity: Pick<ProfileIdentity, 'dshHome' | 'name'>): string {
-  return join(resolve(identity.dshHome), 'profiles', assertSafeProfileName(identity.name))
+  const isPosix = identity.dshHome.startsWith('/')
+  const canonicalHome = isPosix ? posixResolve(identity.dshHome) : resolve(identity.dshHome)
+  const j = isPosix ? posixJoin : join
+  return j(canonicalHome, 'profiles', assertSafeProfileName(identity.name))
 }

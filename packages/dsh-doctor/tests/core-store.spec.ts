@@ -1,6 +1,6 @@
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join } from 'node:path/posix'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { writeJsonAtomic } from '../src/core/store.ts'
 

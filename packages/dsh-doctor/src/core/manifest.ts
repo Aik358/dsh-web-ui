@@ -2,7 +2,7 @@
  * Profile manifest reading and validation. This layer only reads and
  * validates; mutation is expressed by PlanActions and executed elsewhere.
  */
-import { join } from 'node:path'
+import { join } from 'node:path/posix'
 import type { FsLike } from './fs.ts'
 import type { ManifestFacts } from './types.ts'
 
