@@ -767,6 +767,39 @@ describe('anchored-tool-bootstrap', () => {
     expect(modes).toEqual(['code', 'code'])
   })
 
+  test('emits tools/presentation-changed when mode switches to code or is reset to native (#1128)', async () => {
+    const listeners = register({ promotedPresentation: 'code', anchorGate: true })
+    const assembleListener = listener(listeners, 'system-prompt/assemble')
+    const eventListener = listener(listeners, 'session/event')
+    const events: Array<{ mode: string; session?: string }> = []
+    const sessionObj = {
+      id: 'sess-123',
+      events: [stepEvent(), reasoningEvent('We need inspect the repo.'), { type: 'tool/call' }],
+      header: { cwd: '/workspace' },
+    }
+    const agent = {
+      session: sessionObj,
+      ctx: {
+        tools: { presentAs: () => () => {} },
+        emit: (name: string, data: { mode: string; session?: string }) => {
+          if (name === 'tools/presentation-changed') events.push(data)
+        },
+      },
+    }
+    const tools = [{ name: 'bash' }, { name: 'read' }, { name: 'edit' }]
+    const next = async () => ({ system: 'minimal persona', tools, contexts: [], sections: SECTIONS })
+
+    await assembleListener(undefined, { agent }, next)
+    expect(events).toEqual([{ mode: 'code', session: 'sess-123' }])
+
+    sessionObj.events.push({ type: 'compaction/end', seq: 10 })
+    await eventListener(sessionObj, { type: 'compaction/end', seq: 10 })
+    expect(events).toEqual([
+      { mode: 'code', session: 'sess-123' },
+      { mode: 'native', session: 'sess-123' },
+    ])
+  })
+
   test('invalid compactionTools values fail at apply time', () => {
     expect(() => register({ compactionTools: [''] })).toThrow(/compactionTools/)
     expect(() => register({ compactionTools: [42] as any })).toThrow(/compactionTools/)

@@ -273,7 +273,7 @@ function stateFor(session) {
  * PTC Mode presentation is disposed so the next assembly sees the native
  * catalog and the phase-1 filter can narrow it again.
  */
-function resetToControlled(state) {
+function resetToControlled(state, session) {
   if (typeof state.presentationDisposer === 'function') {
     try {
       state.presentationDisposer()
@@ -282,6 +282,10 @@ function resetToControlled(state) {
       // next promotion re-declares PTC Mode anyway.
     }
     state.presentationDisposer = undefined
+    const agent = session !== undefined ? agentBySession.get(session) : undefined
+    if (agent?.ctx && typeof agent.ctx.emit === 'function') {
+      agent.ctx.emit('tools/presentation-changed', { mode: 'native', session: session?.id })
+    }
   }
   state.promoted = false
   state.toolCalled = false
@@ -311,6 +315,11 @@ function applyPresentation(agent, state, policy) {
   // let the phase-1 catalog filter see the native tool list again.
   state.presentationDisposer = tools.presentAs('code')
   state.presentationApplied = true
+  // #1128: Broadcast presentation switch so external discipline / analysis
+  // plugins decouple presentation mode from tool failure detection.
+  if (typeof agent.ctx.emit === 'function') {
+    agent.ctx.emit('tools/presentation-changed', { mode: 'code', session: agent.session?.id })
+  }
 }
 
 /**
@@ -342,7 +351,7 @@ function scanEvents(state, session) {
       // past this boundary (the `next` pointer stays, so events before the
       // boundary never re-promote). Handled inside the scan so cold starts
       // reconstruct the same phase from the durable log.
-      resetToControlled(state)
+      resetToControlled(state, session)
     } else if (event.type === 'tool/call') {
       state.toolCalled = true
     } else if (event.type === 'step/start') {
@@ -451,7 +460,7 @@ export function apply(ctx, config) {
   // start reconstructs the same controlled phase from the durable log.
   ctx.on('session/event', (session, event) => {
     if (event.type === 'compaction/end') {
-      resetToControlled(stateFor(session))
+      resetToControlled(stateFor(session), session)
       return
     }
     if (event.type !== 'step/end' && event.type !== 'turn/end') return
