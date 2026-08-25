@@ -6,7 +6,7 @@ html[data-dsh-skin="maid-atelier"] [id="root"] {
 html[data-dsh-skin="maid-atelier"] body:before {
   content: "";
   position: fixed;
-  z-index: 0;
+  z-index: -1;
   pointer-events: none;
   left: calc(var(--maid-sidebar-width, 280px) + clamp(8px, 1.3vw, 24px));
   bottom: clamp(-34px, -2.4vh, -12px);
@@ -21,7 +21,7 @@ html[data-dsh-skin="maid-atelier"] body:before {
 html[data-dsh-skin="maid-atelier"] body:after {
   content: "";
   position: fixed;
-  z-index: 0;
+  z-index: -1;
   pointer-events: none;
   right: 0;
   bottom: clamp(-26px, -1.8vh, -8px);
@@ -39,7 +39,7 @@ html[data-dsh-skin="maid-atelier"] body:has([data-skin-chrome="character-stage"]
 }
 
 html[data-dsh-skin="maid-atelier"] [data-skin-chrome="character-stage"] {
-  z-index: 0;
+  z-index: -1;
   pointer-events: none;
   contain: strict;
   position: fixed;
@@ -2208,7 +2208,6 @@ html[data-dsh-skin="maid-atelier"] [data-slot="sidebar.settings"] [role="present
   -webkit-backdrop-filter: blur(6px) saturate(.9);
   backdrop-filter: blur(6px) saturate(.9);
   position: relative;
-  z-index: 1;
 }
 
 html[data-dsh-skin="maid-atelier"] body[data-ds-dark-theme] [data-slot="sidebar.settings"] [role="presentation"] > [role="dialog"][aria-modal="true"] {
