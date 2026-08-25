@@ -54,25 +54,46 @@ export interface SkinBackgroundScopeSnapshot {
 export interface SkinBackgroundScopeReconcileResult {
   accepted: boolean
   revision: number | undefined
+  lastUserJson: string
   patch: SkinBackgroundConfig | null
 }
 
+/** Deterministic serialization of the user layer for content-based dedup. */
+export function serializeSkinBackgroundUserLayer(user: unknown): string {
+  const extracted = extractSkinBackgroundUserLayer(user)
+  return extracted === null ? '' : JSON.stringify(extracted)
+}
+
 /**
- * Accept a scope publication only when its namespace revision is new. The
- * caller records the returned revision even when there is no user patch, so a
- * later mirror publication with the same revision stays inert.
+ * Accept a scope publication only when its namespace revision is new AND the
+ * user layer has actually changed. A revision bump with identical user-layer
+ * content is a replay (settings-mirror resync, WS reconnect, or another
+ * plugin writing to the global settings document) and must not overwrite the
+ * authoritative v2 state.
  */
 export function reconcileSkinBackgroundScope(
   current: SkinBackgroundConfig,
   snapshot: SkinBackgroundScopeSnapshot,
   lastRevision: number | undefined,
+  lastUserJson: string | undefined,
 ): SkinBackgroundScopeReconcileResult {
-  if (snapshot.revision === undefined || snapshot.revision === lastRevision) {
-    return { accepted: false, revision: lastRevision, patch: null }
+  const currentUserJson = serializeSkinBackgroundUserLayer(snapshot.user)
+  if (
+    snapshot.revision === undefined
+    || snapshot.revision === lastRevision
+    || currentUserJson === lastUserJson
+  ) {
+    return {
+      accepted: false,
+      revision: snapshot.revision ?? lastRevision,
+      lastUserJson: currentUserJson,
+      patch: null,
+    }
   }
   return {
     accepted: true,
     revision: snapshot.revision,
+    lastUserJson: currentUserJson,
     patch: skinBackgroundUserPatch(current, snapshot.user),
   }
 }

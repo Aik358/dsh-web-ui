@@ -24,7 +24,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import { SkinCenterSection, type SkinCenterInjected } from './SkinCenter.tsx'
 import { BackgroundController, SKIN_BACKGROUND_NS } from './background.ts'
 import type { SkinBackgroundConfig } from '../core/background.ts'
-import { reconcileSkinBackgroundScope } from '../core/background-scope.ts'
+import { reconcileSkinBackgroundScope, serializeSkinBackgroundUserLayer } from '../core/background-scope.ts'
 import { SKIN_WALLPAPER_NS, WallpaperController, installBootRestore } from './wallpaper.ts'
 import { en, zh, type SkinCenterKey } from './locales.ts'
 import { bootSkinRuntime } from './runtime/boot.ts'
@@ -157,6 +157,11 @@ export function apply(ctx: ClientContext): void {
   // from the first view so the initial mirror publication is not mistaken for
   // a user edit after the v2 fetch completes.
   let lastScopeRevision: number | undefined = backgroundScope.getSnapshot().revision
+  // Content-based dedup: a revision bump with identical user-layer content is
+  // a replay (WS reconnect, mirror resync, or another plugin writing to the
+  // global settings document) and must not overwrite the authoritative v2
+  // state (#1109, #1107).
+  let lastUserJson: string = serializeSkinBackgroundUserLayer(backgroundScope.getSnapshot().user)
   const background = new BackgroundController(scopeConfig(), persistBackground)
   const reconcileScope = (): void => {
     if (!v2Loaded) return
@@ -165,10 +170,11 @@ export function apply(ctx: ClientContext): void {
       background.snapshot(),
       { revision: snapshot.revision, user: snapshot.user },
       lastScopeRevision,
+      lastUserJson,
     )
-    if (!result.accepted) return
     lastScopeRevision = result.revision
-    if (result.patch === null) return
+    lastUserJson = result.lastUserJson
+    if (!result.accepted || result.patch === null) return
     const current = background.snapshot()
     background.init({ ...current, ...result.patch })
     persistBackground(background.snapshot())

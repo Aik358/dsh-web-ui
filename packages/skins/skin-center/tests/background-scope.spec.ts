@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   extractSkinBackgroundUserLayer,
   reconcileSkinBackgroundScope,
+  serializeSkinBackgroundUserLayer,
   skinBackgroundUserPatch,
 } from '../src/core/background-scope.ts'
 
@@ -17,7 +18,7 @@ const current = {
 
 describe('skin-background scope reconciliation', () => {
   it('ignores a repeated namespace revision', () => {
-    expect(reconcileSkinBackgroundScope(current, { revision: 7, user: undefined }, 7)).toEqual({
+    expect(reconcileSkinBackgroundScope(current, { revision: 7, user: undefined }, 7, undefined)).toMatchObject({
       accepted: false,
       revision: 7,
       patch: null,
@@ -36,8 +37,9 @@ describe('skin-background scope reconciliation', () => {
       current,
       { revision: 8, user: { backgroundBlurEmpty: 4 } },
       7,
+      undefined,
     )
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       accepted: true,
       revision: 8,
       patch: { backgroundBlurEmpty: 4 },
@@ -59,3 +61,65 @@ describe('skin-background scope reconciliation', () => {
     expect(extractSkinBackgroundUserLayer({ backgroundOpacity: 0, unknown: 1 })).toEqual({ backgroundOpacity: 0 })
   })
 })
+
+describe('scope replay protection (#1109, #1107)', () => {
+  it('rejects a revision bump when user layer content has not changed', () => {
+    const userLayer = { backgroundOpacity: 0 }
+    const prevJson = serializeSkinBackgroundUserLayer(userLayer)
+    const result = reconcileSkinBackgroundScope(
+      current,
+      { revision: 8, user: userLayer },
+      7,
+      prevJson,
+    )
+    expect(result.accepted).toBe(false)
+    expect(result.patch).toBeNull()
+    expect(result.lastUserJson).toBe(prevJson)
+  })
+
+  it('rejects consecutive revision bumps as long as user layer stays the same', () => {
+    const userLayer = { backgroundOpacity: 0 }
+    const prevJson = serializeSkinBackgroundUserLayer(userLayer)
+    for (let rev = 8; rev <= 12; rev++) {
+      const result = reconcileSkinBackgroundScope(
+        current,
+        { revision: rev, user: userLayer },
+        rev - 1,
+        prevJson,
+      )
+      expect(result.accepted).toBe(false)
+      expect(result.patch).toBeNull()
+    }
+  })
+
+  it('accepts a revision bump when user layer content has actually changed', () => {
+    const oldUser = { backgroundOpacity: 0 }
+    const newUser = { backgroundOpacity: 60 }
+    const prevJson = serializeSkinBackgroundUserLayer(oldUser)
+    const result = reconcileSkinBackgroundScope(
+      current,
+      { revision: 8, user: newUser },
+      7,
+      prevJson,
+    )
+    expect(result.accepted).toBe(true)
+    expect(result.patch).toEqual({ backgroundOpacity: 60 })
+    expect(result.lastUserJson).toBe(serializeSkinBackgroundUserLayer(newUser))
+  })
+
+  it('handles user layer changing from non-null to empty', () => {
+    const oldUser = { backgroundOpacity: 50 }
+    const prevJson = serializeSkinBackgroundUserLayer(oldUser)
+    const result = reconcileSkinBackgroundScope(
+      current,
+      { revision: 8, user: undefined },
+      7,
+      prevJson,
+    )
+    // User cleared settings: new content is '' (empty), different from prev
+    expect(result.accepted).toBe(true)
+    expect(result.patch).toBeNull() // null user -> null patch
+    expect(result.lastUserJson).toBe('')
+  })
+})
+
