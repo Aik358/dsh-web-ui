@@ -611,11 +611,19 @@ export function foldEvents(events: readonly WireEvent[], existing?: readonly Ren
  * Incremental folder for one message stream. Live chat folds one event at a
  * time; rebuilding the five index maps by scanning every message per event
  * made that path O(n) per event (O(n * events) per turn). A folder keeps the
- * indexes alive across folds, applies each event in O(1) map operations, and
- * returns the previous snapshot identity unchanged when nothing applied, so
- * React skips the re-render entirely. Replayed events are no-ops: the maxSeq
- * watermark advanced by the first application skips them, which also makes a
- * double-invoked React state updater harmless.
+ * indexes alive across folds, applies each event in (near-)O(1) map
+ * operations, and returns the previous snapshot identity unchanged when
+ * nothing applied, so React skips the re-render entirely. Replayed events
+ * are no-ops: the maxSeq watermark advanced by the first application skips
+ * them, which also makes a double-invoked React state updater harmless.
+ *
+ * Cost contract: every fold that applies at least one event rebuilds the
+ * snapshot as one fresh O(messages) array copy (React needs the new
+ * identity), and replacement paths locate rows by an O(messages) identity
+ * scan. Both are amortized by the consumer folding bursts as ONE batch on a
+ * fixed cadence (see FOLD_FLUSH_MS in ChatView) instead of per event. An
+ * id-to-index map was measured and deliberately rejected: at realistic
+ * message counts the Map maintenance cost exceeds the identity-scan cost.
  */
 export class EventFolder {
   private state: FoldState

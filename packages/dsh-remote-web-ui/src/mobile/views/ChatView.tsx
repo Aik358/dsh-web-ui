@@ -38,6 +38,14 @@ export interface ChatViewProps {
  */
 export const MAX_TAIL_BUFFER_EVENTS = 500
 
+/**
+ * Cadence for folding buffered live events into the message list. Streaming
+ * chunks can arrive at a far higher rate; flushing on this cadence caps fold
+ * and re-render work per second without visible lag, and keeps working in
+ * background tabs where requestAnimationFrame is paused.
+ */
+export const FOLD_FLUSH_MS = 50
+
 /** localStorage key for the tool-call display toggle (persisted on the /m origin). */
 const SHOW_TOOL_CALLS_KEY = 'dsh.mobile.showToolCalls'
 /** localStorage key for the injected-system-message display toggle. */
@@ -147,6 +155,14 @@ export function ChatView({ session, mux, onBack }: ChatViewProps) {
   const liveBufferRef = useRef<WireEvent[]>([])
   /** Incremental folder for this session's stream (indexes stay hot across events). */
   const folderRef = useRef<EventFolder | undefined>(undefined)
+  /**
+   * Live events buffered between fold flushes. Folding every single event
+   * costs one O(messages) snapshot copy per event; flushing at a fixed
+   * cadence folds each burst once while keeping streaming text fluid.
+   */
+  const foldBufferRef = useRef<WireEvent[]>([])
+  /** Timer id of the scheduled fold flush, if any. */
+  const foldFlushTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   /** True once the live buffer hit its cap (oldest events were dropped). */
   const liveBufferOverflowRef = useRef(false)
 
@@ -273,7 +289,21 @@ export function ChatView({ session, mux, onBack }: ChatViewProps) {
   // Live frames: fold session events for this session in as they arrive.
   useEffect(() => {
     if (mux === undefined) return
-    return mux.onFrame((frame: MuxFrame) => {
+    /** Fold every buffered live event in one batch and publish the snapshot. */
+    const flushFoldBuffer = (): void => {
+      if (foldFlushTimerRef.current !== undefined) {
+        clearTimeout(foldFlushTimerRef.current)
+        foldFlushTimerRef.current = undefined
+      }
+      const events = foldBufferRef.current
+      if (events.length === 0) return
+      foldBufferRef.current = []
+      setMessages(previous => {
+        const folder = folderRef.current
+        return folder === undefined ? foldEvents(events, previous) : folder.fold(events)
+      })
+    }
+    const unsubscribe = mux.onFrame((frame: MuxFrame) => {
       if (frame.type === 'session/event') {
         if (frame.sessionId !== session.sessionId) return
         const event = frame.event as WireEvent
@@ -298,10 +328,16 @@ export function ChatView({ session, mux, onBack }: ChatViewProps) {
           liveBufferRef.current.push(event)
           return
         }
-        setMessages(previous => {
-          const folder = folderRef.current
-          return folder === undefined ? foldEvents([event], previous) : folder.fold([event])
-        })
+        foldBufferRef.current.push(event)
+        // Only chunk streams batch on the flush cadence; every other event
+        // (final message, turn close, user echo, update/delete) flushes the
+        // buffer synchronously so settled UI states never wait for a timer.
+        const isChunk = event.type === 'assistant/chunk' || event.type === 'message/chunk'
+        if (!isChunk) {
+          flushFoldBuffer()
+        } else if (foldFlushTimerRef.current === undefined) {
+          foldFlushTimerRef.current = setTimeout(flushFoldBuffer, FOLD_FLUSH_MS)
+        }
         return
       }
       // Live projection pushes keep the permission picker current.
@@ -342,6 +378,17 @@ export function ChatView({ session, mux, onBack }: ChatViewProps) {
         return
       }
     })
+    return () => {
+      unsubscribe()
+      // Drop the pending flush: its events belong to the session (or
+      // component instance) being torn down, and the next session reseeds
+      // its folder from a fresh history tail.
+      if (foldFlushTimerRef.current !== undefined) {
+        clearTimeout(foldFlushTimerRef.current)
+        foldFlushTimerRef.current = undefined
+      }
+      foldBufferRef.current = []
+    }
   }, [mux, session.sessionId])
 
   // Weak-network polling fallback: when the assistant is running, poll for

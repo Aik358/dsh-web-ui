@@ -8,7 +8,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render, screen } from '@testing-library/react'
-import { ChatView, STREAM_RENDER_INTERVAL_MS, LONG_TEXT_LIMIT } from './ChatView.tsx'
+import { ChatView, STREAM_RENDER_INTERVAL_MS, LONG_TEXT_LIMIT, FOLD_FLUSH_MS } from './ChatView.tsx'
 import { type SessionView } from './App.tsx'
 import { renderMarkdown } from '../markdown.ts'
 import type { SessionModels } from '@deepseek-ai/dsh-host-apiproxy/api/sessions'
@@ -150,8 +150,13 @@ describe('ChatView streaming markdown throttle', () => {
     ]
     const full = parts.join('')
 
-    // The first chunk mounts the pending message; the mount render parses it.
-    await act(async () => { chunk(mux, parts[0] ?? '', 6) })
+    // The first chunk mounts the pending message on the next fold flush
+    // (chunk streams fold in batches on the FOLD_FLUSH_MS cadence); the mount
+    // render parses it.
+    await act(async () => {
+      chunk(mux, parts[0] ?? '', 6)
+      vi.advanceTimersByTime(FOLD_FLUSH_MS + 5)
+    })
     const afterMount = renderMarkdownMock.mock.calls.length
     expect(afterMount).toBeGreaterThanOrEqual(1)
 
