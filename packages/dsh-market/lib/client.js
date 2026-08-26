@@ -44,7 +44,7 @@ window.__ModuleLoader__.load({
 			});
 			return ready;
 		}
-		async function requestOne() {
+		async function requestOne(action) {
 			const iframe = await challengeFrame();
 			const id = turnstileRequestId();
 			return new Promise((resolve, reject) => {
@@ -68,13 +68,16 @@ window.__ModuleLoader__.load({
 				iframe.contentWindow?.postMessage({
 					source: "dsh-market-card",
 					type: "request",
-					id
+					id,
+					action
 				}, MARKET_ORIGIN$1);
 			});
 		}
+		/** Turnstile action for Workshop likes. */
+		const TURNSTILE_ACTION_LIKE = "market-like";
 		/** Serialize challenges because one invisible widget can execute only once at a time. */
-		function marketTurnstileToken() {
-			const request = chain.then(requestOne);
+		function marketTurnstileToken(action = TURNSTILE_ACTION_LIKE) {
+			const request = chain.then(() => requestOne(action));
 			chain = request.then(() => void 0, () => void 0);
 			return request;
 		}
@@ -938,7 +941,7 @@ window.__ModuleLoader__.load({
 		};
 		//#endregion
 		//#region \0dsh-css:packages/dsh-market/src/client/market.module.css.mjs
-		const css = ".bkhjFa_market{flex-direction:column;gap:10px;display:flex}.bkhjFa_tabs{flex-wrap:wrap;gap:6px;display:flex}.bkhjFa_market .bkhjFa_tabs>button.bkhjFa_tab{font:inherit;color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l2);cursor:pointer;white-space:nowrap;border-radius:999px;padding:2px 10px;font-size:12px;line-height:1.6}.bkhjFa_market .bkhjFa_tabs>button.bkhjFa_tab:hover:enabled{color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-dimmed)}.bkhjFa_market .bkhjFa_tabs>button.bkhjFa_tab.bkhjFa_tabActive{color:var(--dsw-alias-bg-layer-3);background:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-primary);font-weight:600}.bkhjFa_market .bkhjFa_tabs>button.bkhjFa_tab.bkhjFa_tabActive:hover:enabled{color:var(--dsw-alias-bg-layer-3);border-color:var(--dsw-alias-label-primary)}.bkhjFa_market .bkhjFa_tabs>button.bkhjFa_tab:active:enabled{color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l2)}.bkhjFa_market .bkhjFa_tabs>button.bkhjFa_tab.bkhjFa_tabActive:active:enabled{color:var(--dsw-alias-bg-layer-3);background:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-label-primary)}.bkhjFa_tabCount{opacity:.72;margin-left:6px;font-size:12px}.bkhjFa_search{width:100%;max-width:460px;font:inherit;color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l2);border-radius:6px;padding:6px 10px;font-size:13px;line-height:1.5}.bkhjFa_search::placeholder{color:var(--dsw-alias-label-tertiary)}.bkhjFa_search:focus{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}.bkhjFa_grid{grid-template-columns:repeat(auto-fill,minmax(272px,1fr));gap:10px;margin:4px 0 0;padding:0;list-style:none;display:grid}.bkhjFa_card{border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);border-radius:8px;gap:10px;min-width:0;padding:12px;display:flex}.bkhjFa_card:hover{border-color:var(--dsw-alias-label-dimmed)}.bkhjFa_thumb{object-fit:cover;background:var(--dsw-alias-bg-layer-2);border-radius:6px;flex:none;place-items:center;width:72px;height:72px;display:grid}.bkhjFa_cardBody{flex-direction:column;flex:1;gap:6px;min-width:0;display:flex}.bkhjFa_cardName{color:var(--dsw-alias-label-primary);text-overflow:ellipsis;white-space:nowrap;font-weight:600;overflow:hidden}.bkhjFa_cardVersion{color:var(--dsw-alias-label-tertiary);margin-left:6px;font-size:11px;font-weight:400}.bkhjFa_cardMeta{color:var(--dsw-alias-label-tertiary);white-space:nowrap;align-items:center;gap:6px;font-size:12px;line-height:1.4;display:flex;overflow:hidden}.bkhjFa_badge{color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-module-platform);border:1px solid var(--dsw-alias-border-l2);white-space:nowrap;border-radius:999px;flex:none;padding:0 8px;font-size:11px;line-height:1.6}.bkhjFa_badgeInstalled{color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-dimmed);background:var(--dsw-alias-bg-layer-2)}.bkhjFa_cardDesc{color:var(--dsw-alias-label-secondary);-webkit-line-clamp:2;overflow-wrap:anywhere;-webkit-box-orient:vertical;margin:0;font-size:13px;line-height:1.45;display:-webkit-box;overflow:hidden}.bkhjFa_cardFooter{flex-direction:column;gap:8px;margin-top:auto;padding-top:8px;display:flex}.bkhjFa_actionRow{flex-wrap:wrap;align-items:center;gap:6px;display:flex}.bkhjFa_market .bkhjFa_actionRow>.bkhjFa_like,.bkhjFa_market .bkhjFa_actionRow>.bkhjFa_previewLink{font:inherit;color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-module-platform);border:1px solid var(--dsw-alias-border-l2);cursor:pointer;white-space:nowrap;border-radius:999px;align-items:center;padding:1px 10px;font-size:12px;line-height:1.5;text-decoration:none;display:inline-flex}.bkhjFa_market .bkhjFa_actionRow>.bkhjFa_like{font-variant-numeric:tabular-nums}.bkhjFa_market .bkhjFa_actionRow>.bkhjFa_like:hover:enabled,.bkhjFa_market .bkhjFa_actionRow>.bkhjFa_previewLink:hover{color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-dimmed)}.bkhjFa_actionRowPrimary{align-items:stretch;gap:8px;display:flex}.bkhjFa_market .bkhjFa_actionRowPrimary>.bkhjFa_install{min-width:0;font:inherit;color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l2);cursor:pointer;white-space:nowrap;background:0 0;border-radius:6px;flex:1 1 0;justify-content:center;align-items:center;min-height:30px;padding:4px 14px;font-size:12px;font-weight:600;line-height:1.5;display:inline-flex}.bkhjFa_market .bkhjFa_actionRowPrimary>.bkhjFa_install:hover:enabled{border-color:var(--dsw-alias-label-dimmed)}.bkhjFa_market .bkhjFa_actionRowPrimary>.bkhjFa_installPrimary{color:var(--dsw-alias-label-primary-foreground);background:var(--dsw-alias-button-primary-fill);border-color:var(--dsw-alias-button-primary-fill);flex-grow:2}.bkhjFa_market .bkhjFa_actionRowPrimary>.bkhjFa_installPrimary:hover:enabled{background:var(--dsw-alias-button-primary-hover);border-color:var(--dsw-alias-button-primary-hover)}.bkhjFa_market .bkhjFa_actionRowPrimary>.bkhjFa_installPrimary:disabled{opacity:.55;cursor:default}.bkhjFa_error{color:var(--dsw-alias-label-error,#c53030);margin:0;font-size:12px;line-height:1.4}.bkhjFa_callout{color:var(--dsw-alias-state-success-primary);margin:0;font-size:12px;line-height:1.4}.bkhjFa_filterRows{flex-direction:column;gap:6px;display:flex}.bkhjFa_filterRow{flex-wrap:wrap;gap:6px;display:flex}.bkhjFa_market .bkhjFa_filterRow>button.bkhjFa_filterChip{font:inherit;color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l2);cursor:pointer;white-space:nowrap;border-radius:999px;padding:2px 10px;font-size:12px;line-height:1.6}.bkhjFa_market .bkhjFa_filterRow>button.bkhjFa_filterChip:hover:enabled{color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-dimmed)}.bkhjFa_market .bkhjFa_filterRow>button.bkhjFa_filterChip.bkhjFa_filterChipSub{color:var(--dsw-alias-label-tertiary);border-style:dashed;font-size:11px}.bkhjFa_market .bkhjFa_filterRow>button.bkhjFa_filterChip.bkhjFa_filterChipOn{color:var(--dsw-alias-bg-layer-3);background:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-primary);border-style:solid;font-weight:600}.bkhjFa_market .bkhjFa_filterRow>button.bkhjFa_filterChip.bkhjFa_filterChipOn:hover:enabled{color:var(--dsw-alias-bg-layer-3);border-color:var(--dsw-alias-label-primary)}.bkhjFa_filterCount{opacity:.72;margin-left:6px;font-size:11px}.bkhjFa_empty{color:var(--dsw-alias-label-tertiary);align-items:center;gap:8px;font-size:13px;display:flex}.bkhjFa_retry{padding:3px 10px;font-size:12px}.bkhjFa_remoteNote{color:var(--dsw-alias-label-tertiary);margin:6px 0 0;font-size:12px;line-height:1.4}.bkhjFa_modalActions{justify-content:flex-end;gap:8px;margin-top:10px;display:flex}";
+		const css = ".bkhjFa_market{flex-direction:column;gap:10px;display:flex}.bkhjFa_tabs{flex-wrap:wrap;gap:6px;display:flex}.bkhjFa_market .bkhjFa_tabs>button.bkhjFa_tab{font:inherit;color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l2);cursor:pointer;white-space:nowrap;border-radius:999px;padding:2px 10px;font-size:12px;line-height:1.6}.bkhjFa_market .bkhjFa_tabs>button.bkhjFa_tab:hover:enabled{color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-dimmed)}.bkhjFa_market .bkhjFa_tabs>button.bkhjFa_tab.bkhjFa_tabActive{color:var(--dsw-alias-bg-layer-3);background:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-primary);font-weight:600}.bkhjFa_market .bkhjFa_tabs>button.bkhjFa_tab.bkhjFa_tabActive:hover:enabled{color:var(--dsw-alias-bg-layer-3);border-color:var(--dsw-alias-label-primary)}.bkhjFa_market .bkhjFa_tabs>button.bkhjFa_tab:active:enabled{color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l2)}.bkhjFa_market .bkhjFa_tabs>button.bkhjFa_tab.bkhjFa_tabActive:active:enabled{color:var(--dsw-alias-bg-layer-3);background:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-label-primary)}.bkhjFa_tabCount{opacity:.72;margin-left:6px;font-size:12px}.bkhjFa_search{width:100%;max-width:460px;font:inherit;color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l2);border-radius:6px;padding:6px 10px;font-size:13px;line-height:1.5}.bkhjFa_search::placeholder{color:var(--dsw-alias-label-tertiary)}.bkhjFa_search:focus{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}.bkhjFa_grid{grid-template-columns:repeat(auto-fill,minmax(272px,1fr));gap:10px;margin:4px 0 0;padding:0;list-style:none;display:grid}.bkhjFa_card{border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);border-radius:8px;gap:10px;min-width:0;padding:12px;display:flex}.bkhjFa_card:hover{border-color:var(--dsw-alias-label-dimmed)}.bkhjFa_thumb{object-fit:cover;background:var(--dsw-alias-bg-layer-2);border-radius:6px;flex:none;place-items:center;width:72px;height:72px;display:grid}.bkhjFa_cardBody{flex-direction:column;flex:1;gap:6px;min-width:0;display:flex}.bkhjFa_cardName{color:var(--dsw-alias-label-primary);text-overflow:ellipsis;white-space:nowrap;font-weight:600;overflow:hidden}.bkhjFa_cardVersion{color:var(--dsw-alias-label-tertiary);margin-left:6px;font-size:11px;font-weight:400}.bkhjFa_cardMeta{color:var(--dsw-alias-label-tertiary);white-space:nowrap;align-items:center;gap:6px;font-size:12px;line-height:1.4;display:flex;overflow:hidden}.bkhjFa_badge{color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-module-platform);border:1px solid var(--dsw-alias-border-l2);white-space:nowrap;border-radius:999px;flex:none;padding:0 8px;font-size:11px;line-height:1.6}.bkhjFa_badgeInstalled{color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-dimmed);background:var(--dsw-alias-bg-layer-2)}.bkhjFa_metrics{color:var(--dsw-alias-label-tertiary);font-variant-numeric:tabular-nums;flex-wrap:wrap;gap:4px 10px;font-size:11px;line-height:1.5;display:flex}.bkhjFa_cardDesc{color:var(--dsw-alias-label-secondary);-webkit-line-clamp:2;overflow-wrap:anywhere;-webkit-box-orient:vertical;margin:0;font-size:13px;line-height:1.45;display:-webkit-box;overflow:hidden}.bkhjFa_cardFooter{flex-direction:column;gap:8px;margin-top:auto;padding-top:8px;display:flex}.bkhjFa_actionRow{flex-wrap:wrap;align-items:center;gap:6px;display:flex}.bkhjFa_market .bkhjFa_actionRow>.bkhjFa_like,.bkhjFa_market .bkhjFa_actionRow>.bkhjFa_previewLink{font:inherit;color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-module-platform);border:1px solid var(--dsw-alias-border-l2);cursor:pointer;white-space:nowrap;border-radius:999px;align-items:center;padding:1px 10px;font-size:12px;line-height:1.5;text-decoration:none;display:inline-flex}.bkhjFa_market .bkhjFa_actionRow>.bkhjFa_like{font-variant-numeric:tabular-nums}.bkhjFa_market .bkhjFa_actionRow>.bkhjFa_like:hover:enabled,.bkhjFa_market .bkhjFa_actionRow>.bkhjFa_previewLink:hover{color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-dimmed)}.bkhjFa_actionRowPrimary{align-items:stretch;gap:8px;display:flex}.bkhjFa_market .bkhjFa_actionRowPrimary>.bkhjFa_install{min-width:0;font:inherit;color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l2);cursor:pointer;white-space:nowrap;background:0 0;border-radius:6px;flex:1 1 0;justify-content:center;align-items:center;min-height:30px;padding:4px 14px;font-size:12px;font-weight:600;line-height:1.5;display:inline-flex}.bkhjFa_market .bkhjFa_actionRowPrimary>.bkhjFa_install:hover:enabled{border-color:var(--dsw-alias-label-dimmed)}.bkhjFa_market .bkhjFa_actionRowPrimary>.bkhjFa_installPrimary{color:var(--dsw-alias-label-primary-foreground);background:var(--dsw-alias-button-primary-fill);border-color:var(--dsw-alias-button-primary-fill);flex-grow:2}.bkhjFa_market .bkhjFa_actionRowPrimary>.bkhjFa_installPrimary:hover:enabled{background:var(--dsw-alias-button-primary-hover);border-color:var(--dsw-alias-button-primary-hover)}.bkhjFa_market .bkhjFa_actionRowPrimary>.bkhjFa_installPrimary:disabled{opacity:.55;cursor:default}.bkhjFa_error{color:var(--dsw-alias-label-error,#c53030);margin:0;font-size:12px;line-height:1.4}.bkhjFa_callout{color:var(--dsw-alias-state-success-primary);margin:0;font-size:12px;line-height:1.4}.bkhjFa_filterRows{flex-direction:column;gap:6px;display:flex}.bkhjFa_filterRow{flex-wrap:wrap;gap:6px;display:flex}.bkhjFa_market .bkhjFa_filterRow>button.bkhjFa_filterChip{font:inherit;color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l2);cursor:pointer;white-space:nowrap;border-radius:999px;padding:2px 10px;font-size:12px;line-height:1.6}.bkhjFa_market .bkhjFa_filterRow>button.bkhjFa_filterChip:hover:enabled{color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-dimmed)}.bkhjFa_market .bkhjFa_filterRow>button.bkhjFa_filterChip.bkhjFa_filterChipSub{color:var(--dsw-alias-label-tertiary);border-style:dashed;font-size:11px}.bkhjFa_market .bkhjFa_filterRow>button.bkhjFa_filterChip.bkhjFa_filterChipOn{color:var(--dsw-alias-bg-layer-3);background:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-primary);border-style:solid;font-weight:600}.bkhjFa_market .bkhjFa_filterRow>button.bkhjFa_filterChip.bkhjFa_filterChipOn:hover:enabled{color:var(--dsw-alias-bg-layer-3);border-color:var(--dsw-alias-label-primary)}.bkhjFa_filterCount{opacity:.72;margin-left:6px;font-size:11px}.bkhjFa_empty{color:var(--dsw-alias-label-tertiary);align-items:center;gap:8px;font-size:13px;display:flex}.bkhjFa_retry{padding:3px 10px;font-size:12px}.bkhjFa_remoteNote{color:var(--dsw-alias-label-tertiary);margin:6px 0 0;font-size:12px;line-height:1.4}.bkhjFa_modalActions{justify-content:flex-end;gap:8px;margin-top:10px;display:flex}";
 		const tagId = "@linxin666/dsh-client-ui-market/market.module.css";
 		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId) + "]") === null) {
 			const tag = document.createElement("style");
@@ -973,6 +976,7 @@ window.__ModuleLoader__.load({
 			"installPrimary": "bkhjFa_installPrimary",
 			"like": "bkhjFa_like",
 			"market": "bkhjFa_market",
+			"metrics": "bkhjFa_metrics",
 			"modalActions": "bkhjFa_modalActions",
 			"previewLink": "bkhjFa_previewLink",
 			"remoteNote": "bkhjFa_remoteNote",
@@ -1048,6 +1052,18 @@ window.__ModuleLoader__.load({
 			if (!res.ok) throw new Error("HTTP " + res.status);
 			return res.json();
 		}
+		async function fetchJsonOptional(url) {
+			try {
+				return await fetchJson(url);
+			} catch {
+				return null;
+			}
+		}
+		function formatCount(count) {
+			if (count >= 1e6) return Math.round(count / 1e5) / 10 + "m";
+			if (count >= 1e3) return Math.round(count / 100) / 10 + "k";
+			return String(count);
+		}
 		/**
 		* Render the market card.
 		*/
@@ -1080,6 +1096,7 @@ window.__ModuleLoader__.load({
 			const [callouts, setCallouts] = (0, react.useState)({});
 			const [pluginList, setPluginList] = (0, react.useState)(null);
 			const [pluginErrors, setPluginErrors] = (0, react.useState)({});
+			const [npmDownloads, setNpmDownloads] = (0, react.useState)({});
 			const likeSeq = (0, react.useRef)(/* @__PURE__ */ new Map());
 			(0, react.useEffect)(() => {
 				if (props.remote !== void 0) {
@@ -1090,12 +1107,14 @@ window.__ModuleLoader__.load({
 				}
 				let alive = true;
 				setLoading(true);
+				const downloadsLoader = typeof props.npmDownloads === "function" ? props.npmDownloads : props.npmDownloads !== void 0 ? async () => props.npmDownloads : () => fetchJsonOptional("https://dsh-market.com/api/npm-downloads");
 				Promise.all([
 					fetchJson("https://dsh-market.com/manifest/skins.json"),
 					fetchJson("https://dsh-market.com/manifest/pets.json"),
 					fetchJson("https://dsh-market.com/manifest/plugins.json"),
-					fetchJson("https://dsh-market.com/api/stats")
-				]).then(([skins, pets, plugins, stats]) => {
+					fetchJson("https://dsh-market.com/api/stats"),
+					downloadsLoader()
+				]).then(([skins, pets, plugins, stats, downloads]) => {
 					if (!alive) return;
 					const s = stats ?? {
 						skin: {},
@@ -1111,9 +1130,20 @@ window.__ModuleLoader__.load({
 						stats: {
 							skin: s.skin ?? {},
 							pet: s.pet ?? {},
-							plugin: s.plugin ?? {}
+							plugin: s.plugin ?? {},
+							installs: s.installs ?? void 0
 						}
 					});
+					if (downloads && typeof downloads === "object" && downloads.downloads) {
+						const list = downloads.downloads;
+						setNpmDownloads((prev) => ({
+							...prev,
+							...list
+						}));
+					} else if (downloads && typeof downloads === "object") setNpmDownloads((prev) => ({
+						...prev,
+						...downloads
+					}));
 					setFailed(false);
 					setLoading(false);
 				}).catch(() => {
@@ -1124,7 +1154,11 @@ window.__ModuleLoader__.load({
 				return () => {
 					alive = false;
 				};
-			}, [props.remote, loadAttempt]);
+			}, [
+				props.remote,
+				props.npmDownloads,
+				loadAttempt
+			]);
 			const [liveGateway, setLiveGateway] = (0, react.useState)(void 0);
 			(0, react.useEffect)(() => {
 				if (props.gateway !== void 0) return;
@@ -1192,6 +1226,13 @@ window.__ModuleLoader__.load({
 			}, [face, faceLoopback]);
 			const votesOf = (kind, id) => {
 				return (data?.stats ?? {
+					skin: {},
+					pet: {},
+					plugin: {}
+				})[kind][id] ?? 0;
+			};
+			const installsOf = (kind, id) => {
+				return (data?.stats?.installs ?? {
 					skin: {},
 					pet: {},
 					plugin: {}
@@ -1273,6 +1314,25 @@ window.__ModuleLoader__.load({
 					callout(id, t("installedAt", { path: result.dest }));
 					const list = await gateway.list();
 					setInstalled(list);
+					reportInstall(kind, id).then((count) => {
+						setData((prev) => prev ? {
+							...prev,
+							stats: {
+								...prev.stats,
+								installs: {
+									...prev.stats.installs ?? {
+										skin: {},
+										pet: {},
+										plugin: {}
+									},
+									[kind]: {
+										...prev.stats.installs?.[kind] ?? {},
+										[id]: count
+									}
+								}
+							}
+						} : prev);
+					}).catch(() => {});
 					if (kind === "skin") try {
 						await fetch("/api/skin-center/v2/active", {
 							method: "POST",
@@ -1311,6 +1371,25 @@ window.__ModuleLoader__.load({
 				face.install(spec).then(() => face.list()).then((list) => {
 					setPluginList(list);
 					callout(id, t("installed", {}));
+					reportInstall("plugin", id).then((count) => {
+						setData((prev) => prev ? {
+							...prev,
+							stats: {
+								...prev.stats,
+								installs: {
+									...prev.stats.installs ?? {
+										skin: {},
+										pet: {},
+										plugin: {}
+									},
+									plugin: {
+										...prev.stats.installs?.plugin ?? {},
+										[id]: count
+									}
+								}
+							}
+						} : prev);
+					}).catch(() => {});
 				}).catch((reason) => {
 					setPluginErrors((prev) => ({
 						...prev,
@@ -1376,6 +1455,24 @@ window.__ModuleLoader__.load({
 					}));
 				}
 			};
+			const origin = props.marketOrigin ?? MARKET_ORIGIN;
+			const reportInstall = props.reportInstall ?? (async (kind, id) => {
+				const token = await (props.turnstileToken ?? (() => marketTurnstileToken("market-install")))();
+				const installId = window.crypto.randomUUID ? window.crypto.randomUUID() : "ins-" + Math.random().toString(36).slice(2) + "-" + Date.now().toString(36);
+				const res = await fetch(origin + "/api/install", {
+					method: "POST",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						kind,
+						asset_id: id,
+						device_fp: deviceFp(),
+						install_id: installId,
+						turnstile_token: token
+					})
+				});
+				if (!res.ok) throw new Error("HTTP " + res.status);
+				return (await res.json()).installs ?? 0;
+			});
 			const pluginItems = data?.items.plugin ?? [];
 			const chipClass = (isOn, isSub) => {
 				const cls = [market_module_css_default.filterChip];
@@ -1608,6 +1705,10 @@ window.__ModuleLoader__.load({
 													children: (item.description ?? item.descriptionEn ?? "").slice(0, 140)
 												}) : null,
 												/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+													className: market_module_css_default.metrics,
+													children: [installsOf(tab, id) > 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("installs", { count: formatCount(installsOf(tab, id)) }) }) : null, item.npm && npmDownloads[item.npm] !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("npmDownloads", { count: formatCount(npmDownloads[item.npm] ?? 0) }) }) : null]
+												}),
+												/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
 													className: market_module_css_default.cardFooter,
 													children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
 														className: market_module_css_default.actionRow,
@@ -1816,6 +1917,8 @@ window.__ModuleLoader__.load({
 			"installedAt": "安装到 {path}",
 			"loading": "加载中…",
 			"votes": "{count} 票",
+			"installs": "安装 {count}",
+			"npmDownloads": "npm 近 30 天 {count}",
 			"remote.note": "远程浏览器仅可浏览与复制命令；一键安装需在本机（回环）浏览器。"
 		};
 		const en = {
@@ -1908,6 +2011,8 @@ window.__ModuleLoader__.load({
 			"installedAt": "Installed to {path}",
 			"loading": "Loading…",
 			"votes": "{count} votes",
+			"installs": "{count} installs",
+			"npmDownloads": "npm {count} last 30d",
 			"remote.note": "Remote browsers can browse and copy commands only; one-click install needs the local (loopback) browser."
 		};
 		//#endregion
