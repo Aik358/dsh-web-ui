@@ -21,6 +21,7 @@ import type { ComponentType } from 'react'
 import { zh, en, type PerfKey } from './perf-locales.ts'
 import { PerfSettingsCard, PerfSettingsCardController, type PerfSettings, type PerfSettingsCardFace } from './perf-settings-card.tsx'
 import { makePerfAssistantShadow, type ShadowOwner } from './perf-assistant-shadow.tsx'
+import { startIntegrityObserver } from './perf-integrity.ts'
 
 /** Locale namespace owned by this plugin. */
 export const NS = 'dsh-perf'
@@ -42,7 +43,7 @@ declare module '@deepseek-ai/cordis' {
 }
 
 /** Services required by the browser half. */
-export const inject = ['slots', 'locale', 'settingsScope']
+export const inject = ['slots', 'locale', 'settingsScope', 'sessions']
 
 
 /** Wire shape the host half returns; loose on purpose (host version drift). */
@@ -80,10 +81,11 @@ export function apply(ctx: ClientContext): void {
     const binder = ctx.get('webUiSettings') ?? ctx.settingsScope
     perfScope = binder.bind<PerfSettings>({ namespace: NS })
   } catch { /* 无设置面时按默认开启 */ }
-  // 渲染降载/HUD 开关: 统一走插件设置命名空间。
+  // 渲染降载/HUD/完整性观察开关: 统一走插件设置命名空间。
   let renderDegrade = true
   let hudOn = false
   let hudDispose: (() => void) | undefined
+  let integrityDispose: (() => void) | undefined
   const refreshClientSwitches = (): void => {
     let snapshotValue: PerfSettings | undefined
     try {
@@ -92,17 +94,34 @@ export function apply(ctx: ClientContext): void {
     } catch { /* noop */ }
     renderDegrade = snapshotValue?.renderDegrade ?? true
     const nextHudOn = snapshotValue?.hudEnabled ?? false
-    if (nextHudOn === hudOn) return
-    hudOn = nextHudOn
-    try {
-      if (hudOn && hudDispose === undefined) {
-        hudDispose = boot(isEnabled)
-      } else if (!hudOn && hudDispose !== undefined) {
-        hudDispose()
-        hudDispose = undefined
+    if (nextHudOn !== hudOn) {
+      hudOn = nextHudOn
+      try {
+        if (hudOn && hudDispose === undefined) {
+          hudDispose = boot(isEnabled)
+        } else if (!hudOn && hudDispose !== undefined) {
+          hudDispose()
+          hudDispose = undefined
+        }
+      } catch (error) {
+        console.debug('[dsh-perf] HUD boot degraded:', error)
       }
-    } catch (error) {
-      console.debug('[dsh-perf] HUD boot degraded:', error)
+    }
+    // CSS 降载(P0): 独立于 HUD(默认关) 生效, 跟随总开关。
+    try {
+      installPerfCss(isEnabled)
+    } catch { /* noop */ }
+    // 尾部完整性观察: 跟随总开关 enabled(默认开) 启停。
+    const shouldRun = isEnabled()
+    if (shouldRun && integrityDispose === undefined) {
+      try {
+        integrityDispose = startIntegrityObserver(ctx, isEnabled)
+      } catch (error) {
+        console.debug('[dsh-perf] integrity observer degraded:', error)
+      }
+    } else if (!shouldRun && integrityDispose !== undefined) {
+      integrityDispose()
+      integrityDispose = undefined
     }
   }
   const isEnabled = (): boolean => {
@@ -138,36 +157,89 @@ export function apply(ctx: ClientContext): void {
   } catch (error) {
     console.debug('[dsh-perf] settings card degraded:', error)
   }
-  // P1: 代理式 assistant-step shadow —— 轻节点转发官方, 重节点降载(懒高亮+折叠)。
+  // P1: 保持观感的 assistant-step shadow —— 全部经官方渲染器输出, 仅对超重已结算
+  // 消息把高亮终态延迟到回合结束热路径之外(见 perf-assistant-shadow.tsx)。
   try {
     const slotsCore = ctx.get('slots') as unknown as {
       entries?: (key: string) => readonly { component?: unknown; options?: { priority?: number; key?: string } }[]
+      entriesOfSlot?: (key: string) => readonly { component?: unknown; options?: { key?: string } }[]
     } | undefined
-    let official: ComponentType<ShadowOwner> | undefined
-    for (const entry of slotsCore?.entries?.('conversation.chat.node') ?? []) {
-      if (entry?.options?.key === 'assistant-step' && typeof entry.component === 'function') {
-        official = entry.component as ComponentType<ShadowOwner>
-        break
-      }
-    }
     ctx.slots.inject('conversation.chat.node', () => {
       try {
+        // 注册优先级: 取该 cell 已有条目的最小 priority 再低 1, 保证在 "lowest renders"
+        // 投影规则下永远先于官方(priority 0 或动态分配值), 且不与任何已注册条目同值冲突。
+        const existing = (slotsCore?.entries?.('conversation.chat.node') ?? [])
+          .filter((entry) => entry?.options?.key === 'assistant-step')
+          .map((entry) => Number(entry?.options?.priority ?? 0))
+        const floor = existing.length === 0 ? -1 : Math.min(...existing) - 1
+        // 影子组件先建好: 懒捕获回调需要排除自身(entries 按 priority 排序, 影子排最前)。
+        const shadow = makePerfAssistantShadow(undefined, () => renderDegrade, () => {
+          // React.memo 组件 typeof === 'object'(Symbol(react.memo) 标签对象), 不能用
+          // typeof === 'function' 过滤 —— 官方 AssistantNodeView 是 memo, 那是旧版
+          // 捕获永远落空的第二个根因(第一个是未绑定 this 的 register)。
+          for (const entry of slotsCore?.entries?.('conversation.chat.node') ?? []) {
+            if (entry?.options?.key === 'assistant-step' && entry.component != null && entry.component !== shadow) {
+              return entry.component as ComponentType<ShadowOwner>
+            }
+          }
+          return undefined
+        })
         // 类型擦除: 官方注册同款 options 形态(仅 name/key/priority/locale); inject 面由 slot 声明提供。
-        const registerAny = ctx.slots.register as unknown as (options: Record<string, unknown>, component: unknown) => () => void
-        const unregister = registerAny({
+        // register 内部读 this.ctx —— 必须绑定服务实例调用(裸引用会丢 this, 这是旧版 P1 静默失效的根因)。
+        const register = ctx.slots.register as unknown as (options: Record<string, unknown>, component: unknown) => () => void
+        const unregister = register.call(ctx.slots, {
           name: 'conversation.chat.node',
           key: 'assistant-step',
-          priority: -1,
+          priority: floor,
           locale: NS,
-        }, makePerfAssistantShadow(official, () => renderDegrade))
+        }, shadow)
+        // 自诊断(每页一次): 注册后读投影胜者, 确认 shadow 确实是该 cell 的渲染者。
+        try {
+          const winners = slotsCore?.entriesOfSlot?.('conversation.chat.node') ?? []
+          const winner = winners.find((entry) => entry?.options?.key === 'assistant-step')
+          const candidate = winner?.component
+          const winnerName = candidate == null
+            ? 'none'
+            : typeof candidate === 'function'
+              ? ((candidate as { displayName?: string; name?: string }).displayName ?? (candidate as { name?: string }).name ?? 'fn')
+              : String((candidate as { $$typeof?: symbol }).$$typeof === Symbol.for('react.memo') ? 'memo(assistant-step)' : (candidate as { displayName?: string }).displayName ?? 'component')
+          console.log('[dsh-perf] assistant shadow: registered at priority ' + floor + ', projected winner ' + winnerName)
+        } catch { /* 诊断输出失败不影响注册 */ }
         return () => { unregister() }
-      } catch {
+      } catch (error) {
+        console.warn('[dsh-perf] assistant shadow registration failed:', error)
         return () => {}
       }
     })
   } catch (error) {
-    console.debug('[dsh-perf] assistant shadow degraded:', error)
+    console.warn('[dsh-perf] assistant shadow degraded:', error)
   }
+}
+
+/** P0 CSS 降载样式(单例): 屏外消息行 content-visibility 近似虚拟化。 */
+let perfCssStyle: HTMLStyleElement | undefined
+function installPerfCss(isEnabled: () => boolean): void {
+  try {
+    const off = localStorage.getItem('dsh-perf-css') === 'off'
+    if (!isEnabled() || off) {
+      perfCssStyle?.remove()
+      perfCssStyle = undefined
+      return
+    }
+    if (perfCssStyle !== undefined && perfCssStyle.isConnected) return
+    const style = document.createElement('style')
+    style.dataset.dshPerf = 'css'
+    // 选择器列表后必须带 '{': 缺失时浏览器丢弃整条规则, 降载形同虚设。
+    style.textContent = [
+      '[data-chat-flow-kind="assistant-step"],',
+      '[data-chat-flow-kind="tool-call"] {',
+      '  content-visibility: auto;',
+      '  contain-intrinsic-size: auto 120px;',
+      '}',
+    ].join('\n')
+    document.head.appendChild(style)
+    perfCssStyle = style
+  } catch { /* noop */ }
 }
 
 function boot(isEnabled: () => boolean): () => void {
@@ -214,21 +286,9 @@ function boot(isEnabled: () => boolean): () => void {
     observer.observe({ entryTypes: ['longtask'] })
   } catch { /* Safari/旧 Chrome 无 longtask: 静默 */ }
 
-  // --- CSS 降载(P0): 屏外消息行 content-visibility 近似虚拟化 ----------
-  try {
-    if (localStorage.getItem('dsh-perf-css') !== 'off' && isEnabled()) {
-      const style = document.createElement('style')
-      style.dataset.dshPerf = 'css'
-      style.textContent = [
-        '[data-chat-flow-kind="assistant-step"],',
-        '[data-chat-flow-kind="tool-call"]',
-        '  content-visibility: auto;',
-        '  contain-intrinsic-size: auto 120px;',
-        '}',
-      ].join('\n')
-      document.head.appendChild(style)
-    }
-  } catch { /* noop */ }
+  // --- CSS 降载(P0) 已移出 boot(): HUD 默认关闭时独立于 HUD 生效(见 installPerfCss)。
+
+
 
 // --- 轮询 host -----------------------------------------------------
   const poll = async (): Promise<void> => {

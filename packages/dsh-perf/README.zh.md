@@ -10,7 +10,7 @@ DSH Web 性能观测与治理插件：流式/多会话场景的「性能引擎�
 
 1. **观测**：Host 侧 `PerfMeter` 订阅 cordis `session/event` 总线（每会话/总事件速率、类型分布）、`agent/status` 迁移流（idle/running 时间线）、事件循环延迟（perf_hooks）与内存；loopback-fenced `GET /api/dsh-perf/stats` 暴露聚合；浏览器 HUD 面板（默认关闭）显示服务端指标 + 本地 FPS / Longtask 采样。
 2. **治理**：`cordis.patch.yml` 声明式覆盖 `session-persistence-jsonl` 的写批延迟（200ms → 500ms，流式期 fsync 批次约降 2.5 倍）；`mode: off | balanced | aggressive` 与告警预设（轻/标准/严格）在 Settings 面板热切换。
-3. **降载**：代理式 assistant-step shadow（`priority:-1`，轻节点转发官方渲染器）折叠并懒高亮超重助手消息（>20KB，流式渲染不打代码高亮）；消息行 `content-visibility:auto` 近似虚拟化；agent 空闲徽标。
+3. **降载与取证**：呈现与官方逐像素一致的 assistant-step shadow（轻节点直接转发官方渲染器，仅把超重消息 >20KB 的高亮终态延迟到回合结束热路径之外，无折叠、无按钮）；消息行 `content-visibility:auto` 近似虚拟化（已修复选择器语法错误，HUD 关闭时也独立生效）；`会话尾部完整性观察探针`在真实 GUI 中监听回合结束边沿，核对最终消息 finalNode、窗口尾与主机 history 尾部的 seq 一致性、编辑框残留（忙碌态点「停止」后草稿保留的签名），发现写入 localStorage 环形缓冲并 console.warn，用于定位「跑完不显示最终内容」一类现场；agent 空闲徽标。
 
 ## 安装
 
