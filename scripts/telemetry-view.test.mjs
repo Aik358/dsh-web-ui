@@ -38,7 +38,7 @@ test('dashboard document inlines CSP-safe boot data and the paginated shell', ()
     },
   })
   // The embedded JSON must not be able to terminate its script element.
-  const scripts = html.split('<script>').slice(1)
+  const scripts = html.split('<script data-cfasync="false">').slice(1)
   assert.equal(scripts.length, 2)
   for (const block of scripts) {
     assert.ok(!block.slice(0, block.indexOf('</' + 'script>')).includes('</' + 'script>'), 'script block must not self-terminate')

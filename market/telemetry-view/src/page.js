@@ -106,6 +106,8 @@ const ICONS = {
 
 const CLIENT_JS = `
 'use strict'
+var hint = document.getElementById('boot-hint')
+if (hint) hint.parentNode.removeChild(hint)
 var BOOT = window.__BOOT__
 var state = {
   days: BOOT.days,
@@ -361,6 +363,7 @@ const SHELL = [
   '</header>',
   '<p class="meta"><span id="range-label">最近 30 天</span> · <span id="updated"></span> · 已过滤已知爬虫（UA 特征 + webdriver 检测）</p>',
   '<div class="err" id="err" role="alert"></div>',
+  '<p class="meta" id="boot-hint">正在渲染数据……若此提示不消失，说明页面脚本被拦截（请检查浏览器控制台）。</p>',
   '<section class="cards rise" id="cards"></section>',
   '<section class="panel rise" id="panel-chart">',
   '<div class="panel-h"><h2>站点访问趋势</h2><span class="note">仅统计浏览器端上报的页面访问</span></div>',
@@ -390,7 +393,11 @@ export function renderDashboard(boot) {
     + '<title>dsh-web 使用统计</title>'
     + '<style>' + CSS + '</style></head><body>'
     + SHELL
-    + '<script>window.__BOOT__ = ' + bootJson({ days: boot.days, sizes: boot.sizes, icons: ICONS, data: boot.data }) + '</' + 'script>'
-    + '<script>' + CLIENT_JS + '</' + 'script>'
+    + '<script data-cfasync="false">'
+    + // Surface any client failure in the page itself: this trap is registered
+      // before the app script parses, so parse/runtime errors become visible.
+      "window.addEventListener('error', function (ev) { var e = document.getElementById('err'); if (!e) return; e.textContent = '页面脚本执行失败：' + (ev.message || 'unknown'); e.classList.add('show') })"
+    + ';window.__BOOT__ = ' + bootJson({ days: boot.days, sizes: boot.sizes, icons: ICONS, data: boot.data }) + '</' + 'script>'
+    + '<script data-cfasync="false">' + CLIENT_JS + '</' + 'script>'
     + '</body></html>'
 }
