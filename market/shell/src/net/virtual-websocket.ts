@@ -14,6 +14,7 @@
  */
 
 import { IncomingMessageShim, SocketShim, upgradeVirtualRequest } from '../node/http.ts'
+import { ShimEmitter } from '../node/emitter-core.ts'
 
 /** Ready states, as the WebSocket interface defines them. */
 const CONNECTING = 0
@@ -22,50 +23,9 @@ const CLOSING = 2
 const CLOSED = 3
 
 /** Minimal listener registry shared by both ends. */
-class Emitter {
-  private readonly listeners = new Map<string, Set<(...args: unknown[]) => void>>()
-
-  on(event: string, listener: (...args: unknown[]) => void): this {
-    let set = this.listeners.get(event)
-    if (set === undefined) {
-      set = new Set()
-      this.listeners.set(event, set)
-    }
-    set.add(listener)
-    return this
-  }
-
-  once(event: string, listener: (...args: unknown[]) => void): this {
-    const wrapper = (...args: unknown[]): void => {
-      this.off(event, wrapper)
-      listener(...args)
-    }
-    return this.on(event, wrapper)
-  }
-
-  off(event: string, listener: (...args: unknown[]) => void): this {
-    this.listeners.get(event)?.delete(listener)
-    return this
-  }
-
-  removeListener(event: string, listener: (...args: unknown[]) => void): this {
-    return this.off(event, listener)
-  }
-
-  removeAllListeners(event?: string): this {
-    if (event === undefined) this.listeners.clear()
-    else this.listeners.delete(event)
-    return this
-  }
-
-  protected fire(event: string, ...args: unknown[]): void {
-    for (const listener of [...(this.listeners.get(event) ?? [])]) {
-      try {
-        listener(...args)
-      } catch (error) {
-        console.error(`[virtual-websocket] ${event} listener threw:`, error)
-      }
-    }
+class Emitter extends ShimEmitter {
+  constructor() {
+    super('virtual-websocket')
   }
 }
 

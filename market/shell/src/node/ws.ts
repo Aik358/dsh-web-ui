@@ -9,6 +9,7 @@
  */
 
 import { UPGRADE_PAIR } from '../net/virtual-websocket.ts'
+import { ShimEmitter } from './emitter-core.ts'
 
 /** The platform WebSocket, which is what `ws`'s client API wraps on Node. */
 const PlatformWebSocket = globalThis.WebSocket
@@ -29,11 +30,11 @@ export const CLOSED = 3
  * `handleUpgrade` pattern works here unchanged. Asking it to listen on a port
  * is the only thing that cannot work, and that fails loudly.
  */
-export class WebSocketServer {
-  private readonly listeners = new Map<string, Set<(...args: unknown[]) => void>>()
+export class WebSocketServer extends ShimEmitter {
   readonly clients = new Set<unknown>()
 
   constructor(options?: { noServer?: boolean, port?: number, server?: unknown }) {
+    super('ws')
     if (options?.noServer !== true) {
       throw Object.assign(
         new Error(
@@ -66,40 +67,6 @@ export class WebSocketServer {
     this.clients.add(pair.server)
     this.emit('connection', pair.server, request)
     callback(pair.server, request)
-  }
-
-  on(event: string, listener: (...args: unknown[]) => void): this {
-    let set = this.listeners.get(event)
-    if (set === undefined) {
-      set = new Set()
-      this.listeners.set(event, set)
-    }
-    set.add(listener)
-    return this
-  }
-
-  once(event: string, listener: (...args: unknown[]) => void): this {
-    const wrapper = (...args: unknown[]): void => {
-      this.off(event, wrapper)
-      listener(...args)
-    }
-    return this.on(event, wrapper)
-  }
-
-  off(event: string, listener: (...args: unknown[]) => void): this {
-    this.listeners.get(event)?.delete(listener)
-    return this
-  }
-
-  /** Emit to this server's listeners. */
-  private emit(event: string, ...args: unknown[]): void {
-    for (const listener of [...(this.listeners.get(event) ?? [])]) {
-      try {
-        listener(...args)
-      } catch (error) {
-        console.error(`[ws] ${event} listener threw:`, error)
-      }
-    }
   }
 
   close(callback?: () => void): void {

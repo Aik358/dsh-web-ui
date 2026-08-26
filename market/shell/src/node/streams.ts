@@ -5,63 +5,12 @@
  */
 
 import { Buffer, toBytes } from './binary.ts'
+import { ShimEmitter } from './emitter-core.ts'
 
 /** Minimal typed event emitter shared by both stream faces. */
-export class StreamEmitter {
-  private readonly listeners = new Map<string, Set<(...args: unknown[]) => void>>()
-
-  on(event: string, listener: (...args: unknown[]) => void): this {
-    let set = this.listeners.get(event)
-    if (set === undefined) {
-      set = new Set()
-      this.listeners.set(event, set)
-    }
-    set.add(listener)
-    return this
-  }
-
-  addListener(event: string, listener: (...args: unknown[]) => void): this {
-    return this.on(event, listener)
-  }
-
-  once(event: string, listener: (...args: unknown[]) => void): this {
-    const wrapper = (...args: unknown[]): void => {
-      this.off(event, wrapper)
-      listener(...args)
-    }
-    return this.on(event, wrapper)
-  }
-
-  off(event: string, listener: (...args: unknown[]) => void): this {
-    this.listeners.get(event)?.delete(listener)
-    return this
-  }
-
-  removeListener(event: string, listener: (...args: unknown[]) => void): this {
-    return this.off(event, listener)
-  }
-
-  removeAllListeners(event?: string): this {
-    if (event === undefined) this.listeners.clear()
-    else this.listeners.delete(event)
-    return this
-  }
-
-  listenerCount(event: string): number {
-    return this.listeners.get(event)?.size ?? 0
-  }
-
-  emit(event: string, ...args: unknown[]): boolean {
-    const set = this.listeners.get(event)
-    if (set === undefined || set.size === 0) return false
-    for (const listener of [...set]) {
-      try {
-        listener(...args)
-      } catch (error) {
-        console.error(`[stream] ${event} listener threw:`, error)
-      }
-    }
-    return true
+export class StreamEmitter extends ShimEmitter {
+  constructor() {
+    super('stream')
   }
 }
 

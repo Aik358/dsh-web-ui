@@ -17,6 +17,7 @@
 
 import { pathToFileURL } from './misc.ts'
 import { Buffer } from './binary.ts'
+import { ShimEmitter } from './emitter-core.ts'
 
 /** Resolver installed by the host module system, used to run a worker entry. */
 let workerEntryLoader: ((url: string) => Promise<unknown>) | undefined
@@ -30,53 +31,9 @@ export function setWorkerEntryLoader(loader: (url: string) => Promise<unknown>):
 }
 
 /** Minimal event emitter shared by `Worker` and `MessagePort` faces. */
-class Emitter {
-  private readonly listeners = new Map<string, Set<(...args: unknown[]) => void>>()
-
-  on(event: string, listener: (...args: unknown[]) => void): this {
-    let set = this.listeners.get(event)
-    if (set === undefined) {
-      set = new Set()
-      this.listeners.set(event, set)
-    }
-    set.add(listener)
-    return this
-  }
-
-  once(event: string, listener: (...args: unknown[]) => void): this {
-    const wrapper = (...args: unknown[]): void => {
-      this.off(event, wrapper)
-      listener(...args)
-    }
-    return this.on(event, wrapper)
-  }
-
-  off(event: string, listener: (...args: unknown[]) => void): this {
-    this.listeners.get(event)?.delete(listener)
-    return this
-  }
-
-  removeListener(event: string, listener: (...args: unknown[]) => void): this {
-    return this.off(event, listener)
-  }
-
-  removeAllListeners(event?: string): this {
-    if (event === undefined) this.listeners.clear()
-    else this.listeners.delete(event)
-    return this
-  }
-
-  emit(event: string, ...args: unknown[]): boolean {
-    const set = this.listeners.get(event)
-    if (set === undefined || set.size === 0) return false
-    for (const listener of [...set]) {
-      try {
-        listener(...args)
-      } catch (error) {
-        console.error(`[worker_threads] ${event} listener threw:`, error)
-      }
-    }
-    return true
+class Emitter extends ShimEmitter {
+  constructor() {
+    super('worker_threads')
   }
 }
 

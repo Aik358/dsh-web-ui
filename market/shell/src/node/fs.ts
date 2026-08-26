@@ -9,6 +9,7 @@
 import { BigIntStats, constants, core, Dirent, Stats, toPath } from './fs-core.ts'
 import { asBuffer, readOptions, toBytes, toText, type BinaryLike } from './binary.ts'
 import { volume } from '../vfs/volume.ts'
+import { ShimEmitter } from './emitter-core.ts'
 import { resolve as resolvePath } from '../vfs/path.ts'
 import { fsError } from '../vfs/errors.ts'
 import * as promises from './fs-promises.ts'
@@ -192,40 +193,13 @@ export const realpath = Object.assign(
 // ---- watching --------------------------------------------------------------
 
 /** Minimal `fs.FSWatcher`: the close handle plus the `change` event surface. */
-class FSWatcher {
-  private readonly listeners = new Map<string, Set<(...args: unknown[]) => void>>()
+class FSWatcher extends ShimEmitter {
   private dispose: (() => void) | undefined
 
   constructor(path: string, listener?: (event: string, filename: string) => void) {
+    super('fs')
     if (listener !== undefined) this.on('change', listener as (...args: unknown[]) => void)
     this.dispose = volume.watch(path, (event, filename) => { this.fire('change', event, filename) })
-  }
-
-  on(event: string, listener: (...args: unknown[]) => void): this {
-    let set = this.listeners.get(event)
-    if (set === undefined) {
-      set = new Set()
-      this.listeners.set(event, set)
-    }
-    set.add(listener)
-    return this
-  }
-
-  once(event: string, listener: (...args: unknown[]) => void): this {
-    const wrapper = (...args: unknown[]): void => {
-      this.off(event, wrapper)
-      listener(...args)
-    }
-    return this.on(event, wrapper)
-  }
-
-  off(event: string, listener: (...args: unknown[]) => void): this {
-    this.listeners.get(event)?.delete(listener)
-    return this
-  }
-
-  private fire(event: string, ...args: unknown[]): void {
-    for (const listener of this.listeners.get(event) ?? []) listener(...args)
   }
 
   close(): void {
