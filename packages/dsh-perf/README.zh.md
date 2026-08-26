@@ -2,15 +2,15 @@
 
 [English](README.md) | 中文
 
-DSH Web 性能观测与治理插件：流式/多会话场景的「性能引擎」，dsh-web 全家桶第一位功能插件。
+面向流式与多会话场景的性能观测与治理插件。
 
 ## 它会做什么
 
-全部能力以插件形式交付（不 fork core、不做运行时黑魔法），分三层：
+全部以插件实现（不 fork core、不做运行时魔法），分三层：
 
-1. **观测**：Host 侧 `PerfMeter` 订阅 cordis `session/event` 总线（每会话/总事件速率、类型分布）、`agent/status` 迁移流（idle/running 时间线）、事件循环延迟（perf_hooks）与内存；loopback-fenced `GET /api/dsh-perf/stats` 暴露聚合；浏览器 HUD 面板（默认关闭）显示服务端指标 + 本地 FPS / Longtask 采样。
+1. **观测**：Host 侧 `PerfMeter` 订阅 cordis `session/event` 总线（每会话/总事件速率、类型分布）、`agent/status` 迁移流（idle/running 时间线）、事件循环延迟（perf_hooks）与内存；loopback 守卫的 `GET /api/dsh-perf/stats` 暴露聚合指标；浏览器 HUD 面板（默认关闭）显示服务端指标 + 本地 FPS / Longtask 采样。
 2. **治理**：`cordis.patch.yml` 声明式覆盖 `session-persistence-jsonl` 的写批延迟（200ms → 500ms，流式期 fsync 批次约降 2.5 倍）；`mode: off | balanced | aggressive` 与告警预设（轻/标准/严格）在 Settings 面板热切换。
-3. **降载与取证**：呈现与官方逐像素一致的 assistant-step shadow（轻节点直接转发官方渲染器，无折叠、无按钮）；heavy 判定从纯字符数升级为加权分（代码围栏字符双倍、每个数学公式按固定成本、reasoning/tool-call 低权重），覆盖「多代码块中等消息」这类旧阈值漏网场景；多条 heavy 消息的 settled 翻转走全局串行队列（默认间隔 120ms），会话打开/多步回合不再同帧集体触发全量解析+shiki+KaTeX 突发；会话列表 store 发布门控把流式期间「仅投影身份变化」（usage/token 计数等）的 flush 合并到约 1Hz 尾部补发（可见字段变化仍立即发布），实测 30 秒 30 次无效整树重渲染降为 3 次；流式转发冷却（`dsh-perf-stream-cooldown`，默认关闭的实验项）；消息行 `content-visibility:auto` 近似虚拟化（已修复选择器语法错误，HUD 关闭时也独立生效）；侧栏会话行（dsh-better-sidebar 的大分组展开一次全量挂载数百行，上游 issue 已提）同样获得屏外行跳过渲染；`会话尾部完整性观察探针`在真实 GUI 中监听回合结束边沿，核对最终消息 finalNode、窗口尾与主机 history 尾部的 seq 一致性、编辑框残留（忙碌态点「停止」后草稿保留的签名），发现写入 localStorage 环形缓冲并 console.warn，用于定位「跑完不显示最终内容」一类现场；agent 空闲徽标。
+3. **降载与取证**：呈现与官方逐像素一致的 assistant-step shadow（轻节点直接转发官方渲染器，无折叠、无按钮）；heavy 按加权分判定（代码围栏字符双倍、每个数学公式按固定成本、reasoning/tool-call 块低权重），「多代码块中等消息」也能抓住；多条 heavy 消息的 settled 翻转走全局串行队列（默认间隔 120ms），不再在会话打开或多步回合时同帧触发全量解析 + shiki + KaTeX 的突发；会话列表 store 发布门控把流式期间「仅投影身份变化」的 flush（usage/token 计数等）合并到约 1Hz 尾部补发（可见字段变化仍立即发布），30 秒里的无效整树重渲染从 30 次降到 3 次；流式转发冷却（`dsh-perf-stream-cooldown`，默认关闭的实验项）；消息行用 `content-visibility:auto` 近似虚拟化，HUD 关闭时也独立生效；侧栏会话行受同样处理（dsh-better-sidebar 大分组展开时会一次挂载数百行，上游 issue 已提）；`会话尾部完整性探针`在运行中的 Web GUI 里监听回合结束边沿，核对最终消息 finalNode、窗口尾与主机 history 尾部的 seq 一致性、编辑框残留（忙碌态点「停止」后草稿保留的签名），结果写入 localStorage 环形缓冲并 console.warn，用于定位「跑完不显示最终内容」的现场；agent 空闲徽标。
 
 ## 安装
 
@@ -60,4 +60,4 @@ pnpm add @linxin666/dsh-perf
 ## 边界与上游
 
 - `/api/dsh-perf/stats` 仅提供聚合指标（不含会话内容）；loopback 守卫复用 shared/host/loopback.ts（同源 + 127/8 + sec-fetch 标记）。
-- 发射侧聚合与推送帧批量在 core（agent-loop / client-runtime），插件不做破坏性替换；实测证据在 repo 的 docs/dsh-perf-optimization-report.md（内部研究，不走上游 PR）。
+- 发射侧聚合与推送帧批量在 core（agent-loop / client-runtime），插件不替换它们；实测证据在 repo 的 docs/dsh-perf-optimization-report.md（内部研究，不走上游 PR）。
