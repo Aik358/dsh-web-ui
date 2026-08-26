@@ -1,22 +1,4 @@
-import { defineConfig } from 'vitest/config'
-
-export default defineConfig({
-  // npm SDK packages reference sourcemaps that are not published (files
-  // exclude *.map); do not attempt to load them during transform.
-  server: {
-    sourcemapIgnoreList: () => true,
-  },
-  test: {
-    include: ['tests/**/*.spec.{ts,tsx}'],
-    pool: 'forks',
-    environment: 'jsdom',
-    setupFiles: ['./vitest.setup.ts'],
-    // @deepseek-ai SDK packages ship browser bundles (CSS imports included);
-    // keep them vite-transformed instead of node-externalized.
-    server: {
-      deps: {
-        inline: [/@deepseek-ai\//],
-      },
-    },
-  },
-})
+// Identical to the shared vitest config; re-exported like the shared
+// tsdown build preset instead of maintaining a drifting copy. Relative
+// paths inside (setupFiles, include) resolve against this package root.
+export { default } from '../../shared/vitest.config.ts'

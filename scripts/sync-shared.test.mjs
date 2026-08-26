@@ -21,7 +21,7 @@ test('copies cover the settings trio for eight consumers plus host and http help
   // Normalize separators: node:path join yields backslashes on Windows, and
   // the copy-count buckets below match on forward slashes.
   const entries = copyEntries().map(entry => ({ ...entry, target: entry.target.replaceAll('\\', '/') }))
-  assert.equal(entries.length, 100)
+  assert.equal(entries.length, 103)
   const clientTrio = entries.filter(entry => entry.target.includes('/src/client/'))
   assert.equal(clientTrio.length, 43)
   const hostCopies = entries.filter(entry => entry.target.includes('/src/host/')
@@ -52,6 +52,7 @@ test('checkSync detects drift and applySync repairs it', async () => {
     await writeFile(join(hostDir, 'dsh-home.ts'), 'export const home = 1' + String.fromCharCode(10))
     await writeFile(join(hostDir, 'loopback.ts'), 'export const loop = 1' + String.fromCharCode(10))
     await writeFile(join(hostDir, 'pair-access.ts'), 'export const fence = 1' + String.fromCharCode(10))
+    await writeFile(join(root, 'shared', 'vitest.setup.ts'), 'export {}' + String.fromCharCode(10))
     await writeFile(join(hostDir, 'git-runner.ts'), 'export const runner = 1' + String.fromCharCode(10))
     await writeFile(join(hostDir, 'mount-once.ts'), 'export const once = 1' + String.fromCharCode(10))
     await writeFile(join(hostDir, 'http.ts'), 'export const http = 1' + String.fromCharCode(10))

@@ -160,6 +160,15 @@ const MANIFEST = [
     ],
   },
   {
+    file: 'vitest.setup.ts',
+    source: 'shared/vitest.setup.ts',
+    targets: [
+      'packages/dsh-web-settings/vitest.setup.ts',
+      'packages/dsh-tool-describe-image/vitest.setup.ts',
+      'packages/dsh-remote-web-ui/vitest.setup.ts',
+    ],
+  },
+  {
     file: 'sidebar-entry-core.ts',
     source: 'shared/client/sidebar-entry-core.ts',
     targets: [
