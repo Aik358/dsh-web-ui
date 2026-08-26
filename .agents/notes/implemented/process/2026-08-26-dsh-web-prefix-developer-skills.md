@@ -28,5 +28,5 @@ same directory already use the `dsh-web-` / `dsh-` prefix (`dsh-web-release`,
 ## Consequences
 
 The skills are invoked as `dsh-web-*` by the model; the global `~/.dsh/skills` copies
-under the old names live outside this repository and keep rendering alongside the renamed
-repo copies until the user syncs them.
+under the old names were removed after the rename (2026-08-26), so the loaded catalog
+serves the renamed repo copies only.
