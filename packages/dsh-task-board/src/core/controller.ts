@@ -2,8 +2,8 @@
  * Board controller: the single owner of task-ledger state and view state.
  *
  * In production it projects the Host ledger and submits confirmed actions;
- * the legacy store seam remains for v1 migration tests. It also closes the
- * board whenever the user navigates to a session.
+ * the legacy store seam remains for v1 migration tests. The board closes
+ * only on explicit user navigation, never implicitly on session-list churn.
  * Framework-free (structural runtime faces) so the whole orchestration is
  * unit-testable with fakes.
  *
@@ -108,11 +108,6 @@ function randomUuid(): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
 }
 
-/** Read the current selection off a session-list snapshot (structural). */
-function currentOf(sessions: SessionsControllerFace): string | undefined {
-  return sessions.list.getSnapshot().current
-}
-
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
@@ -205,10 +200,11 @@ export class BoardController {
 
   openBoard(): void {
     if (this.boardOpen) return
-    // Baseline the selection the board opened against: the board stays open
-    // until the user navigates (selection changes), never on mere status
-    // updates of the already-selected session.
-    this.lastCurrent = currentOf(this.deps.sessions)
+    // The board stays open until the user explicitly closes it: by clicking
+    // the sidebar entry again, a sidebar session/workspace row, or a board
+    // action (openSession / close). Session-list churn (background
+    // navigation, the Host runner selecting a fresh execution session,
+    // settlement, other plugins) never evicts the board.
     this.boardOpen = true
     this.notify()
   }
@@ -428,19 +424,19 @@ export class BoardController {
 
   // --- internals ---------------------------------------------------------------
 
-  /** Close the board when the user navigates to another session. */
+  /**
+   * Session-list notifications fire for all kinds of incidental churn
+   * (background navigation, the Host runner creating and selecting a fresh
+   * execution session, settlement, other plugins), so closing on `current`
+   * changes would evict the board without the user asking. The board closes
+   * only on explicit user navigation: a sidebar session/workspace row click
+   * (board-mount onClickSidebarRow) or the board's own actions
+   * (openSession / close). Keeping the hook preserves the subscription
+   * contract for future listeners.
+   */
   private onSessionsChanged(): void {
-    if (!this.boardOpen) return
-    const current = currentOf(this.deps.sessions)
-    if (this.lastCurrent !== undefined && current !== undefined && current !== this.lastCurrent) {
-      this.closeBoard()
-    }
-    if (current !== undefined) {
-      this.lastCurrent = current
-    }
+    // Intentionally empty: never close the board implicitly.
   }
-
-  private lastCurrent: string | undefined = undefined
 
   private persistAndNotify(): void {
     if (this.deps.transport === undefined) this.deps.store.save(this.tasks)

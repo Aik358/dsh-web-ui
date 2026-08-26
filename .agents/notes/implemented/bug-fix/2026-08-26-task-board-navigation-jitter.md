@@ -12,9 +12,11 @@ When the task board was opened, `openBoard()` baseline-recorded the current sess
 2. If `current` is momentarily `undefined`, the board stays open; if `this.lastCurrent` was undefined when the board opened, it records the first valid session id without closing.
 3. Added unit tests in `packages/dsh-task-board/tests/controller.spec.ts` covering transient undefined blips and baseline initializations.
 
+Partially superseded the same day by [task-board implicit close removal](2026-08-26-task-board-implicit-close-removal.md): the `lastCurrent` baseline mechanism this note describes was removed, and the board now never closes implicitly on session-list churn of any kind. The undefined-blip protection rationale lives on in the successor note.
+
 ## Consequences
 
-The task board stays open smoothly when clicked, resisting transient session list undefined blips while still closing as expected when the user explicitly switches sessions.
+The task board stayed open through transient session-list undefined blips. The "still closes when the user explicitly switches sessions" consequence no longer holds as shipped: since the successor note, explicit switches observed through the session list also leave the board open, and the board closes only on explicit user actions (sidebar session/workspace row click, the board's own openSession and close).
 
 ## Testing
 

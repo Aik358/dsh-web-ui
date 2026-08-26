@@ -197,13 +197,15 @@ describe('view state', () => {
     expect(controller.getSnapshot().boardOpen).toBe(true)
   })
 
-  it('closes the board when the user navigates to a session', () => {
+  it('stays open when the current selection changes without user navigation', () => {
     const { controller, sessions } = makeController()
     sessions.setCurrent('s-1')
     controller.openBoard()
     expect(controller.getSnapshot().boardOpen).toBe(true)
+    // The Host runner selecting a fresh execution session is session-list
+    // churn, not user navigation: the board must stay open.
     sessions.setCurrent('s-2')
-    expect(controller.getSnapshot().boardOpen).toBe(false)
+    expect(controller.getSnapshot().boardOpen).toBe(true)
   })
 
   it('stays open during transient undefined session list jitter (#1182)', () => {
@@ -216,22 +218,22 @@ describe('view state', () => {
     // Resolving back to the current session stays open
     sessions.setCurrent('s-1')
     expect(controller.getSnapshot().boardOpen).toBe(true)
-    // Explicit navigation to a different session closes the board
+    // Any further selection change is churn as well, not user navigation
     sessions.setCurrent('s-2')
-    expect(controller.getSnapshot().boardOpen).toBe(false)
+    expect(controller.getSnapshot().boardOpen).toBe(true)
   })
 
-  it('initializes lastCurrent when opened before any session is selected (#1182)', () => {
+  it('stays open when opened before any session is selected (#1182)', () => {
     const { controller, sessions } = makeController()
     sessions.setCurrent(undefined)
     controller.openBoard()
     expect(controller.getSnapshot().boardOpen).toBe(true)
-    // First session selection records baseline without closing
+    // First session selection is churn, not navigation: stay open
     sessions.setCurrent('s-1')
     expect(controller.getSnapshot().boardOpen).toBe(true)
-    // Subsequent navigation to another session closes the board
+    // And so is any later selection change
     sessions.setCurrent('s-2')
-    expect(controller.getSnapshot().boardOpen).toBe(false)
+    expect(controller.getSnapshot().boardOpen).toBe(true)
   })
 
   it('stays open on unrelated session-list changes (status updates of the same selection)', () => {
