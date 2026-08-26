@@ -8,6 +8,7 @@ import { isValidCron, nextRunAtMs } from '../../core/schedule.ts'
 import { TASK_PERMISSIONS, type TaskPermission } from '../../core/tasks.ts'
 import { t, type TaskBoardKey } from '../locales.ts'
 import { SCHEDULE_PRESETS } from '../schedule-presets.ts'
+import { ModalShell, TaskContentFields } from './TaskForm.tsx'
 import css from '../board.module.css'
 
 /** New-task form overlay. */
@@ -64,47 +65,23 @@ export function NewTaskModal({ controller, onClose }: { controller: BoardControl
     : undefined
 
   return (
-    <div className={css.modalBackdrop} onMouseDown={event => { if (event.target === event.currentTarget) onClose() }}>
-      <form
-        className={css.modal}
-        role="dialog"
-        aria-label={t('board.new')}
-        onSubmit={event => { event.preventDefault(); void submit() }}
-      >
-        <h2 className={css.modalTitle}>{t('board.new')}</h2>
-
-        <label className={css.field}>
-          <span className={css.fieldLabel}>{t('new.title')}</span>
-          <input
-            className={css.input}
-            value={title}
-            autoFocus
-            placeholder={t('new.titlePlaceholder')}
-            onChange={event => { setTitle(event.target.value); setError(undefined) }}
-          />
-        </label>
-
-        <label className={css.field}>
-          <span className={css.fieldLabel}>{t('new.description')}</span>
-          <textarea
-            className={css.input}
-            rows={3}
-            value={description}
-            placeholder={t('new.descriptionPlaceholder')}
-            onChange={event => { setDescription(event.target.value) }}
-          />
-        </label>
-
-        <label className={css.field}>
-          <span className={css.fieldLabel}>{t('new.prompt')}</span>
-          <textarea
-            className={css.input}
-            rows={4}
-            value={prompt}
-            placeholder={t('new.promptPlaceholder')}
-            onChange={event => { setPrompt(event.target.value) }}
-          />
-        </label>
+    <ModalShell
+      ariaLabel={t('board.new')}
+      title={t('board.new')}
+      error={error}
+      pending={pending}
+      submitLabel={t('new.submit')}
+      onSubmit={() => { void submit() }}
+      onClose={onClose}
+    >
+      <TaskContentFields
+        title={title}
+        description={description}
+        prompt={prompt}
+        onTitleChange={value => { setTitle(value); setError(undefined) }}
+        onDescriptionChange={setDescription}
+        onPromptChange={setPrompt}
+      />
 
         <label className={css.field}>
           <span className={css.fieldLabel}>{t('new.workspace')}</span>
@@ -201,18 +178,6 @@ export function NewTaskModal({ controller, onClose }: { controller: BoardControl
             </>
           )}
         </section>
-
-        {error !== undefined && <p className={css.formError}>{error}</p>}
-
-        <footer className={css.modalFooter}>
-          <button type="button" className={css.ghostButton} onClick={onClose}>
-            {t('new.cancel')}
-          </button>
-          <button type="submit" className={css.primaryButton} disabled={pending}>
-            {t('new.submit')}
-          </button>
-        </footer>
-      </form>
-    </div>
+    </ModalShell>
   )
 }

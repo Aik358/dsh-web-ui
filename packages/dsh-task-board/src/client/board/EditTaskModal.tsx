@@ -9,7 +9,7 @@ import { useState } from 'react'
 import type { BoardController } from '../../core/controller.ts'
 import type { TaskRecord } from '../../core/tasks.ts'
 import { t } from '../locales.ts'
-import css from '../board.module.css'
+import { ModalShell, TaskContentFields } from './TaskForm.tsx'
 
 /** Edit-task form overlay. */
 export function EditTaskModal({ controller, task, onClose }: { controller: BoardController; task: TaskRecord; onClose: () => void }) {
@@ -36,59 +36,23 @@ export function EditTaskModal({ controller, task, onClose }: { controller: Board
   }
 
   return (
-    <div className={css.modalBackdrop} onMouseDown={event => { if (event.target === event.currentTarget) onClose() }}>
-      <form
-        className={css.modal}
-        role="dialog"
-        aria-label={t('edit.title')}
-        onSubmit={event => { event.preventDefault(); void submit() }}
-      >
-        <h2 className={css.modalTitle}>{t('edit.title')}</h2>
-
-        <label className={css.field}>
-          <span className={css.fieldLabel}>{t('new.title')}</span>
-          <input
-            className={css.input}
-            value={title}
-            autoFocus
-            placeholder={t('new.titlePlaceholder')}
-            onChange={event => { setTitle(event.target.value); setError(undefined) }}
-          />
-        </label>
-
-        <label className={css.field}>
-          <span className={css.fieldLabel}>{t('new.description')}</span>
-          <textarea
-            className={css.input}
-            rows={3}
-            value={description}
-            placeholder={t('new.descriptionPlaceholder')}
-            onChange={event => { setDescription(event.target.value) }}
-          />
-        </label>
-
-        <label className={css.field}>
-          <span className={css.fieldLabel}>{t('new.prompt')}</span>
-          <textarea
-            className={css.input}
-            rows={4}
-            value={prompt}
-            placeholder={t('new.promptPlaceholder')}
-            onChange={event => { setPrompt(event.target.value) }}
-          />
-        </label>
-
-        {error !== undefined && <p className={css.formError}>{error}</p>}
-
-        <footer className={css.modalFooter}>
-          <button type="button" className={css.ghostButton} onClick={onClose}>
-            {t('new.cancel')}
-          </button>
-          <button type="submit" className={css.primaryButton} disabled={pending}>
-            {t('edit.save')}
-          </button>
-        </footer>
-      </form>
-    </div>
+    <ModalShell
+      ariaLabel={t('edit.title')}
+      title={t('edit.title')}
+      error={error}
+      pending={pending}
+      submitLabel={t('edit.save')}
+      onSubmit={() => { void submit() }}
+      onClose={onClose}
+    >
+      <TaskContentFields
+        title={title}
+        description={description}
+        prompt={prompt}
+        onTitleChange={value => { setTitle(value); setError(undefined) }}
+        onDescriptionChange={setDescription}
+        onPromptChange={setPrompt}
+      />
+    </ModalShell>
   )
 }
