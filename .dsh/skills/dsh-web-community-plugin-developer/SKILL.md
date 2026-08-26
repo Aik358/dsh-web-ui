@@ -18,7 +18,7 @@ disable-model-invocation: true
 - **只索引、不内嵌**：`packages/dsh-community-plugins`（npm `@linxin666/dsh-client-ui-community-plugins`）
   只登记条目，每个条目链到贡献者自己的仓库；本仓库**绝不打包第三方代码**。
 - **GUI 形态**：社区插件是设置页**一级菜单**（`settings.section` id `community-plugins`，order 140），
-  与通用设置/模式/插件/Agent 预设及 Web UI 插件、皮肤中心、宠物并列，内容**直接展开**
+  与通用设置/模式/插件/Agent 预设及 Web 插件、皮肤中心、宠物并列，内容**直接展开**
   （`alwaysOpen`，无折叠），自带启用开关（`community-plugins` 设置命名空间，开关就在分区卡片内）。
 - **插件管理器联动**：卡片桥接同家族 sibling `dsh-plugin-manager`（cordis 服务
   `pluginManager`，可选）——在场时展示已安装状态并可发起安装/卸载/看进度；缺席时
