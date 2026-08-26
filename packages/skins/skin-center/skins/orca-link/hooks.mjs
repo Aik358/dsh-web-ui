@@ -874,6 +874,12 @@ export default function defineSkinHooks() {
       const body = document.body
       const doc = document
       const view = window
+      const Element = view?.Element ?? doc.defaultView?.Element ?? globalThis.Element
+      const HTMLElement = view?.HTMLElement ?? doc.defaultView?.HTMLElement ?? globalThis.HTMLElement
+      const SVGElement = view?.SVGElement ?? doc.defaultView?.SVGElement ?? globalThis.SVGElement
+      const SVGGElement = view?.SVGGElement ?? doc.defaultView?.SVGGElement ?? globalThis.SVGGElement
+      const HTMLInputElement = view?.HTMLInputElement ?? doc.defaultView?.HTMLInputElement ?? globalThis.HTMLInputElement
+      const HTMLTextAreaElement = view?.HTMLTextAreaElement ?? doc.defaultView?.HTMLTextAreaElement ?? globalThis.HTMLTextAreaElement
 
       const originalTitle = doc.title
       const styleProperties = [
@@ -1931,7 +1937,7 @@ export default function defineSkinHooks() {
           const card = seat.querySelector(COMPOSER_CARD_SELECTOR_FILTERED)
           if (root === null || card === null) return
           const phase = root.dataset.phase ?? ''
-          const binding = bindings.get(seat)
+          let binding = bindings.get(seat)
           if (
             binding !== undefined && binding.card === card && binding.root === root
             && binding.mountedPhase === phase && binding.handles.length > 0
@@ -1944,8 +1950,8 @@ export default function defineSkinHooks() {
             return
           }
           if (binding === undefined) {
-            const created = { seat, card, root, handles: [], restore: null, anchor: null, suppressClickUntil: 0, dragFullWidth: 0, dragMinWidth: 0, mountedPhase: phase }
-            bindings.set(seat, created)
+            binding = { seat, card, root, handles: [], restore: null, anchor: null, suppressClickUntil: 0, dragFullWidth: 0, dragMinWidth: 0, mountedPhase: phase }
+            bindings.set(seat, binding)
           } else {
             binding.root = root
             binding.mountedPhase = phase

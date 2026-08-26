@@ -218,3 +218,77 @@ describe('orca-link hooks: background throttling', () => {
     expect(document.body.hasAttribute('data-orca-page-hidden')).toBe(false)
   })
 })
+
+describe('orca-link hooks: composer seat and settings overlay', () => {
+  function composerFixture(phase = 'active', hasFlow = true): { root: HTMLElement; seat: HTMLElement; card: HTMLElement } {
+    const root = document.createElement('div')
+    root.setAttribute('data-phase', phase)
+    const scroll = document.createElement('div')
+    scroll.setAttribute('data-conversation-scroll', '')
+    if (hasFlow) {
+      const flow = document.createElement('div')
+      flow.setAttribute('data-chat-flow', '')
+      flow.setAttribute('data-chat-flow-kind', 'message')
+      scroll.append(flow)
+    }
+    const seat = document.createElement('div')
+    seat.setAttribute('data-composer-seat', '')
+    const card = document.createElement('div')
+    card.setAttribute('data-composer-card', '')
+    const textarea = document.createElement('textarea')
+    card.append(textarea)
+    seat.append(card)
+    scroll.append(seat)
+    root.append(scroll)
+    document.body.append(root)
+    return { root, seat, card }
+  }
+
+  function settingsFixture(): { slot: HTMLElement; dialog: HTMLElement } {
+    const slot = document.createElement('div')
+    slot.setAttribute('data-slot', 'sidebar.settings')
+    const presentation = document.createElement('div')
+    presentation.setAttribute('role', 'presentation')
+    const dialog = document.createElement('div')
+    dialog.setAttribute('role', 'dialog')
+    presentation.append(dialog)
+    slot.append(presentation)
+    document.body.append(slot)
+    return { slot, dialog }
+  }
+
+  it('mounts composer drag handles without throwing on initial binding (#1200)', () => {
+    const { ctx, runCleanup } = setup()
+    const { card } = composerFixture('active', true)
+
+    expect(() => {
+      defineSkinHooks().apply(ctx)
+    }).not.toThrow()
+
+    const left = card.querySelector('[data-orca-composer-handle="left"]')
+    const right = card.querySelector('[data-orca-composer-handle="right"]')
+    expect(left).not.toBeNull()
+    expect(right).not.toBeNull()
+
+    runCleanup()
+    expect(card.querySelector('[data-orca-composer-handle]')).toBeNull()
+  })
+
+  it('synchronizes body[data-orca-settings-open] when settings dialog mounts and unmounts', async () => {
+    const { ctx, runCleanup, flush } = setup()
+    composerFixture('active', true)
+    defineSkinHooks().apply(ctx)
+
+    expect(document.body.hasAttribute('data-orca-settings-open')).toBe(false)
+
+    const { slot } = settingsFixture()
+    await flush()
+    expect(document.body.hasAttribute('data-orca-settings-open')).toBe(true)
+
+    slot.remove()
+    await flush()
+    expect(document.body.hasAttribute('data-orca-settings-open')).toBe(false)
+
+    runCleanup()
+  })
+})
