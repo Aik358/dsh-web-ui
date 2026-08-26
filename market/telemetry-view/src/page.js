@@ -5,11 +5,15 @@
  * (range switch, pagination) refetches the aggregate through the
  * same-origin /data proxy without a page reload.
  *
- * CSP: scripts/styles are inline-only, connect-src 'self' — no external
- * assets, the dashboard stays fully self-contained behind Access.
+ * CSP: the client script is a same-origin external file (/app.js) under
+ * script-src 'self', never inline. Cloudflare's edge injects a CSP nonce
+ * on this zone, and a nonce neutralizes 'unsafe-inline' per spec — inline
+ * scripts get blocked no matter what the worker sends. Boot data rides in
+ * an inert <script type="application/json"> block, which script-src does
+ * not govern at all.
  */
 
-export const PAGE_CSP = "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'"
+export const PAGE_CSP = "default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'"
 
 const CSS = [
   ':root{--bg:#0a0f1e;--panel:rgba(148,163,255,.055);--panel-border:rgba(148,163,255,.14);--text:#e6eaf6;--dim:#8d96b3;--faint:#5d6580;--accent:#6f8cff;--accent-strong:#8ea6ff;--sky:#45c4f5;--good:#34d399;--bad:#f87171;--radius:14px;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}',
@@ -104,11 +108,25 @@ const ICONS = {
   refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>',
 }
 
-const CLIENT_JS = `
+export const CLIENT_JS = `
 'use strict'
+window.addEventListener('error', function (ev) {
+  var e = document.getElementById('err')
+  if (!e) return
+  e.textContent = '页面脚本执行失败：' + (ev.message || 'unknown')
+  e.classList.add('show')
+})
 var hint = document.getElementById('boot-hint')
 if (hint) hint.parentNode.removeChild(hint)
-var BOOT = window.__BOOT__
+var BOOT = null
+try {
+  BOOT = JSON.parse(document.getElementById('boot-data').textContent)
+} catch (err) {
+  var e0 = document.getElementById('err')
+  e0.textContent = '启动数据解析失败：' + err.message
+  e0.classList.add('show')
+  throw err
+}
 var state = {
   days: BOOT.days,
   pathsOffset: 0, pathsSize: BOOT.sizes.paths,
@@ -344,8 +362,8 @@ $('reload').addEventListener('click', function () {
 renderAll()
 `
 
-/** Serialize boot data for safe inline embedding (escapes "<" so the JSON
- * cannot terminate the script element or smuggle markup). */
+/** Serialize boot data for safe embedding in the inert JSON block
+ * (escapes "<" so the payload cannot terminate the script element). */
 function bootJson(boot) {
   return JSON.stringify(boot).replace(/</g, '\\u003c')
 }
@@ -393,11 +411,7 @@ export function renderDashboard(boot) {
     + '<title>dsh-web 使用统计</title>'
     + '<style>' + CSS + '</style></head><body>'
     + SHELL
-    + '<script data-cfasync="false">'
-    + // Surface any client failure in the page itself: this trap is registered
-      // before the app script parses, so parse/runtime errors become visible.
-      "window.addEventListener('error', function (ev) { var e = document.getElementById('err'); if (!e) return; e.textContent = '页面脚本执行失败：' + (ev.message || 'unknown'); e.classList.add('show') })"
-    + ';window.__BOOT__ = ' + bootJson({ days: boot.days, sizes: boot.sizes, icons: ICONS, data: boot.data }) + '</' + 'script>'
-    + '<script data-cfasync="false">' + CLIENT_JS + '</' + 'script>'
+    + '<script type="application/json" id="boot-data">' + bootJson({ days: boot.days, sizes: boot.sizes, icons: ICONS, data: boot.data }) + '</' + 'script>'
+    + '<script src="/app.js" defer data-cfasync="false"></' + 'script>'
     + '</body></html>'
 }

@@ -37,15 +37,20 @@ test('dashboard document inlines CSP-safe boot data and the paginated shell', ()
       plugins: { totals: { uv_daily_sum: 0, items: 0 }, daily: [], items_page: { offset: 0, limit: 10 }, items: [] },
     },
   })
-  // The embedded JSON must not be able to terminate its script element.
-  const scripts = html.split('<script data-cfasync="false">').slice(1)
-  assert.equal(scripts.length, 2)
-  for (const block of scripts) {
-    assert.ok(!block.slice(0, block.indexOf('</' + 'script>')).includes('</' + 'script>'), 'script block must not self-terminate')
-  }
-  assert.ok(html.includes('\\u003c/script>'), 'angle brackets in data are unicode-escaped')
+  // No executable inline script: the client loads from same-origin /app.js
+  // and boot data rides an inert JSON block, so an edge-injected CSP nonce
+  // (which neutralizes 'unsafe-inline') cannot block the app.
+  assert.ok(!html.includes('<script data-cfasync="false">'), 'no inline executable script remains')
+  const bootMatch = html.match(/<script type="application\/json" id="boot-data">([\s\S]*?)<\/script>/)
+  assert.ok(bootMatch, 'inert boot-data block present')
+  assert.ok(!bootMatch[1].includes('</' + 'script>'), 'boot JSON must not self-terminate its block')
+  assert.ok(bootMatch[1].includes('\\u003c'), 'angle brackets in data are unicode-escaped')
+  const boot = JSON.parse(bootMatch[1])
+  assert.equal(boot.data.site.top_paths[0].path, '/</script><script>alert(1)</script>')
+  assert.ok(html.includes('<script src="/app.js"'), 'external client script referenced')
   assert.ok(html.includes('id="paths-pager"'))
   assert.ok(html.includes('id="items-pager"'))
-  assert.match(PAGE_CSP, /script-src 'unsafe-inline'/)
+  assert.match(PAGE_CSP, /script-src 'self'/)
+  assert.ok(!/script-src[^;]*unsafe-inline/.test(PAGE_CSP), 'script-src must not rely on unsafe-inline')
   assert.match(PAGE_CSP, /connect-src 'self'/)
 })

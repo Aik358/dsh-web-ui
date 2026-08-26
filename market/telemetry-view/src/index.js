@@ -17,7 +17,7 @@
  * API's pagination window.
  */
 
-import { PAGE_CSP, renderDashboard } from './page.js'
+import { CLIENT_JS, PAGE_CSP, renderDashboard } from './page.js'
 
 const SUMMARY_BASE = 'https://dsh-market.com/api/telemetry/summary'
 /** Initial page sizes for the two paginated tables. */
@@ -135,6 +135,21 @@ export default {
     }
     if (!(await accessVerified(request, env))) {
       return page(401, 'telemetry view', '<h1>401</h1><p>Cloudflare Access verification failed.</p>')
+    }
+
+    // The dashboard client script, served same-origin so script-src 'self'
+    // covers it even when the edge injects a CSP nonce (which neutralizes
+    // 'unsafe-inline'). No-cache: it ships in lockstep with the HTML shell.
+    if (url.pathname === '/app.js' && request.method === 'GET') {
+      return new Response(CLIENT_JS, {
+        status: 200,
+        headers: {
+          'content-type': 'text/javascript; charset=utf-8',
+          'cache-control': 'no-store',
+          'content-security-policy': PAGE_CSP,
+          'referrer-policy': 'no-referrer',
+        },
+      })
     }
 
     if (url.pathname === '/data' && request.method === 'GET') {
