@@ -24,7 +24,7 @@
 
 <p align="center">
   <strong>DeepSeek Harness（DSH）Web 的插件聚合生态包 · 一切皆插件</strong><br>
-  <em>性能引擎 · 任务看板 · 移动端远程 · SSH 运维 · 图像理解 · 皮肤 · 创意工坊</em>
+  <em>性能引擎 · 创意工坊 · 任务看板 · 移动端远程 · SSH 运维 · 图像理解</em>
 </p>
 
 <div align="center">

@@ -24,7 +24,7 @@
 
 <p align="center">
   <strong>The aggregate plugin ecosystem for DeepSeek Harness (DSH) Web · Everything is a plugin</strong><br>
-  <em>Task Board · Mobile Remote · SSH Ops · Image Understanding · Skins · Workshop</em>
+  <em>Performance Engine · Workshop · Task Board · Mobile Remote · SSH Ops · Image Understanding</em>
 </p>
 
 <div align="center">
