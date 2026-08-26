@@ -432,8 +432,12 @@ export class BoardController {
   private onSessionsChanged(): void {
     if (!this.boardOpen) return
     const current = currentOf(this.deps.sessions)
-    if (current !== this.lastCurrent) this.closeBoard()
-    this.lastCurrent = current
+    if (this.lastCurrent !== undefined && current !== undefined && current !== this.lastCurrent) {
+      this.closeBoard()
+    }
+    if (current !== undefined) {
+      this.lastCurrent = current
+    }
   }
 
   private lastCurrent: string | undefined = undefined

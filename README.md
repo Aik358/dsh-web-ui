@@ -152,9 +152,14 @@ dsh-web 是 DeepSeek Harness（DSH）Web GUI 的插件聚合生态包（DSH Web 
 
 ### 三步上手（npm 安装，推荐）
 
-1. 安装聚合包：`dsh plugin --profile web add @linxin666/dsh-web-all@latest`
-2. 重启 `dsh web`，侧边栏出现全部插件入口
-3. 打开「设置 > 插件配置」按需开关插件，或在皮肤面板试穿皮肤
+- **DSH Web CLI（浏览器端）**：
+  1. 安装聚合包：`dsh plugin --profile web add @linxin666/dsh-web-all@latest`
+  2. 重启 `dsh web`，侧边栏出现全部插件入口
+  3. 打开「设置 > 插件配置」按需开关插件，或在皮肤面板试穿皮肤
+- **DSH Desktop（桌面客户端）**：
+  1. 安装聚合包：`dsh plugin --profile desktop add @linxin666/dsh-web-all@latest`
+  2. 验证挂载：`dsh --profile desktop --dump-config`
+  3. 完全退出并重新启动 DSH Desktop 客户端应用，界面即可显示全部插件与皮肤入口
 
 > 只要皮肤就装 `@linxin666/dsh-client-ui-skin-center`。若装到了旧版本（pnpm 11 的发布年龄门禁），见下方「安装排障」。
 

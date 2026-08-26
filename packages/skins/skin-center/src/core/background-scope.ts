@@ -82,6 +82,7 @@ export function reconcileSkinBackgroundScope(
     snapshot.revision === undefined
     || snapshot.revision === lastRevision
     || currentUserJson === lastUserJson
+    || currentUserJson === ''
   ) {
     return {
       accepted: false,

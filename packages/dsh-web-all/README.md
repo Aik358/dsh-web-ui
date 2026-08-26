@@ -14,8 +14,19 @@ The one-click aggregate package for the whole dsh web UI family: installing it b
 
 ### From npm (recommended)
 
+**DSH Web CLI (Browser)**:
 ```sh
 dsh plugin --profile web add @linxin666/dsh-web-all@latest
+# Restart dsh web
+dsh web
+```
+
+**DSH Desktop (Desktop Client)**:
+```sh
+dsh plugin --profile desktop add @linxin666/dsh-web-all@latest
+# Verify bundle mount
+dsh --profile desktop --dump-config
+# Fully quit and restart DSH Desktop application
 ```
 
 ### From the repository (development)
@@ -28,7 +39,7 @@ node scripts/link-profile.mjs
 dsh plugin --profile web add link:$(pwd)/packages/dsh-web-all
 ```
 
-Restart `dsh web` for the plugins to take effect.
+Restart `dsh web` (or DSH Desktop application) for the plugins to take effect.
 
 ### Manual upgrade
 

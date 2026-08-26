@@ -206,11 +206,31 @@ describe('view state', () => {
     expect(controller.getSnapshot().boardOpen).toBe(false)
   })
 
-  it('closes the board when a new session is started (selection cleared)', () => {
+  it('stays open during transient undefined session list jitter (#1182)', () => {
     const { controller, sessions } = makeController()
     sessions.setCurrent('s-1')
     controller.openBoard()
+    // Transient undefined blip (e.g. list refresh / subagent chain reload) must not close the board
     sessions.setCurrent(undefined)
+    expect(controller.getSnapshot().boardOpen).toBe(true)
+    // Resolving back to the current session stays open
+    sessions.setCurrent('s-1')
+    expect(controller.getSnapshot().boardOpen).toBe(true)
+    // Explicit navigation to a different session closes the board
+    sessions.setCurrent('s-2')
+    expect(controller.getSnapshot().boardOpen).toBe(false)
+  })
+
+  it('initializes lastCurrent when opened before any session is selected (#1182)', () => {
+    const { controller, sessions } = makeController()
+    sessions.setCurrent(undefined)
+    controller.openBoard()
+    expect(controller.getSnapshot().boardOpen).toBe(true)
+    // First session selection records baseline without closing
+    sessions.setCurrent('s-1')
+    expect(controller.getSnapshot().boardOpen).toBe(true)
+    // Subsequent navigation to another session closes the board
+    sessions.setCurrent('s-2')
     expect(controller.getSnapshot().boardOpen).toBe(false)
   })
 

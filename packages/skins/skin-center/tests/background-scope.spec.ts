@@ -107,7 +107,20 @@ describe('scope replay protection (#1109, #1107)', () => {
     expect(result.lastUserJson).toBe(serializeSkinBackgroundUserLayer(newUser))
   })
 
-  it('handles user layer changing from non-null to empty', () => {
+  it('rejects revision bumps when user layer is and remains empty (#1184)', () => {
+    // Other plugin (e.g. agent-default-model) bumps revision while skin-background user layer is empty
+    const result = reconcileSkinBackgroundScope(
+      current,
+      { revision: 8, user: undefined },
+      7,
+      '',
+    )
+    expect(result.accepted).toBe(false)
+    expect(result.patch).toBeNull()
+    expect(result.lastUserJson).toBe('')
+  })
+
+  it('rejects revision bumps when user layer becomes empty (#1184)', () => {
     const oldUser = { backgroundOpacity: 50 }
     const prevJson = serializeSkinBackgroundUserLayer(oldUser)
     const result = reconcileSkinBackgroundScope(
@@ -116,9 +129,8 @@ describe('scope replay protection (#1109, #1107)', () => {
       7,
       prevJson,
     )
-    // User cleared settings: new content is '' (empty), different from prev
-    expect(result.accepted).toBe(true)
-    expect(result.patch).toBeNull() // null user -> null patch
+    expect(result.accepted).toBe(false)
+    expect(result.patch).toBeNull()
     expect(result.lastUserJson).toBe('')
   })
 })
