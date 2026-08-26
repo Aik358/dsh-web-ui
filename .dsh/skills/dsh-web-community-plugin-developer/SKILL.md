@@ -1,7 +1,8 @@
 ---
-name: community-plugin-developer
+name: dsh-web-community-plugin-developer
 description: Develop a DSH community plugin and register it in the dsh-web Community Plugins index — author the plugin in the contributor's own repository following the official cordis bundle standard, add its entry to packages/dsh-community-plugins/community.json, regenerate the index with scripts/community-index, rebuild and test the community-plugins package, and submit the PR. Use when the user asks to develop a community plugin (社区插件), register/index/接入 a community plugin into the dsh web GUI, update community.json, or asks how community plugins get listed in the settings page.
-whenToUse: 用户要开发/新建一个社区插件、把第三方插件登记/接入社区插件索引、更新 community.json，或询问社区插件如何进入 dsh web GUI 的「社区插件」列表。不适用于：皮肤（skin-developer skill）、宠物（pet-developer skill）、dsh-web 家族插件本身的开发（走 packages/AGENTS.md 与 scripts/dsh-plugin-new 的常规插件流程）。
+whenToUse: 用户要开发/新建一个社区插件、把第三方插件登记/接入社区插件索引、更新 community.json，或询问社区插件如何进入 dsh web GUI 的「社区插件」列表。不适用于：皮肤（dsh-web-skin-developer skill）、宠物（dsh-web-pet-developer skill）、dsh-web 家族插件本身的开发（走 packages/AGENTS.md 与 scripts/dsh-plugin-new 的常规插件流程）。
+disable-model-invocation: true
 ---
 
 # 社区插件开发者（dsh-web 社区插件索引）

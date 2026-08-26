@@ -1,7 +1,7 @@
 ---
 name: dsh-web-release
 description: Release and publish the dsh-web monorepo (DSH Web GUI plugin family + skin collection) — bump all packages to one unified version, commit and tag (tags are cut from main after dev integration; dev is the integration branch), push the vX.Y.Z tag that triggers the GitHub Actions publish pipeline, and verify the npm publish + GitHub Release. Defaults an unspecified target to the next patch after the previous published release. Covers automatic-upgrade compatibility audits, migration and rollback fixes, post-release verification, and bad-version recovery. Use when the user asks to 发布/发版/release/bump 版本/publish a new version of dsh-web or any @linxin666/dsh-* package.
-whenToUse: The user wants to release dsh-web (发布新版、发个版本、release、tag、publish @linxin666/dsh-* 包), audit or repair automatic-upgrade compatibility, build or change the release pipeline (release 管线、CI 发布), or recover from a bad published version (坏包、回滚、deprecate). Not for routine commits, skin development (see skin-developer skill), or CI-only changes without a release.
+whenToUse: The user wants to release dsh-web (发布新版、发个版本、release、tag、publish @linxin666/dsh-* 包), audit or repair automatic-upgrade compatibility, build or change the release pipeline (release 管线、CI 发布), or recover from a bad published version (坏包、回滚、deprecate). Not for routine commits, skin development (see dsh-web-skin-developer skill), or CI-only changes without a release.
 ---
 
 # dsh-web 发布（release / publish）
