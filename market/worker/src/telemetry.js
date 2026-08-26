@@ -12,6 +12,8 @@
  * Aggregate summaries expose counts only, never raw events.
  */
 
+import { readJsonCapped } from './body.js'
+
 const VISITOR_RE = /^[A-Za-z0-9_-]{16,64}$/
 const PATH_RE = /^\/[A-Za-z0-9._~!$&'()*+,;=:@%?/-]{0,127}$/
 const NAME_RE = /^[A-Za-z0-9@][A-Za-z0-9@/._:-]{0,63}$/
@@ -26,6 +28,8 @@ const KINDS = new Set(['pageview', 'heartbeat'])
  */
 const BOT_UA_RE = /bot|crawler|spider|scrape|curl|wget|python|httpclient|http-client|headless|phantom|slurp|archive|scanner|monitor|pingdom|uptime|lighthouse|preview/i
 const MAX_ITEMS = 64
+/** Heartbeats carry at most MAX_ITEMS small items; cap the raw body too. */
+const TELEMETRY_BODY_MAX_BYTES = 16 * 1024
 /** Events older than this many days are pruned opportunistically. */
 const RETENTION_DAYS = 400
 
@@ -200,8 +204,9 @@ export async function pruneOldEvents(env) {
 /** POST /api/telemetry/event handler. Returns the json() helper's shape. */
 export async function handleTelemetryPost(request, env, json) {
   if (!env.DB) return json({ ok: false, error: 'storage-unavailable' }, 503)
-  let body
-  try { body = await request.json() } catch { return json({ ok: false, error: 'invalid-json' }, 400) }
+  const read = await readJsonCapped(request, TELEMETRY_BODY_MAX_BYTES)
+  if (!read.ok) return json({ ok: false, error: read.error }, read.error === 'payload-too-large' ? 413 : 400)
+  const body = read.value
   if (!body || !KINDS.has(body.kind)) return json({ ok: false, error: 'invalid-kind' }, 400)
   const hash = await visitorHash(body.visitor, env)
   if (!hash) return json({ ok: false, error: 'invalid-visitor' }, 400)

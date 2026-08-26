@@ -52,8 +52,9 @@ export default {
         },
         responses: {
           200: { description: 'Install recorded; returns the refreshed cumulative install count' },
-          400: { description: 'Invalid parameters or JSON' },
+          400: { description: 'Invalid parameters or JSON, or asset_id not in the published manifests (unknown-asset)' },
           403: { description: 'Turnstile challenge missing or invalid' },
+          413: { description: 'Body exceeds the 4 KiB write cap (payload-too-large)' },
         },
       },
     },
@@ -80,8 +81,9 @@ export default {
         },
         responses: {
           200: { description: 'Like recorded; returns ok, liked and votes' },
-          400: { description: 'Invalid parameters or JSON' },
+          400: { description: 'Invalid parameters or JSON, or asset_id not in the published manifests (unknown-asset)' },
           403: { description: 'Turnstile verification failed' },
+          413: { description: 'Body exceeds the 4 KiB write cap (payload-too-large)' },
         },
       },
     },
@@ -126,6 +128,7 @@ export default {
         responses: {
           200: { description: 'Event accepted (duplicates collapse per day)' },
           400: { description: 'Invalid parameters or JSON' },
+          413: { description: 'Body exceeds the 16 KiB telemetry cap (payload-too-large)' },
         },
       },
     },

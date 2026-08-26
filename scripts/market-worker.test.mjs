@@ -554,4 +554,116 @@ test('total downloads badge sums the family range API with caching', async () =>
     globalThis.fetch = originalFetch
   }
 })
+function manifestAssets(itemsByKind) {
+  return {
+    async fetch(request) {
+      const pathname = request instanceof URL ? request.pathname : new URL(typeof request === 'string' ? request : request.url).pathname
+      const kind = pathname.replace('/manifest/', '').replace('.json', '')
+      return new Response(JSON.stringify({ items: itemsByKind[kind] || [] }), { headers: { 'content-type': 'application/json' } })
+    },
+  }
+}
+
+test('worker write endpoints reject oversized bodies with 413', async () => {
+  const big = JSON.stringify({ kind: 'skin', asset_id: 'harbor', device_fp: '0123456789abcdef', pad: 'x'.repeat(8 * 1024) })
+  const like = await worker.fetch(new Request('https://dsh-market.com/api/like', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: big,
+  }), { TURNSTILE_SECRET: 'configured' }, context())
+  assert.equal(like.status, 413)
+  assert.equal((await like.json()).error, 'payload-too-large')
+  const bigTelemetry = JSON.stringify({ kind: 'heartbeat', visitor: 'visitor-abcdef1234567890', pad: 'x'.repeat(32 * 1024) })
+  const telemetry = await worker.fetch(new Request('https://dsh-market.com/api/telemetry/event', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: bigTelemetry,
+  }), { DB: { prepare: () => ({ run: async () => ({}) }) } }, context())
+  assert.equal(telemetry.status, 413)
+})
+
+test('worker write endpoints reject oversized streamed bodies without content-length', async () => {
+  const big = JSON.stringify({ kind: 'skin', asset_id: 'harbor', device_fp: '0123456789abcdef', pad: 'x'.repeat(8 * 1024) })
+  const stream = new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode(big)); controller.close() } })
+  const response = await worker.fetch(new Request('https://dsh-market.com/api/like', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: stream,
+    duplex: 'half',
+  }), { TURNSTILE_SECRET: 'configured' }, context())
+  assert.equal(response.status, 413)
+})
+
+test('worker write endpoints reject assets missing from the published manifests', async () => {
+  const db = { prepare: () => { throw new Error('DB must not be touched for unknown assets') } }
+  const assets = manifestAssets({ skin: [{ id: 'harbor' }] })
+  const like = await worker.fetch(new Request('https://dsh-market.com/api/like', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ kind: 'skin', asset_id: 'not-published', device_fp: '0123456789abcdef' }),
+  }), { TURNSTILE_SECRET: 'configured', DB: db, ASSETS: assets }, context())
+  assert.equal(like.status, 400)
+  assert.equal((await like.json()).error, 'unknown-asset')
+  const install = await worker.fetch(new Request('https://dsh-market.com/api/install', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ kind: 'skin', asset_id: 'not-published', device_fp: '0123456789abcdef', install_id: 'install-1-abcdef1234567890' }),
+  }), { TURNSTILE_SECRET: 'configured', DB: db, ASSETS: assets }, context())
+  assert.equal(install.status, 400)
+  assert.equal((await install.json()).error, 'unknown-asset')
+})
+
+test('worker accepts a like for a manifest-listed asset and caches the allowlist', async () => {
+  const realFetch = globalThis.fetch
+  globalThis.fetch = async () => new Response(JSON.stringify({ success: true, action: 'market-like', hostname: 'dsh-market.com' }))
+  try {
+    let manifestReads = 0
+    const assets = {
+      async fetch(request) {
+        manifestReads += 1
+        const pathname = request instanceof URL ? request.pathname : new URL(typeof request === 'string' ? request : request.url).pathname
+        const items = pathname === '/manifest/skins.json' ? [{ id: 'harbor' }] : []
+        return new Response(JSON.stringify({ items }), { headers: { 'content-type': 'application/json' } })
+      },
+    }
+    const db = {
+      prepare: (sql) => ({ bind: () => ({ sql }) }),
+      batch: async () => [{ results: [] }, { results: [] }, { results: [{ votes: 3 }] }],
+    }
+    const post = () => worker.fetch(new Request('https://dsh-market.com/api/like', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ kind: 'skin', asset_id: 'harbor', device_fp: '0123456789abcdef', turnstile_token: 'token-1' }),
+    }), { TURNSTILE_SECRET: 'configured', DB: db, ASSETS: assets }, context())
+    const first = await post()
+    assert.equal(first.status, 200)
+    assert.equal((await first.json()).votes, 3)
+    const readsAfterFirst = manifestReads
+    const second = await post()
+    assert.equal(second.status, 200)
+    assert.equal(manifestReads, readsAfterFirst, 'allowlist cache must serve the second write within the TTL')
+  } finally {
+    globalThis.fetch = realFetch
+  }
+})
+
+test('worker allows writes when the asset manifests are unreadable', async () => {
+  const realFetch = globalThis.fetch
+  globalThis.fetch = async () => new Response(JSON.stringify({ success: true, action: 'market-like', hostname: 'dsh-market.com' }))
+  try {
+    const assets = { async fetch() { throw new Error('assets down') } }
+    const db = {
+      prepare: (sql) => ({ bind: () => ({ sql }) }),
+      batch: async () => [{ results: [] }, { results: [] }, { results: [{ votes: 1 }] }],
+    }
+    const response = await worker.fetch(new Request('https://dsh-market.com/api/like', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ kind: 'skin', asset_id: 'anything', device_fp: '0123456789abcdef', turnstile_token: 'token-1' }),
+    }), { TURNSTILE_SECRET: 'configured', DB: db, ASSETS: assets }, context())
+    assert.equal(response.status, 200, 'availability rule: manifest outage must not break writes')
+  } finally {
+    globalThis.fetch = realFetch
+  }
+})
 

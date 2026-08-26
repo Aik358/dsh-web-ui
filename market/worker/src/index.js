@@ -1,11 +1,14 @@
 /**
  * dsh-market — edge API for the DSH marketplace.
  * Anonymous likes are Turnstile-gated (fail closed without the secret) and stored in D1.
+ * Write bodies are size-capped and asset ids are checked against the served manifests.
  * The API surface is advertised via /.well-known/api-catalog (RFC 9727),
  * described by /openapi.json and documented at /api-docs.html.
  */
 
 import { handleTelemetryPost, handleTelemetrySummary, handleTelemetryUsersBadge } from './telemetry.js'
+import { readJsonCapped } from './body.js'
+import { isKnownAsset } from './asset-allowlist.js'
 import { handleNpmBadge, handleNpmDownloads } from './npm-badge.js'
 import API_CATALOG from './api-catalog.js'
 import OPENAPI_SPEC from './openapi.js'
@@ -16,6 +19,8 @@ const INSTALL_ACTIONS = new Set(['market-like', 'market-install'])
 const HOMEPAGE_PATHS = new Set(['/', '/index.html'])
 const HOME_LINK = '</.well-known/api-catalog>; rel="api-catalog", </openapi.json>; rel="service-desc", </api-docs.html>; rel="service-doc", </api-docs.html>; rel="describedby"'
 const ASSET_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
+/** Anonymous write bodies are tiny; cap them to bound parse cost and abuse. */
+const WRITE_BODY_MAX_BYTES = 4 * 1024
 const MARKDOWN_TTL_MS = 5 * 60 * 1000
 
 /** True when the Accept header prefers text/markdown with q > 0. */
@@ -263,8 +268,9 @@ export default {
     }
 
     if (path === '/api/install' && request.method === 'POST') {
-      let body
-      try { body = await request.json() } catch { return json({ ok: false, error: 'invalid-json' }, 400) }
+      const read = await readJsonCapped(request, WRITE_BODY_MAX_BYTES)
+      if (!read.ok) return json({ ok: false, error: read.error }, read.error === 'payload-too-large' ? 413 : 400)
+      const body = read.value
       const kind = typeof body.kind === 'string' ? body.kind : ''
       const assetId = typeof body.asset_id === 'string' ? body.asset_id : ''
       const fp = typeof body.device_fp === 'string' ? body.device_fp : ''
@@ -272,6 +278,7 @@ export default {
       if (!KINDS.has(kind) || !ASSET_RE.test(assetId) || !FP_RE.test(fp) || !/^[A-Za-z0-9_-]{16,64}$/.test(installId)) {
         return json({ ok: false, error: 'invalid-params' }, 400)
       }
+      if (!(await isKnownAsset(env, kind, assetId))) return json({ ok: false, error: 'unknown-asset' }, 400)
       const hash = await sha256(fp)
       const token = typeof body.turnstile_token === 'string' ? body.turnstile_token : ''
       if (!(await verifyTurnstile(request, env, token))) {
@@ -290,8 +297,9 @@ export default {
     }
 
     if (path === '/api/like' && request.method === 'POST') {
-      let body
-      try { body = await request.json() } catch { return json({ ok: false, error: 'invalid-json' }, 400) }
+      const read = await readJsonCapped(request, WRITE_BODY_MAX_BYTES)
+      if (!read.ok) return json({ ok: false, error: read.error }, read.error === 'payload-too-large' ? 413 : 400)
+      const body = read.value
       const kind = typeof body.kind === 'string' ? body.kind : ''
       const assetId = typeof body.asset_id === 'string' ? body.asset_id : ''
       const fp = typeof body.device_fp === 'string' ? body.device_fp : ''
@@ -299,6 +307,7 @@ export default {
       if (!KINDS.has(kind) || !ASSET_RE.test(assetId) || !FP_RE.test(fp)) {
         return json({ ok: false, error: 'invalid-params' }, 400)
       }
+      if (!(await isKnownAsset(env, kind, assetId))) return json({ ok: false, error: 'unknown-asset' }, 400)
       const hash = await sha256(fp)
       const token = typeof body.turnstile_token === 'string' ? body.turnstile_token : ''
       if (!(await verifyTurnstile(request, env, token))) {
