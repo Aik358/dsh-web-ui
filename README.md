@@ -119,7 +119,11 @@ dsh-web 是 DeepSeek Harness（DSH）Web GUI 的插件聚合生态包（DSH Web 
 
 输入框上方有分支选择器，可以切分支、翻提交历史；Git 图谱把分支泳道和提交历史画出来，仓库再大也能顺着时间线找到变更。
 
+还支持 git worktree 并行会话：弹层里「在 worktree 中开始新会话」会在 `$DSH_HOME/worktrees/` 下建一个隔离检出（携带新分支 `wt/<名称>`，基线分支可选），注册为工作区后直接在其中开新会话，主检出全程不动；「管理 worktree」面板列出全部托管检出并可删除（有未提交改动先拦一次再强制，`wt/` 分支默认保留）。设置里还有两个默认关闭的开关：「自动隔离」让 git 工作区的每个新会话自动落进独立 worktree（基线可选当前分支或远程默认分支），「Agent 工具」把 `git_worktree` 交给智能体自己创建隔离环境。
+
 ![Git 图谱](docs/screenshots/04-git-graph.png)
+
+![Git worktree 并行会话](docs/screenshots/34-git-worktree.png)
 
 ### 梁神模式（LiangShen Anchored Preset）
 
