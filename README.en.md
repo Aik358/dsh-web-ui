@@ -119,7 +119,11 @@ The right panel is provided by the external plugin [dsh-better-sidebar](https://
 
 The branch picker above the input box switches branches and browses commit history. The Git graph draws branch lanes and commits on a timeline, which stays readable even in big repositories.
 
+It also grows git worktree parallel sessions: "Start a new session in a worktree" in the popover creates an isolated checkout under `$DSH_HOME/worktrees/` (on a new `wt/<name>` branch, with a selectable base), registers it as a workspace, and opens a new session there — the main checkout never moves. "Manage worktrees" lists every managed checkout and removes them (a dirty tree is refused once before force is offered; the `wt/` branch is kept by default). Two settings stay off by default: auto-isolation routes every new session of a git workspace into its own worktree (baseline: current branch or the remote default branch), and the agent tool hands `git_worktree` to the agent so it can create its own isolated environment.
+
 ![Git graph](docs/screenshots/04-git-graph.png)
+
+![Git worktree parallel sessions](docs/screenshots/34-git-worktree.png)
 
 ### LiangShen Mode (Anchored Agent Preset)（梁神模式）
 
