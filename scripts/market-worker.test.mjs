@@ -194,6 +194,7 @@ test('worker serves the OpenAPI description and API docs', async () => {
   const docs = await worker.fetch(new Request('https://dsh-market.com/api-docs.html'), {}, context())
   assert.equal(docs.status, 200)
   assert.match(docs.headers.get('content-type') || '', /text\/html/)
+  assert.equal(docs.headers.get('x-content-type-options'), 'nosniff')
   assert.match(await docs.text(), /创意工坊 API 文档/)
 })
 
@@ -236,6 +237,7 @@ test('worker serves a markdown homepage via Accept: text/markdown', async () => 
   const response = await worker.fetch(new Request('https://dsh-market.com/', { headers: { accept: 'text/markdown' } }), { ASSETS: assets }, context())
   assert.equal(response.status, 200)
   assert.match(response.headers.get('content-type') || '', /text\/markdown/)
+  assert.equal(response.headers.get('x-content-type-options'), 'nosniff')
   assert.ok(Number(response.headers.get('x-markdown-tokens')) > 0)
   const body = await response.text()
   assert.match(body, /^# DSH Web UI/)

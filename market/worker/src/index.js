@@ -361,6 +361,7 @@ export default {
               'content-type': 'text/markdown; charset=utf-8',
               'cache-control': 'public, max-age=300',
               'access-control-allow-origin': '*',
+              'x-content-type-options': 'nosniff',
               'x-markdown-tokens': String(md.tokens),
             },
           })
@@ -416,6 +417,7 @@ export default {
           'content-type': 'text/html; charset=utf-8',
           'cache-control': 'public, max-age=300',
           'access-control-allow-origin': '*',
+          'x-content-type-options': 'nosniff',
         },
       })
     }
