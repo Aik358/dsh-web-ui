@@ -98,9 +98,9 @@ node scripts/capture-previews <name>                    # 重拍 preview/{light,
 ## 6. 验收清单（全部满足才算完成）
 
 - [ ] `node scripts/dsh-skin validate` 通过，`pnpm skin-center:check` 通过
-- [ ] gallery 模拟器亮/暗两态渲染正常（`preview.html?skin=<name>&theme=light|dark`）
+- [ ] 市场模拟器亮/暗两态渲染正常（`market/dist/preview.html?skin=<name>&theme=light|dark`）
 - [ ] `preview/{light,dark}.png` 已用 capture-previews 重拍并提交
-- [ ] `scripts/gallery-build` 已重跑，gallery 产物已提交，`pnpm gallery:check` 通过
+- [ ] `pnpm market:build` 已重跑，market/dist 产物已提交，`pnpm market:check` 通过
 - [ ] 纯呈现层约束未违反（无服务注入/事件/模型请求）
 - [ ] README 双语、第三方素材的 license/licenseUrl/attribution 齐全
 - [ ] 提交信息清晰，PR 附试穿截图
@@ -111,5 +111,5 @@ node scripts/capture-previews <name>                    # 重拍 preview/{light,
 - **暗色没写**：`body[data-ds-dark-theme]` 一套值是必须的，缺了暗色模式直接用亮色 token。
 - **自由选择器泄露**：patches.css 每条规则都会被作用域化并披露，能 token 解决就别写补丁。
 - **hooks 未与 skin-center 同评审**：hooks.mjs 是受信代码，直接提交会挂评审。
-- **预览图过期**：改完外观必须重跑 capture-previews，否则 gallery/皮肤中心显示旧图。
+- **预览图过期**：改完外观必须重跑 capture-previews，否则市场/皮肤中心显示旧图。
 - **一级菜单「皮肤中心」不显示新皮肤**：确认资产目录在 `skins/` 下（目录即注册表），再刷新页面。
