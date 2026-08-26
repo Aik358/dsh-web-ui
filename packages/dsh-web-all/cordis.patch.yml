@@ -43,6 +43,27 @@
     - id: web-ui-git-graph
       name: '@linxin666/dsh-client-ui-git-graph'
 
+# from ../dsh-perf
+- insert:
+    - id: web-ui-dsh-perf
+      name: '@linxin666/dsh-perf'
+      config:
+        enabled: true
+        meterIntervalMs: 2000
+        statsWindowSeconds: 120
+        maxActiveSessions: 5
+        maxEventsPerSec: 300
+
+# from ../dsh-perf (patch row session-persistence-jsonl)
+- id: session-persistence-jsonl
+  name: '@deepseek-ai/dsh-session-persistence-jsonl'
+  config:
+    root: !!js dshHomePath('sessions')
+    packChunks: true
+    compression: zstd
+    preparedSessionCacheSize: 5
+    writeBatchMaxDelayMs: 500
+
 # from ../dsh-remote-web-ui
 - insert:
     - id: web-ui-remote-web-ui
