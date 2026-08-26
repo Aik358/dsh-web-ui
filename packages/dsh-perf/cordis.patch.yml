@@ -18,6 +18,7 @@
         maxEventsPerSec: 300
 
 - id: session-persistence-jsonl
+  name: '@deepseek-ai/dsh-session-persistence-jsonl'
   config:
     root: !!js dshHomePath('sessions')
     packChunks: true

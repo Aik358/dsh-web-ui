@@ -143,32 +143,71 @@ function parseManifest(ymlPath, errors) {
   return manifest
 }
 
-/** Extract {id, name} rows from a child's cordis.patch.yml (fixed format: "- id:" immediately followed by "name:"). */
-function parsePatchRows(patchPath, errors) {
+/**
+ * Parse a child's cordis.patch.yml into row blocks. Two kinds are supported:
+ * - insert rows under a "- insert:" block (own plugin rows; id is namespaced
+ *   later, config preserved when present);
+ * - top-level bare rows ("- id:" directly, no insert wrapper): patches to an
+ *   already-mounted harness/plugin row by id (config replaced as a whole), so
+ *   their id and config survive verbatim into the aggregate patch.
+ * The file format is the repo's fixed YAML subset: "- id:" followed by
+ * "name:", then optional "config:" with deeper-indented key lines.
+ */
+function parsePatchBlocks(patchPath, errors) {
   const significant = []
   for (const [i, raw] of readFileSync(patchPath, 'utf8').split(/\r?\n/).entries()) {
-    const text = raw.trim()
-    if (text && !text.startsWith('#')) significant.push({ text, line: i + 1 })
+    if (raw.trim() && !raw.trim().startsWith('#')) {
+      significant.push({ text: raw.trimEnd(), line: i + 1 })
+    }
   }
-  const rows = []
+  const blocks = []
+  let inInsert = false
   for (let i = 0; i < significant.length; i++) {
-    const idMatch = significant[i].text.match(/^-\s*id:\s*(\S+)\s*$/)
+    const line = significant[i]
+    if (/^- insert:\s*$/.test(line.text.trim())) {
+      inInsert = true
+      continue
+    }
+    const idMatch = line.text.match(/^(\s*)- id:\s*(\S+)\s*$/)
     if (!idMatch) continue
-    const next = significant[i + 1]
-    if (!next) {
-      errors.push(`${patchPath}:${significant[i].line}: "- id:" row without a following "name:" line`)
+    const idIndent = idMatch[1].length
+    if (idIndent > 0 && !inInsert) {
+      errors.push(`${patchPath}:${line.line}: expected a "- insert:" block before indented "- id:${idMatch[1]}"`)
       continue
     }
-    const nameMatch = next.text.match(/^name:\s*(['"])([^'"]+)\1\s*$/)
-      || next.text.match(/^name:\s*(\S+)\s*$/)
-    if (!nameMatch) {
-      errors.push(`${patchPath}:${next.line}: expected a "name:" line after "- id: ${idMatch[1]}"`)
+    if (idIndent === 0) inInsert = false
+    const subIndent = idIndent + 2
+    const block = { kind: inInsert ? 'insert' : 'patch', id: idMatch[2], name: '', configLines: [] }
+    let j = i + 1
+    const nameLine = significant[j]
+    if (nameLine && nameLine.text.startsWith(' '.repeat(subIndent)) && /^name:/.test(nameLine.text.slice(subIndent))) {
+      const nameMatch = nameLine.text.slice(subIndent).match(/^name:\s*(['"])([^'"]+)\1\s*$/)
+        || nameLine.text.slice(subIndent).match(/^name:\s*(\S+)\s*$/)
+      if (nameMatch) {
+        block.name = nameMatch[2] ?? nameMatch[1]
+        j++
+        const configLine = significant[j]
+        if (configLine && configLine.text.startsWith(' '.repeat(subIndent)) && /^config:/.test(configLine.text.slice(subIndent))) {
+          j++
+          while (j < significant.length) {
+            const candidate = significant[j]
+            const indent = candidate.text.length - candidate.text.trimStart().length
+            if (indent <= subIndent) break
+            block.configLines.push(candidate.text)
+            j++
+          }
+        }
+      }
+    }
+    if (!block.name) {
+      errors.push(`${patchPath}:${line.line}: expected a "name:" line after "- id: ${block.id}"`)
+      i = j - 1
       continue
     }
-    rows.push({ id: idMatch[1], name: nameMatch[2] ?? nameMatch[1] })
-    i++ // consume the paired name line
+    blocks.push(block)
+    i = j - 1
   }
-  return rows
+  return blocks
 }
 
 /**
@@ -202,7 +241,7 @@ function collectRows(pkgDir, entry, via, visited, errors, blocks) {
     errors.push(`patchFrom target has no cordis.patch.yml: ${pkgDir} (via ${[...via, entry].join(' -> ')})`)
     return
   }
-  const rows = parsePatchRows(patchPath, errors)
+  const rows = parsePatchBlocks(patchPath, errors)
   if (rows.length === 0) {
     errors.push(`no plugin rows parsed from ${patchPath}`)
     return
@@ -210,19 +249,41 @@ function collectRows(pkgDir, entry, via, visited, errors, blocks) {
   blocks.push({ entry, via, rows })
 }
 
-/** Render the aggregate cordis.patch.yml: header + per-source insert blocks. */
+/** Append one row's config lines (already properly indented in the source) after its "config:" key. */
+function pushConfig(lines, configLines, keyIndent) {
+  if (configLines.length === 0) return
+  lines.push(`${' '.repeat(keyIndent)}config:`)
+  for (const configLine of configLines) lines.push(configLine)
+}
+
+/** Render the aggregate cordis.patch.yml: header + per-source insert blocks, plus verbatim harness-row patches. */
 function renderPatch(blocks, externalRows, errors, rel) {
   const lines = [...PATCH_HEADER]
   const seen = new Set()
+  const patchedIds = new Set()
   for (const block of blocks) {
     const chain = block.via.length ? ` (via ${block.via.join(' -> ')})` : ''
-    lines.push('', `# from ${block.entry}${chain}`, '- insert:')
-    for (const row of block.rows) {
-      const id = namespaceId(row.id)
-      if (seen.has(id)) errors.push(`${rel}: duplicate aggregate row id after namespacing: ${id} (${row.name})`)
-      seen.add(id)
-      lines.push(`    - id: ${id}`)
-      lines.push(`      name: '${row.name}'`)
+    const sourceHeader = `# from ${block.entry}${chain}`
+    const insertRows = block.rows.filter((row) => row.kind !== 'patch')
+    const patchRows = block.rows.filter((row) => row.kind === 'patch')
+    if (insertRows.length > 0) {
+      lines.push('', sourceHeader, '- insert:')
+      for (const row of insertRows) {
+        const id = namespaceId(row.id)
+        if (seen.has(id)) errors.push(`${rel}: duplicate aggregate row id after namespacing: ${id} (${row.name})`)
+        seen.add(id)
+        lines.push(`    - id: ${id}`)
+        lines.push(`      name: '${row.name}'`)
+        pushConfig(lines, row.configLines ?? [], 6)
+      }
+    }
+    for (const row of patchRows) {
+      if (patchedIds.has(row.id)) errors.push(`${rel}: duplicate harness row patch across sources: ${row.id} (${row.name})`)
+      patchedIds.add(row.id)
+      lines.push('', `${sourceHeader} (patch row ${row.id})`)
+      lines.push(`- id: ${row.id}`)
+      lines.push(`  name: '${row.name}'`)
+      pushConfig(lines, row.configLines ?? [], 2)
     }
   }
   // External rows: npm packages outside this repo, mounted like any child.
@@ -332,7 +393,7 @@ for (const { pkgDir, ymlPath } of aggregates) {
       } catch (e) {
         errors.push(`cannot read self package name: ${e.message}`)
       }
-      if (selfName) blocks.unshift({ entry: 'self', via: [], rows: [{ id: manifest.self, name: selfName }] })
+      if (selfName) blocks.unshift({ entry: 'self', via: [], rows: [{ kind: 'insert', id: manifest.self, name: selfName, configLines: [] }] })
     }
   }
   if (manifest.patchFrom.length === 0 && !manifest.self) {

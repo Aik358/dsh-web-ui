@@ -1221,6 +1221,9 @@ importers:
       '@linxin666/dsh-liangshen':
         specifier: workspace:*
         version: link:../dsh-liangshen
+      '@linxin666/dsh-perf':
+        specifier: workspace:*
+        version: link:../dsh-perf
       '@linxin666/dsh-pet':
         specifier: workspace:*
         version: link:../dsh-pet
