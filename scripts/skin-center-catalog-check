@@ -18,6 +18,8 @@ const SKINS_DIR = path.join(__dirname, '..', 'packages', 'skins', 'skin-center',
 
 async function main() {
   const checkMode = process.argv.includes('--check')
+  const { execFileSync } = require('node:child_process')
+  execFileSync(process.execPath, [path.join(__dirname, 'skin-hooks-registry.mjs'), '--check'], { stdio: 'inherit' })
   const lib = await import(pathToFileURL(LIB_PATH).href)
   const catalog = lib.loadSkinCatalog({ builtinDir: SKINS_DIR, userDir: path.join(SKINS_DIR, '.nonexistent-user-root') })
   let failed = false
