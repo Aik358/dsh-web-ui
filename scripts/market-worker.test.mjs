@@ -205,7 +205,7 @@ function telemetryDb(options = {}) {
     },
     async batch(statements) {
       batches.push(statements)
-      if (statements.length === 7 && options.summary) return options.summary.map((results) => ({ results }))
+      if (statements.length === 9 && options.summary) return options.summary.map((results) => ({ results }))
       return statements.map(() => ({ results: [] }))
     },
   }
@@ -315,8 +315,10 @@ test('telemetry summary returns aggregates only and prunes old events', async ()
       [{ day: '2026-05-01', pv: 12, uv: 5 }],
       [{ day: '2026-05-01', pv: 3, uv: 2 }],
       [{ subject: '/', pv: 9 }],
+      [{ n: 41 }],
       [{ subject: '@linxin666/dsh-pet', visitors: 2 }],
       [{ subject: '@linxin666/dsh-pet', visitors: 1 }],
+      [{ n: 17 }],
       [{ subject: '@linxin666/dsh-pet', channel: 'market', visitors: 1 }],
       [{ subject: '@linxin666/dsh-pet', version: '1.2.3', visitors: 2 }],
     ],
@@ -326,6 +328,10 @@ test('telemetry summary returns aggregates only and prunes old events', async ()
   const payload = await response.json()
   assert.equal(payload.site.totals.pv, 12)
   assert.equal(payload.site.daily[0].uv, 5)
+  assert.equal(payload.site.paths_total, 41)
+  assert.deepEqual(payload.site.paths_page, { offset: 0, limit: 20 })
+  assert.equal(payload.plugins.totals.items, 17)
+  assert.deepEqual(payload.plugins.items_page, { offset: 0, limit: 200 })
   assert.equal(payload.plugins.items[0].item, '@linxin666/dsh-pet')
   assert.equal(payload.plugins.items[0].instances, 2)
   assert.equal(payload.plugins.items[0].active_today, 1)
@@ -333,6 +339,38 @@ test('telemetry summary returns aggregates only and prunes old events', async ()
   assert.equal(payload.plugins.items[0].versions[0].version, '1.2.3')
   assert.equal(db.runs.length, 1)
   assert.match(db.runs[0].sql, /DELETE FROM telemetry_events/)
+})
+
+test('telemetry summary binds the requested pagination windows', async () => {
+  const db = telemetryDb()
+  const response = await worker.fetch(new Request(
+    'https://dsh-market.com/api/telemetry/summary?days=30&paths_limit=10&paths_offset=20&items_limit=25&items_offset=50',
+  ), { DB: db }, context())
+  assert.equal(response.status, 200)
+  const payload = await response.json()
+  assert.deepEqual(payload.site.paths_page, { offset: 20, limit: 10 })
+  assert.deepEqual(payload.plugins.items_page, { offset: 50, limit: 25 })
+  const batch = db.batches[0]
+  const pathsQuery = batch.find((stmt) => stmt.sql.includes("kind = 'pv'") && stmt.sql.includes('GROUP BY subject'))
+  const itemsQuery = batch.find((stmt) => stmt.sql.includes("kind = 'hb'") && stmt.sql.includes('GROUP BY subject ORDER BY visitors'))
+  assert.deepEqual(pathsQuery.args.slice(1), [10, 20])
+  assert.deepEqual(itemsQuery.args.slice(1), [25, 50])
+})
+
+test('telemetry summary clamps out-of-range pagination parameters', async () => {
+  const db = telemetryDb()
+  const response = await worker.fetch(new Request(
+    'https://dsh-market.com/api/telemetry/summary?paths_limit=0&paths_offset=-5&items_limit=9999',
+  ), { DB: db }, context())
+  assert.equal(response.status, 200)
+  const payload = await response.json()
+  assert.deepEqual(payload.site.paths_page, { offset: 0, limit: 1 })
+  assert.deepEqual(payload.plugins.items_page, { offset: 0, limit: 200 })
+  const batch = db.batches[0]
+  const pathsQuery = batch.find((stmt) => stmt.sql.includes("kind = 'pv'") && stmt.sql.includes('GROUP BY subject'))
+  const itemsQuery = batch.find((stmt) => stmt.sql.includes("kind = 'hb'") && stmt.sql.includes('GROUP BY subject ORDER BY visitors'))
+  assert.deepEqual(pathsQuery.args.slice(1), [1, 0])
+  assert.deepEqual(itemsQuery.args.slice(1), [200, 0])
 })
 
 test('telemetry summary enforces the read key only when configured', async () => {

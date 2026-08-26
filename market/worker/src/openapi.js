@@ -106,9 +106,13 @@ export default {
         summary: 'Aggregate UV/PV summary; counts only, never raw events',
         parameters: [
           { name: 'days', in: 'query', required: false, schema: { type: 'integer', minimum: 1, maximum: 365 } },
+          { name: 'paths_limit', in: 'query', required: false, schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 }, description: 'Hot-path page size' },
+          { name: 'paths_offset', in: 'query', required: false, schema: { type: 'integer', minimum: 0, default: 0 }, description: 'Hot-path page offset; the full count is site.paths_total' },
+          { name: 'items_limit', in: 'query', required: false, schema: { type: 'integer', minimum: 1, maximum: 200, default: 200 }, description: 'Heartbeat-item page size' },
+          { name: 'items_offset', in: 'query', required: false, schema: { type: 'integer', minimum: 0, default: 0 }, description: 'Heartbeat-item page offset; the full count is plugins.totals.items' },
         ],
         responses: {
-          200: { description: 'Per-day and per-item aggregates for site pageviews and plugin heartbeats' },
+          200: { description: 'Per-day and per-item aggregates for site pageviews and plugin heartbeats; hot paths and items are paginated, totals included' },
           403: { description: 'TELEMETRY_READ_KEY configured and not presented' },
         },
       },

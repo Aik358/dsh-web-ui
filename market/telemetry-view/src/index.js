@@ -11,10 +11,17 @@
  *
  * The worker holds no data: every render fetches the live aggregate from
  * dsh-market.com /api/telemetry/summary with TELEMETRY_READ_KEY, so the
- * market worker stays the single source of truth.
+ * market worker stays the single source of truth. In-page interactions
+ * (range switch, table pagination) go through the same-origin /data proxy,
+ * which applies the same Access verification and forwards the summary
+ * API's pagination window.
  */
 
+import { PAGE_CSP, renderDashboard } from './page.js'
+
 const SUMMARY_BASE = 'https://dsh-market.com/api/telemetry/summary'
+/** Initial page sizes for the two paginated tables. */
+const PAGE_SIZES = { paths: 10, items: 10 }
 
 let jwksCache = { at: 0, keys: null }
 
@@ -70,13 +77,27 @@ async function accessVerified(request, env) {
   return true
 }
 
+const PLAIN_STYLE = '<style>body{font:14px/1.7 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:#0a0f1e;color:#e6eaf6;max-width:640px;margin:0 auto;padding:48px 24px}h1{font-size:20px}code{background:rgba(148,163,255,.12);color:#a9bcff;padding:1px 6px;border-radius:5px}li{margin:8px 0}</style>'
+
 function page(status, title, body) {
-  return new Response('<!doctype html><meta charset="utf-8"><title>' + title + '</title>' + body, {
+  return new Response('<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>' + title + '</title>' + PLAIN_STYLE + '</head><body>' + body + '</body></html>', {
     status,
     headers: {
       'content-type': 'text/html; charset=utf-8',
       'cache-control': 'no-store',
-      'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'",
+      'content-security-policy': PAGE_CSP,
+      'referrer-policy': 'no-referrer',
+    },
+  })
+}
+
+function json(data, status) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      'cache-control': 'no-store',
+      'content-security-policy': PAGE_CSP,
       'referrer-policy': 'no-referrer',
     },
   })
@@ -94,88 +115,16 @@ const SETUP_HTML = [
   '</ol>',
 ].join('')
 
-function esc(text) {
-  return String(text).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]))
-}
-
-/** Chinese dashboard for the private telemetry view. CSP-safe: no scripts,
- * bars are pure CSS widths. */
-function renderDashboard(data, days) {
-  const site = data.site || { totals: {}, daily: [], top_paths: [] }
-  const plugins = data.plugins || { items: [] }
-  const daily = [...site.daily]
-  const today = daily.at(-1) || { pv: 0, uv: 0 }
-  const maxPv = Math.max(1, ...daily.map((row) => Number(row.pv) || 0))
-
-  const cards = [
-    ['今日 PV', today.pv],
-    ['今日 UV', today.uv],
-    ['区间累计 PV', site.totals.pv || 0],
-    ['区间累计 UV（按日去重求和）', site.totals.uv_daily_sum || 0],
-  ].map(([label, value]) =>
-    '<div class="card"><div class="card-value">' + esc(value) + '</div><div class="card-label">' + esc(label) + '</div></div>').join('')
-
-  const barRows = daily.map((row) => {
-    const width = Math.max(2, Math.round((Number(row.pv) / maxPv) * 100))
-    return '<tr><td class="day">' + esc(row.day) + '</td>'
-      + '<td class="barcell"><div class="bar" style="width:' + width + '%"></div></td>'
-      + '<td class="num">' + esc(row.pv) + '</td><td class="num">' + esc(row.uv) + '</td></tr>'
-  }).join('')
-
-  const pathRows = site.top_paths.length
-    ? site.top_paths.map((row) =>
-        '<tr><td><code>' + esc(row.path) + '</code></td><td class="num">' + esc(row.pv) + '</td></tr>').join('')
-    : '<tr><td colspan="2" class="empty">暂无数据</td></tr>'
-
-  const channelText = (channels) => {
-    const parts = Object.entries(channels || {}).map(([name, count]) => name + ' ' + count)
-    return parts.length ? parts.join(' · ') : '—'
-  }
-  const versionText = (versions) => (versions || []).slice(0, 4).map((v) => v.version + '(' + v.instances + ')').join(', ') || '—'
-  const itemRows = plugins.items.length
-    ? plugins.items.map((row) =>
-        '<tr><td><code>' + esc(row.item) + '</code></td><td class="num">' + esc(row.instances) + '</td><td class="num">' + esc(row.active_today) + '</td>'
-        + '<td class="dim">' + esc(channelText(row.channels)) + '</td><td class="dim">' + esc(versionText(row.versions)) + '</td></tr>').join('')
-    : '<tr><td colspan="5" class="empty">暂无心跳数据——插件心跳要等含遥测的版本发布、用户更新后才会出现</td></tr>'
-
-  const ranges = [7, 30, 90, 365].map((n) =>
-    n === days ? '<b class="range on">' + n + ' 天</b>' : '<a class="range" href="?days=' + n + '">' + n + ' 天</a>').join(' · ')
-
-  return [
-    '<style>',
-    // Light theme. Color roles: accent blue (#2563eb) for emphasis/actions,
-    // supporting sky tint inside the accent family for bars; surfaces stay
-    // low-saturation (off-white base, white cards) for long viewing sessions.
-    '*{box-sizing:border-box}body{font:14px/1.7 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#1e293b;background:#f4f6f9;max-width:960px;margin:0 auto;padding:32px 20px 64px}',
-    'h1{font-size:22px;margin:0 0 4px;color:#0f172a}h2{font-size:15px;margin:36px 0 12px;color:#2563eb;font-weight:600;letter-spacing:.02em}',
-    '.sub{color:#64748b;margin:0 0 20px}.meta{color:#64748b;margin-bottom:6px;font-size:13px}',
-    '.range{color:#2563eb;text-decoration:none;padding:2px 8px;border-radius:6px}.range:hover{background:#e0e9fb}.range.on{color:#0f172a;font-weight:600;background:#dbe7fb}',
-    '.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:20px 0}',
-    '.card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px 18px;box-shadow:0 1px 3px rgba(15,23,42,.06)}',
-    '.card-value{font-size:28px;font-weight:700;color:#0f172a;font-variant-numeric:tabular-nums}',
-    '.card-label{font-size:12px;color:#64748b;margin-top:2px}',
-    'table{border-collapse:collapse;width:100%;background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(15,23,42,.05)}th,td{padding:8px 14px;text-align:left;border-bottom:1px solid #eef2f7}',
-    'th{color:#64748b;font-weight:500;font-size:12px;background:#f8fafc}tr:last-child td{border-bottom:none}tr:hover td{background:#f5f8fd}',
-    '.num{text-align:right;font-variant-numeric:tabular-nums;width:90px;color:#334155}',
-    '.day{color:#64748b;white-space:nowrap;width:110px;font-size:13px}',
-    '.barcell{width:55%}.bar{height:14px;border-radius:4px;background:linear-gradient(90deg,#93c5fd,#3b82f6)}',
-    'code{color:#2563eb;font-size:13px;background:#eff5ff;padding:1px 6px;border-radius:5px}.empty{color:#94a3b8;padding:18px 12px}.dim{color:#64748b;font-size:12px}',
-    '.foot{margin-top:40px;color:#94a3b8;font-size:12px}',
-    '</style>',
-    '<h1>dsh-web 使用统计</h1>',
-    '<p class="sub">站点与插件的匿名 UV / PV 实时汇总 · 数据源 dsh-market.com</p>',
-    '<p class="meta">最近 ' + esc(days) + ' 天 · ' + ranges + ' · <a class="range" href="?days=' + esc(days) + '">刷新</a></p>',
-    '<div class="cards">' + cards + '</div>',
-    '<h2>站点访问趋势</h2>',
-    '<p class="meta">口径：已过滤已知爬虫（UA 特征 + webdriver 检测），仅统计浏览器端上报的页面访问</p>',
-    '<table><tr><th>日期</th><th></th><th class="num">PV</th><th class="num">UV</th></tr>' + barRows + '</table>',
-    '<h2>热门路径</h2>',
-    '<table><tr><th>路径</th><th class="num">PV</th></tr>' + pathRows + '</table>',
-    '<h2>插件安装量</h2>',
-    '<p class="meta">独立实例 = 去重浏览器数；当日活跃 = 今日上报过心跳；渠道 = 安装来源（market=市场一键装，npm=仓库直装，unknown=无法判定）；皮肤条目以 skin: 前缀展示</p>',
-    '<table><tr><th>包 / 资产</th><th class="num">独立实例</th><th class="num">当日活跃</th><th>渠道分布</th><th>版本分布</th></tr>' + itemRows + '</table>',
-    '<p class="foot">所有事件均匿名（随机 ID 加盐哈希，不存 IP），仅展示聚合计数。契约见 docs/telemetry.md。</p>',
-  ].join('')
+/**
+ * Fetch the summary aggregate upstream. query carries the caller's
+ * days/paths/items window verbatim; the market worker clamps it.
+ */
+async function fetchSummary(env, query) {
+  const res = await fetch(SUMMARY_BASE + '?' + query, {
+    headers: { 'x-telemetry-key': env.TELEMETRY_READ_KEY || '' },
+  })
+  if (!res.ok) return { ok: false, status: res.status }
+  return { ok: true, data: await res.json() }
 }
 
 export default {
@@ -187,16 +136,41 @@ export default {
     if (!(await accessVerified(request, env))) {
       return page(401, 'telemetry view', '<h1>401</h1><p>Cloudflare Access verification failed.</p>')
     }
+
+    if (url.pathname === '/data' && request.method === 'GET') {
+      const forwarded = new URLSearchParams()
+      for (const key of ['days', 'paths_limit', 'paths_offset', 'items_limit', 'items_offset']) {
+        const value = url.searchParams.get(key)
+        if (value !== null && /^\d{1,6}$/.test(value)) forwarded.set(key, value)
+      }
+      const result = await fetchSummary(env, forwarded.toString())
+      if (!result.ok) return json({ ok: false, error: 'upstream-' + result.status }, 502)
+      return json(result.data, 200)
+    }
+
+    if (url.pathname !== '/' && url.pathname !== '/index.html') {
+      return page(404, 'telemetry view', '<h1>404</h1><p>Not found.</p>')
+    }
+
     let days = Number.parseInt(url.searchParams.get('days') || '', 10)
     if (!Number.isFinite(days)) days = 30
     days = Math.min(Math.max(days, 1), 365)
-    const summaryRes = await fetch(SUMMARY_BASE + '?days=' + days, {
-      headers: { 'x-telemetry-key': env.TELEMETRY_READ_KEY || '' },
-    })
-    if (!summaryRes.ok) {
-      return page(502, 'telemetry view', '<h1>502</h1><p>Summary upstream returned ' + summaryRes.status + '.</p>')
+    const result = await fetchSummary(env, new URLSearchParams({
+      days: String(days),
+      paths_limit: String(PAGE_SIZES.paths),
+      items_limit: String(PAGE_SIZES.items),
+    }).toString())
+    if (!result.ok) {
+      return page(502, 'telemetry view', '<h1>502</h1><p>Summary upstream returned ' + result.status + '.</p>')
     }
-    const data = await summaryRes.json()
-    return page(200, 'dsh-web telemetry', renderDashboard(data, days))
+    return new Response(renderDashboard({ days, sizes: PAGE_SIZES, data: result.data }), {
+      status: 200,
+      headers: {
+        'content-type': 'text/html; charset=utf-8',
+        'cache-control': 'no-store',
+        'content-security-policy': PAGE_CSP,
+        'referrer-policy': 'no-referrer',
+      },
+    })
   },
 }

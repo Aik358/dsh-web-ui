@@ -32,7 +32,7 @@ th { background: #f9fafb; }
 <tr><td>POST</td><td><code>/api/like</code></td><td>点赞 / 取消点赞（每设备一票，Turnstile 校验），字段：<code>kind</code>、<code>asset_id</code>、<code>device_fp</code>、<code>turnstile_token</code>、<code>unlike</code></td><td>200 / 400 / 403</td></tr>
 <tr><td>GET</td><td><code>/api/turnstile/challenge</code></td><td>供市场卡片使用的 Turnstile 挑战页面</td><td>200</td></tr>
 <tr><td>POST</td><td><code>/api/telemetry/event</code></td><td>匿名使用统计上报（站点 pageview / 插件心跳，条目含 name/version/channel））。仅存储客户端随机 ID 的加盐哈希、UTC 日期与条目名，不存 IP</td><td>200 / 400</td></tr>
-<tr><td>GET</td><td><code>/api/telemetry/summary?days=N</code></td><td>UV/PV 聚合摘要（仅计数，永不暴露原始事件）。配置 <code>TELEMETRY_READ_KEY</code> 后需携带 <code>x-telemetry-key</code> 头或 <code>?key=</code> 参数</td><td>200 / 403</td></tr>
+<tr><td>GET</td><td><code>/api/telemetry/summary?days=N</code></td><td>UV/PV 聚合摘要（仅计数，永不暴露原始事件）。热门路径与心跳条目支持分页：<code>paths_limit</code>/<code>paths_offset</code>（总量见 <code>site.paths_total</code>）与 <code>items_limit</code>/<code>items_offset</code>（总量见 <code>plugins.totals.items</code>）。配置 <code>TELEMETRY_READ_KEY</code> 后需携带 <code>x-telemetry-key</code> 头或 <code>?key=</code> 参数</td><td>200 / 403</td></tr>
 <tr><td>GET</td><td><code>/api/npm-badge/downloads</code></td><td>Shields 端点徽章：聚合包新旧两个 npm 名的月下载量合计</td><td>200</td></tr>
 <tr><td>GET</td><td><code>/api/npm-badge/version</code></td><td>Shields 端点徽章：聚合包新旧两个 npm 名中的最新版本</td><td>200</td></tr>
 <tr><td>GET</td><td><code>/api/npm-badge/total</code></td><td>Shields 端点徽章：全部已发布家族包的 npm 累计下载量合计</td><td>200</td></tr>

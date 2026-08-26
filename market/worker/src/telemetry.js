@@ -107,19 +107,48 @@ export async function submissionRows(env, kind, hash, subjects) {
   return rows
 }
 
+/** Clamp one pagination parameter to [min, max] with a fallback default. */
+function clampInt(value, min, max, fallback) {
+  const n = Number.parseInt(value, 10)
+  if (!Number.isFinite(n)) return fallback
+  return Math.min(Math.max(n, min), max)
+}
+
+/**
+ * Parse the optional pagination window for one summary section.
+ * limit is clamped to [1, maxLimit], offset to [0, 100000].
+ */
+export function parsePage(url, prefix, defaultLimit, maxLimit) {
+  return {
+    limit: clampInt(url.searchParams.get(prefix + '_limit'), 1, maxLimit, defaultLimit),
+    offset: clampInt(url.searchParams.get(prefix + '_offset'), 0, 100000, 0),
+  }
+}
+
 /**
  * Aggregate UV/PV summary over the last N days. Counts only; raw events
  * never leave this table.
+ *
+ * Hot paths and heartbeat items are paginated server-side: each section
+ * returns one LIMIT/OFFSET page plus the total distinct-subject count, so
+ * readers can render complete pagers without transferring whole groupings.
+ * The per-item channel/version breakdowns keep full-cardinality scans
+ * (their row count is bounded by the plugin catalog, not by traffic) and
+ * are joined onto the returned page in memory.
  */
-export async function telemetrySummary(env, days) {
+export async function telemetrySummary(env, days, page = {}) {
   const since = utcDay(Date.now() - (days - 1) * 86400000)
   const today = utcDay()
-  const [dailyPv, dailyHb, topPaths, itemsAll, itemsToday, itemsChannels, itemsVersions] = (await env.DB.batch([
+  const paths = page.paths || { limit: 20, offset: 0 }
+  const items = page.items || { limit: 200, offset: 0 }
+  const [dailyPv, dailyHb, topPaths, pathsTotal, itemsPage, itemsToday, itemsTotal, itemsChannels, itemsVersions] = (await env.DB.batch([
     env.DB.prepare("SELECT day, COUNT(*) AS pv, COUNT(DISTINCT visitor) AS uv FROM telemetry_events WHERE kind = 'pv' AND day >= ?1 GROUP BY day ORDER BY day").bind(since),
     env.DB.prepare("SELECT day, COUNT(*) AS pv, COUNT(DISTINCT visitor) AS uv FROM telemetry_events WHERE kind = 'hb' AND day >= ?1 GROUP BY day ORDER BY day").bind(since),
-    env.DB.prepare("SELECT subject, COUNT(*) AS pv FROM telemetry_events WHERE kind = 'pv' AND day >= ?1 GROUP BY subject ORDER BY pv DESC LIMIT 20").bind(since),
-    env.DB.prepare("SELECT subject, COUNT(DISTINCT visitor) AS visitors FROM telemetry_events WHERE kind = 'hb' AND day >= ?1 GROUP BY subject ORDER BY visitors DESC LIMIT 200").bind(since),
+    env.DB.prepare("SELECT subject, COUNT(*) AS pv FROM telemetry_events WHERE kind = 'pv' AND day >= ?1 GROUP BY subject ORDER BY pv DESC, subject LIMIT ?2 OFFSET ?3").bind(since, paths.limit, paths.offset),
+    env.DB.prepare("SELECT COUNT(DISTINCT subject) AS n FROM telemetry_events WHERE kind = 'pv' AND day >= ?1").bind(since),
+    env.DB.prepare("SELECT subject, COUNT(DISTINCT visitor) AS visitors FROM telemetry_events WHERE kind = 'hb' AND day >= ?1 GROUP BY subject ORDER BY visitors DESC, subject LIMIT ?2 OFFSET ?3").bind(since, items.limit, items.offset),
     env.DB.prepare("SELECT subject, COUNT(DISTINCT visitor) AS visitors FROM telemetry_events WHERE kind = 'hb' AND day = ?1 GROUP BY subject").bind(today),
+    env.DB.prepare("SELECT COUNT(DISTINCT subject) AS n FROM telemetry_events WHERE kind = 'hb' AND day >= ?1").bind(since),
     env.DB.prepare("SELECT subject, channel, COUNT(DISTINCT visitor) AS visitors FROM telemetry_events WHERE kind = 'hb' AND channel != '' AND day >= ?1 GROUP BY subject, channel").bind(since),
     env.DB.prepare("SELECT subject, version, COUNT(DISTINCT visitor) AS visitors FROM telemetry_events WHERE kind = 'hb' AND version != '' AND day >= ?1 GROUP BY subject, version ORDER BY visitors DESC").bind(since),
   ])).map((result) => result.results || [])
@@ -136,6 +165,7 @@ export async function telemetrySummary(env, days) {
   }
   const sumUv = (rows) => rows.reduce((total, row) => total + Number(row.uv || 0), 0)
   const sumPv = (rows) => rows.reduce((total, row) => total + Number(row.pv || 0), 0)
+  const totalOf = (rows) => Number(rows[0] && rows[0].n || 0)
   return {
     ok: true,
     range: { days, since },
@@ -143,11 +173,14 @@ export async function telemetrySummary(env, days) {
       totals: { pv: sumPv(dailyPv), uv_daily_sum: sumUv(dailyPv) },
       daily: dailyPv.map((row) => ({ day: row.day, pv: row.pv, uv: row.uv })),
       top_paths: topPaths.map((row) => ({ path: row.subject, pv: row.pv })),
+      paths_total: totalOf(pathsTotal),
+      paths_page: { offset: paths.offset, limit: paths.limit },
     },
     plugins: {
-      totals: { uv_daily_sum: sumUv(dailyHb), items: itemsAll.length },
+      totals: { uv_daily_sum: sumUv(dailyHb), items: totalOf(itemsTotal) },
       daily: dailyHb.map((row) => ({ day: row.day, beats: row.pv, uv: row.uv })),
-      items: itemsAll.map((row) => ({
+      items_page: { offset: items.offset, limit: items.limit },
+      items: itemsPage.map((row) => ({
         item: row.subject,
         instances: row.visitors,
         active_today: activeToday.get(row.subject) || 0,
@@ -215,7 +248,10 @@ export async function handleTelemetrySummary(request, url, env, json) {
   let days = Number.parseInt(url.searchParams.get('days') || '', 10)
   if (!Number.isFinite(days)) days = 30
   days = Math.min(Math.max(days, 1), 365)
-  const summary = await telemetrySummary(env, days)
+  const summary = await telemetrySummary(env, days, {
+    paths: parsePage(url, 'paths', 20, 100),
+    items: parsePage(url, 'items', 200, 200),
+  })
   try { await pruneOldEvents(env) } catch { /* pruning is best-effort */ }
   return json(summary)
 }

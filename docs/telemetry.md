@@ -27,7 +27,7 @@ UV（独立实例数）= 当日去重访客 ID 数；因此「安装量」读作
 curl -s 'https://dsh-market.com/api/telemetry/summary?days=30'
 ```
 
-返回最近 N 天（1-365）的站点 PV/UV 日序列与热门路径、各包的累计实例数与当日活跃数。机器可读契约见 `/openapi.json` 中 `/api/telemetry/*` 两项。汇总接口由 `TELEMETRY_READ_KEY` secret 保护：携带 `x-telemetry-key` 头或 `?key=` 参数才可读取。
+返回最近 N 天（1-365）的站点 PV/UV 日序列与热门路径、各包的累计实例数与当日活跃数。热门路径与心跳条目按服务端分页返回：`paths_limit`/`paths_offset`（默认 20，上限 100，总量见响应的 `site.paths_total`）与 `items_limit`/`items_offset`（默认 200，上限 200，总量见 `plugins.totals.items`）。机器可读契约见 `/openapi.json` 中 `/api/telemetry/*` 两项。汇总接口由 `TELEMETRY_READ_KEY` secret 保护：携带 `x-telemetry-key` 头或 `?key=` 参数才可读取。
 
 ### 公开徽章端点
 
@@ -38,7 +38,7 @@ GitHub README 展示用两个无需密钥的 shields 端点徽章（只返回聚
 
 ### 私有实时视图
 
-`market/telemetry-view`（部署为 worker `dsh-market-telemetry-view`，地址 `tv.dsh-market.com`）是只读仪表盘：每次访问实时拉取汇总接口并渲染日 PV/UV、热门路径、各包/皮肤的安装量与当日活跃、渠道分布与版本分布，自身不存任何数据。访问保护双层：路由应挂 Cloudflare Access 自托管应用（邮箱验证），worker 内部同时校验 Access JWT 签名（`ACCESS_TEAM` + `ACCESS_AUD` secret，未配置前默认拒绝服务）。
+`market/telemetry-view`（部署为 worker `dsh-market-telemetry-view`，地址 `tv.dsh-market.com`）是只读仪表盘：每次访问实时拉取汇总接口并渲染 KPI 卡片、日 PV/UV 趋势图、分页的热门路径与各包/皮肤安装量（含当日活跃、渠道分布与版本分布），自身不存任何数据。仪表盘页内切换时间范围与翻页经由同源 `/data` JSON 代理（同样校验 Access JWT）调用汇总接口的分页参数，不刷新整页。访问保护双层：路由应挂 Cloudflare Access 自托管应用（邮箱验证），worker 内部同时校验 Access JWT 签名（`ACCESS_TEAM` + `ACCESS_AUD` secret，未配置前默认拒绝服务）。
 
 ## 接入新包
 
