@@ -348,7 +348,19 @@ export function createSkinController(deps: SkinControllerDeps): SkinController {
           await loadStylesheet(patchesHref).catch(() => {})
           trackStylesheet(activation, 'patches', patchesHref)
         }
-        if (seq !== latestRequest) throw new StaleSwitch()
+      }
+      if (seq !== latestRequest) throw new StaleSwitch()
+
+      // Retire the old activation BEFORE activating the new skin's DOM and hooks.
+      const previous = currentActivation
+      currentActivation = activation
+      if (previous !== null) ledger.disposeActivation(previous)
+
+      // The atomic cut: attribute first, so CSS takes effect immediately on the clean DOM.
+      if (id === null) doc.documentElement.removeAttribute('data-dsh-skin')
+      else doc.documentElement.setAttribute('data-dsh-skin', id)
+
+      if (id !== null && entry !== null) {
         installBackground(activation, entry)
         await installHooks(activation, entry)
       } else {
@@ -359,11 +371,6 @@ export function createSkinController(deps: SkinControllerDeps): SkinController {
       }
       if (seq !== latestRequest) throw new StaleSwitch()
 
-      // The atomic cut: attribute first, then retire the old activation.
-      if (id === null) doc.documentElement.removeAttribute('data-dsh-skin')
-      else doc.documentElement.setAttribute('data-dsh-skin', id)
-      const previous = currentActivation
-      currentActivation = activation
       active = id
       if (entry !== null) lastEntry = entry
       if (shouldPersist) {
@@ -375,7 +382,6 @@ export function createSkinController(deps: SkinControllerDeps): SkinController {
         trying = previewing ? id : null
       }
       emit()
-      if (previous !== null) ledger.disposeActivation(previous)
       if (shouldPersist) {
         await persist(id).catch((error) => onError('failed to persist the skin selection', error))
       }
