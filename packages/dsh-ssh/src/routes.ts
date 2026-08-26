@@ -15,7 +15,7 @@ import { tmpdir } from 'node:os'
 import { randomBytes } from 'node:crypto'
 import { WebSocket, WebSocketServer } from 'ws'
 import type { WebRoute, WebUpgradeRoute } from '@deepseek-ai/dsh-host-webserver'
-import type { SshEngine, ShellSession } from './engine.ts'
+import type { SshEngine, ShellSession, KeyboardInteractiveHandler } from './engine.ts'
 import { readJsonBody, writeJson } from './http.ts'
 import { isLoopbackRequest } from './loopback.ts'
 import { SSH_API, type HostPayload, type TerminalClientFrame, type TerminalServerFrame } from './protocol.ts'
@@ -466,6 +466,7 @@ const maxUploadBytes = deps.maxUploadBytes ?? MAX_UPLOAD_BYTES
         let session: ShellSession | undefined
         let closed = false
         let paused = false
+        let pendingAuthFinish: ((responses: string[]) => void) | undefined
         // Resume the shell once the socket's send buffer drains below the
         // low-water mark (transport backpressure).
         const resume = (): void => {
@@ -483,14 +484,38 @@ const maxUploadBytes = deps.maxUploadBytes ?? MAX_UPLOAD_BYTES
           }
         }
         const closeSession = (): void => {
+          if (pendingAuthFinish !== undefined) {
+            const fn = pendingAuthFinish
+            pendingAuthFinish = undefined
+            try { fn([]) } catch { /* ignore */ }
+          }
           const opened = session
           session = undefined
           if (opened !== undefined) opened.close()
         }
+
+        const onKeyboardInteractive: KeyboardInteractiveHandler = (name, instructions, _lang, prompts, finish) => {
+          const entry = store.find(alias)
+          // Auto-answer password if configured and prompt is a password request
+          if (entry?.auth.kind === 'password' && entry.auth.password !== undefined && prompts.length > 0 && prompts.every(p => /password/i.test(p.prompt))) {
+            const password = entry.auth.password
+            finish(prompts.map(() => password))
+            return
+          }
+          // Interactive 2FA prompt sent to the client terminal
+          pendingAuthFinish = finish
+          sendFrame({
+            type: 'auth_prompt',
+            name,
+            instructions,
+            prompts: prompts.map(p => ({ prompt: p.prompt, echo: p.echo })),
+          })
+        }
+
         engine.openShell(alias, {
           cols: Number.isFinite(cols) ? cols : 80,
           rows: Number.isFinite(rows) ? rows : 24,
-        }).then((opened) => {
+        }, onKeyboardInteractive).then((opened) => {
           if (ws.readyState !== WebSocket.OPEN) {
             opened.close()
             return
@@ -519,6 +544,12 @@ const maxUploadBytes = deps.maxUploadBytes ?? MAX_UPLOAD_BYTES
             session?.send(frame.data)
           } else if (frame.type === 'resize') {
             session?.resize(Math.max(2, frame.cols), Math.max(1, frame.rows))
+          } else if (frame.type === 'auth_response') {
+            if (pendingAuthFinish !== undefined) {
+              const fn = pendingAuthFinish
+              pendingAuthFinish = undefined
+              fn(frame.responses)
+            }
           }
         })
         ws.on('close', () => {

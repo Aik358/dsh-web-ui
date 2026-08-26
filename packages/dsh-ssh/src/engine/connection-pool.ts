@@ -70,6 +70,7 @@ export function buildConnectConfig(entry: SshHostEntry, sock: ConnectConfig['soc
     readyTimeout: opts.connectTimeoutMs,
     keepaliveInterval: opts.keepaliveIntervalMs,
     keepaliveCountMax: 3,
+    tryKeyboard: true,
   }
   if (sock !== undefined) config.sock = sock
   if (entry.auth.kind === 'password') {
@@ -103,8 +104,17 @@ export function resolveAgentPath(agentPath?: string): string | undefined {
   return undefined
 }
 
+/** Keyboard-interactive handler callback for 2FA / dynamic prompt flow. */
+export type KeyboardInteractiveHandler = (
+  name: string,
+  instructions: string,
+  instructionsLang: string,
+  prompts: Array<{ prompt: string; echo: boolean }>,
+  finish: (responses: string[]) => void,
+) => void
+
 /** Connect one ssh2 client (resolve on ready, reject on error/close). */
-export function connectClient(config: ConnectConfig): Promise<Client> {
+export function connectClient(config: ConnectConfig, onKeyboardInteractive?: KeyboardInteractiveHandler): Promise<Client> {
   return new Promise((resolve, reject) => {
     const client = new Client()
     let settled = false
@@ -118,6 +128,18 @@ export function connectClient(config: ConnectConfig): Promise<Client> {
       if (settled) return
       settled = true
       resolve(client)
+    })
+    client.on('keyboard-interactive', (name, instructions, instructionsLang, prompts, finish) => {
+      if (onKeyboardInteractive !== undefined) {
+        onKeyboardInteractive(name, instructions, instructionsLang, prompts.map(p => ({ prompt: p.prompt, echo: Boolean(p.echo) })), finish)
+        return
+      }
+      // Step 1: Automatic PAM password fallback: if a password is configured and all prompts ask for password
+      if (config.password !== undefined && prompts.length > 0 && prompts.every(p => /password/i.test(p.prompt))) {
+        finish(prompts.map(() => config.password as string))
+        return
+      }
+      fail(new Error('Authentication failed (keyboard-interactive): ' + (prompts.map(p => p.prompt.trim()).join(', ') || 'unsupported interactive challenge')))
     })
     // Keep an error listener attached after the handshake: when TCP connects
     // but the handshake drops, ssh2 can emit a second 'error' after a single
@@ -152,7 +174,11 @@ export function appendOutput(target: { text: string; truncated: boolean }, chunk
  * order, each forwarding a stream to the next destination, ending with the
  * target client. Shared by the pool and standalone shell sessions.
  */
-export async function connectChain(engine: PoolEngine, entry: SshHostEntry): Promise<{ client: Client; hops: Client[] }> {
+export async function connectChain(
+  engine: PoolEngine,
+  entry: SshHostEntry,
+  onKeyboardInteractive?: KeyboardInteractiveHandler,
+): Promise<{ client: Client; hops: Client[] }> {
   const hops: Client[] = []
   let sock: ConnectConfig['sock']
   const chain = entry.proxyJump
@@ -163,7 +189,7 @@ export async function connectChain(engine: PoolEngine, entry: SshHostEntry): Pro
       if (hop === undefined) {
         throw new Error('proxyJump alias \'' + hopAlias + '\' not found — create it first')
       }
-      const hopClient = await connectClient(buildConnectConfig(hop, sock, engine.opts))
+      const hopClient = await connectClient(buildConnectConfig(hop, sock, engine.opts), onKeyboardInteractive)
       hops.push(hopClient)
       const next = index + 1 < chain.length ? engine.store.find(chain[index + 1]) : undefined
       const nextHost = next !== undefined ? next.host : entry.host
@@ -187,7 +213,7 @@ export async function connectChain(engine: PoolEngine, entry: SshHostEntry): Pro
   }
   let target: Client | undefined
   try {
-    target = await connectClient(buildConnectConfig(entry, sock, engine.opts))
+    target = await connectClient(buildConnectConfig(entry, sock, engine.opts), onKeyboardInteractive)
     return { client: target, hops }
   } catch (error) {
     for (const client of hops) client.end()

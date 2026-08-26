@@ -4,7 +4,7 @@
  * output delivery.
  */
 
-import { connectChain, type PoolEngine } from './connection-pool.ts'
+import { connectChain, type KeyboardInteractiveHandler, type PoolEngine } from './connection-pool.ts'
 
 /** A live PTY shell session. */
 export interface ShellSession {
@@ -29,10 +29,15 @@ export interface ShellSession {
  * The shell is a long-lived exclusive stream: it uses its own connection so
  * closing it can never tear down a pooled exec/tunnel sharing the alias.
  */
-export async function openShell(engine: PoolEngine, alias: string, size: { cols: number; rows: number }): Promise<ShellSession> {
+export async function openShell(
+  engine: PoolEngine,
+  alias: string,
+  size: { cols: number; rows: number },
+  onKeyboardInteractive?: KeyboardInteractiveHandler,
+): Promise<ShellSession> {
   const entry = engine.store.find(alias)
   if (entry === undefined) throw new Error('alias \'' + alias + '\' not found — add it first')
-  const { client, hops } = await connectChain(engine, entry)
+  const { client, hops } = await connectChain(engine, entry, onKeyboardInteractive)
   return await new Promise<ShellSession>((resolve, reject) => {
     client.shell({ term: 'xterm-256color', cols: size.cols, rows: size.rows }, (error, stream) => {
       if (error !== undefined) {

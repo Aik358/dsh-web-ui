@@ -68,7 +68,9 @@ class StubEngine {
   dropAlias(alias: string): void {
     this.dropAliasCalls.push(alias)
   }
-  async openShell(_alias: string): Promise<ShellSession> {
+  openShellCallback?: (name: string, instructions: string, lang: string, prompts: Array<{ prompt: string; echo: boolean }>, finish: (res: string[]) => void) => void
+  async openShell(_alias: string, _size: unknown, onKeyboardInteractive?: (name: string, instructions: string, lang: string, prompts: Array<{ prompt: string; echo: boolean }>, finish: (res: string[]) => void) => void): Promise<ShellSession> {
+    this.openShellCallback = onKeyboardInteractive
     const session: ShellSession = {
       send: (data) => { this.shellInputs.push(data) },
       resize: () => undefined,
@@ -340,6 +342,63 @@ describe('terminal upgrade', () => {
       setTimeout(() => resolve(-1), 2000)
     })
     expect(code).toBe(1000)
+    ws.terminate()
+  })
+
+  it('handles 2FA keyboard-interactive auth_prompt and auth_response (#806)', async () => {
+    let authRes: string[] | undefined
+    stub.openShell = async (_alias, _size, onKeyboardInteractive) => {
+      setTimeout(() => {
+        onKeyboardInteractive?.('2FA Verification', 'Please enter your TOTP code', '', [{ prompt: 'Verification code: ', echo: true }], (res) => {
+          authRes = res
+        })
+      }, 50)
+      const session: ShellSession = {
+        send: () => undefined,
+        resize: () => undefined,
+        close: () => undefined,
+        pause: () => undefined,
+        resume: () => undefined,
+      }
+      stub.openShellSession = session
+      return session
+    }
+
+    const ws = new WebSocket('ws://127.0.0.1:' + port + SSH_API.terminal + '?alias=web-01&cols=80&rows=24')
+    const messages: string[] = []
+    ws.on('message', (data) => { messages.push(String(data)) })
+
+    await new Promise<void>((resolve, reject) => {
+      ws.on('open', () => resolve())
+      ws.on('error', reject)
+    })
+
+    // Wait for the auth_prompt frame
+    await new Promise<void>((resolve) => {
+      const timer = setInterval(() => {
+        if (messages.some(m => (JSON.parse(m) as { type: string }).type === 'auth_prompt')) {
+          clearInterval(timer)
+          resolve()
+        }
+      }, 10)
+    })
+
+    const promptFrame = JSON.parse(messages.find(m => (JSON.parse(m) as { type: string }).type === 'auth_prompt')!) as {
+      type: string
+      name: string
+      instructions: string
+      prompts: Array<{ prompt: string; echo: boolean }>
+    }
+
+    expect(promptFrame.name).toBe('2FA Verification')
+    expect(promptFrame.instructions).toBe('Please enter your TOTP code')
+    expect(promptFrame.prompts).toEqual([{ prompt: 'Verification code: ', echo: true }])
+
+    // Send auth_response
+    ws.send(JSON.stringify({ type: 'auth_response', responses: ['654321'] }))
+    await new Promise<void>((resolve) => setTimeout(resolve, 50))
+
+    expect(authRes).toEqual(['654321'])
     ws.terminate()
   })
 })

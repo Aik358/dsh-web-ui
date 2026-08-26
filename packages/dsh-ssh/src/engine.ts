@@ -14,6 +14,7 @@ import {
   disposeRecord,
   sweepPool,
   type EngineOptions,
+  type KeyboardInteractiveHandler,
   type PoolRecord,
 } from './engine/connection-pool.ts'
 import { openShell, type ShellSession } from './engine/pty.ts'
@@ -21,7 +22,7 @@ import { download, ls, upload } from './engine/sftp.ts'
 import { listTunnels, startTunnel, stopAllTunnels, stopTunnel, type TunnelRecord } from './engine/tunnel.ts'
 import { cluster } from './engine/cluster.ts'
 
-export type { EngineOptions } from './engine/connection-pool.ts'
+export type { EngineOptions, KeyboardInteractiveHandler } from './engine/connection-pool.ts'
 export type { ShellSession } from './engine/pty.ts'
 export type { PoolRecord } from './engine/connection-pool.ts'
 export type { TunnelRecord } from './engine/tunnel.ts'
@@ -92,8 +93,12 @@ export class SshEngine {
   // -------------------------------------------------------------- shell
 
   /** Open a PTY shell session for the web terminal (standalone connection). */
-  async openShell(alias: string, size: { cols: number; rows: number }): Promise<ShellSession> {
-    return openShell(this, alias, size)
+  async openShell(
+    alias: string,
+    size: { cols: number; rows: number },
+    onKeyboardInteractive?: KeyboardInteractiveHandler,
+  ): Promise<ShellSession> {
+    return openShell(this, alias, size, onKeyboardInteractive)
   }
 
   // -------------------------------------------------------------- sftp

@@ -167,6 +167,48 @@ describe('connectClient', () => {
     const instance = sshMock.instances[0]
     expect(instance.connectConfig?.readyTimeout).toBe(7_001)
     expect(instance.connectConfig?.keepaliveInterval).toBe(8_002)
+    expect(instance.connectConfig?.tryKeyboard).toBe(true)
+  })
+
+  it('answers keyboard-interactive password prompt automatically when password auth is configured (#806)', async () => {
+    let answered: string[] | undefined
+    sshMock.behaviors.push((client) => {
+      client.emit('keyboard-interactive', 'PAM', '', '', [{ prompt: 'Password: ', echo: false }], (res: string[]) => {
+        answered = res
+        client.emit('ready')
+      })
+    })
+    const config = buildConnectConfig(passwordEntry('pam-host', { auth: { kind: 'password', password: 'my-pam-password' } }), undefined, defaultOpts() as never)
+    const client = await connectClient(config)
+    expect(client).toBeDefined()
+    expect(answered).toEqual(['my-pam-password'])
+  })
+
+  it('invokes custom onKeyboardInteractive handler when provided for 2FA (#806)', async () => {
+    let customPrompts: Array<{ prompt: string; echo: boolean }> = []
+    let answered: string[] | undefined
+    sshMock.behaviors.push((client) => {
+      client.emit('keyboard-interactive', '2FA', 'Enter TOTP code', '', [{ prompt: 'Verification code: ', echo: true }], (res: string[]) => {
+        answered = res
+        client.emit('ready')
+      })
+    })
+    const config = buildConnectConfig(passwordEntry('2fa-host'), undefined, defaultOpts() as never)
+    const client = await connectClient(config, (_name, _inst, _lang, prompts, finish) => {
+      customPrompts = prompts
+      finish(['123456'])
+    })
+    expect(client).toBeDefined()
+    expect(customPrompts).toEqual([{ prompt: 'Verification code: ', echo: true }])
+    expect(answered).toEqual(['123456'])
+  })
+
+  it('fails with clear error when non-interactive keyboard challenge cannot be answered (#806)', async () => {
+    sshMock.behaviors.push((client) => {
+      client.emit('keyboard-interactive', '2FA', '', '', [{ prompt: 'OTP: ', echo: false }], () => {})
+    })
+    const config = buildConnectConfig(passwordEntry('otp-host', { auth: { kind: 'password', password: 'pw' } }), undefined, defaultOpts() as never)
+    await expect(connectClient(config)).rejects.toThrow(/Authentication failed \(keyboard-interactive\): OTP:/)
   })
 })
 

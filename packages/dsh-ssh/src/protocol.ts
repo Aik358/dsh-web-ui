@@ -167,10 +167,17 @@ export type TerminalServerFrame =
   | { type: 'ready'; alias: string }
   | { type: 'output'; data: string }
   | { type: 'exit'; code: number | null; error?: string }
+  | {
+      type: 'auth_prompt'
+      name: string
+      instructions: string
+      prompts: Array<{ prompt: string; echo: boolean }>
+    }
 
 export type TerminalClientFrame =
   | { type: 'input'; data: string }
   | { type: 'resize'; cols: number; rows: number }
+  | { type: 'auth_response'; responses: string[] }
 
 /** Route paths the client calls (shared literals). */
 export const SSH_API_BASE = '/api/dsh-ssh' as const
