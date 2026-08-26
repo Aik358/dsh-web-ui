@@ -308,6 +308,13 @@ function installPerfCss(isEnabled: () => boolean): void {
       '  content-visibility: auto;',
       '  contain-intrinsic-size: auto 120px;',
       '}',
+      // 侧栏会话行(dsh-better-sidebar 渲染, 类名形如 YDXeBa_sessionRow): 展开大分组时
+      // 一次挂载数千行, 屏外行跳过渲染; 行高实测 32px。选择器用 _sessionRow 子串,
+      // 锚定 _sidebarCol 避免误伤同名类。上游若改类名规则自然失效(无副作用)。
+      '[class*="_sidebarCol"] [class*="_sessionRow"] {',
+      '  content-visibility: auto;',
+      '  contain-intrinsic-size: auto 32px;',
+      '}',
     ].join('\n')
     document.head.appendChild(style)
     perfCssStyle = style
