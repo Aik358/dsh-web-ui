@@ -20,4 +20,4 @@ Status: implemented
 
 ## Testing
 
-`pnpm test:scripts`（副本计数与漂移套件）、`pnpm docs:check`，以及 dsh-git-graph（141）、dsh-pet（445）、dsh-skill-explorer（72）三包各自的 `pnpm typecheck` + `pnpm test`——全部通过。共享规格：shared/tests 共 15 项（pair-access + loopback）。
+`pnpm test:scripts`（副本计数与漂移套件）、`pnpm docs:check`，以及 dsh-git-graph（141）、dsh-pet（445）、dsh-skill-explorer（72）三包各自的 `pnpm typecheck` + `pnpm test`——全部通过。共享规格：shared/tests 共 15 项（pair-access + loopback）。当日跟进：根级 `pnpm typecheck` 暴露共享源文件不得导入 `@deepseek-ai/cordis`（shared 包须在无该依赖下独立通过 typecheck），因此闸门签名改为接受两成员的结构化 context 形状（cordis `Context` 天然满足）；各包包装签名不变。

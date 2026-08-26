@@ -10,7 +10,6 @@
  * here.
  */
 import type { IncomingMessage } from 'node:http'
-import type { Context } from '@deepseek-ai/cordis'
 import { isLoopbackRequest } from './loopback.ts'
 
 /** Structural pairing lookup (no package dependency on remote-web-ui). */
@@ -18,8 +17,13 @@ interface PairingAccess {
   isPairedDevice(request: IncomingMessage): boolean
 }
 
-/** ctx.get is optional on the test harness; production Context always has it. */
-type LookupCtx = Context & {
+/**
+ * Structural host-context shape: shared sources carry no @deepseek-ai
+ * dependency (the shared package must typecheck standalone), so the fence
+ * reads only the two members it needs; cordis Context satisfies this.
+ * ctx.get is optional on the test harness; production Context always has it.
+ */
+interface LookupCtx {
   get?(name: string, strict?: boolean): unknown
   remoteWebUiPairing?: PairingAccess
 }
@@ -30,11 +34,10 @@ type LookupCtx = Context & {
  * @param request - the incoming HTTP request.
  * @returns true for loopback, or a live paired-device cookie.
  */
-export function isPairedOrLoopbackAllowed(ctx: Context, request: IncomingMessage): boolean {
+export function isPairedOrLoopbackAllowed(ctx: LookupCtx, request: IncomingMessage): boolean {
   if (isLoopbackRequest(request)) return true
-  const bag = ctx as LookupCtx
-  const fromGet = typeof bag.get === 'function' ? bag.get('remoteWebUiPairing', false) : undefined
-  const pairing = (isPairingAccess(fromGet) ? fromGet : bag.remoteWebUiPairing)
+  const fromGet = typeof ctx.get === 'function' ? ctx.get('remoteWebUiPairing', false) : undefined
+  const pairing = (isPairingAccess(fromGet) ? fromGet : ctx.remoteWebUiPairing)
   return pairing?.isPairedDevice(request) === true
 }
 

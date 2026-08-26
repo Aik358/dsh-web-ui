@@ -20,4 +20,4 @@ Fence fixes now propagate by editing one shared source and running `node scripts
 
 ## Testing
 
-`pnpm test:scripts` (copy-count and drift suites), `pnpm docs:check`, and per-package `pnpm typecheck` + `pnpm test` for dsh-git-graph (141), dsh-pet (445), dsh-skill-explorer (72) — all pass. Shared spec: 15 tests in shared/tests (pair-access + loopback).
+`pnpm test:scripts` (copy-count and drift suites), `pnpm docs:check`, and per-package `pnpm typecheck` + `pnpm test` for dsh-git-graph (141), dsh-pet (445), dsh-skill-explorer (72) — all pass. Shared spec: 15 tests in shared/tests (pair-access + loopback). Follow-up (same day): the root `pnpm typecheck` exposed that shared sources must not import `@deepseek-ai/cordis` (the shared package typechecks standalone without it), so the fence signature now takes a structural two-member context shape that cordis `Context` satisfies; the wrappers' signatures are unchanged.
