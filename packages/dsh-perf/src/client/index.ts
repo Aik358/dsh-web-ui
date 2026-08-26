@@ -22,6 +22,7 @@ import { zh, en, type PerfKey } from './perf-locales.ts'
 import { PerfSettingsCard, PerfSettingsCardController, type PerfSettings, type PerfSettingsCardFace } from './perf-settings-card.tsx'
 import { makePerfAssistantShadow, type ShadowOwner } from './perf-assistant-shadow.tsx'
 import { startIntegrityObserver } from './perf-integrity.ts'
+import { makeListSetGate, type ListSetGate, type SessionListSnapshotLike } from './perf-list-gate.ts'
 
 /** Locale namespace owned by this plugin. */
 export const NS = 'dsh-perf'
@@ -86,6 +87,7 @@ export function apply(ctx: ClientContext): void {
   let hudOn = false
   let hudDispose: (() => void) | undefined
   let integrityDispose: (() => void) | undefined
+  let listGateDispose: (() => void) | undefined
   const refreshClientSwitches = (): void => {
     let snapshotValue: PerfSettings | undefined
     try {
@@ -122,6 +124,18 @@ export function apply(ctx: ClientContext): void {
     } else if (!shouldRun && integrityDispose !== undefined) {
       integrityDispose()
       integrityDispose = undefined
+    }
+    // 会话列表发布门控(#4): 仅投影身份变化的 flush 合并到 ~1Hz, 跟随总开关 + renderDegrade。
+    const shouldGate = isEnabled() && renderDegrade
+    if (shouldGate && listGateDispose === undefined) {
+      try {
+        listGateDispose = installListGate(ctx)
+      } catch (error) {
+        console.warn('[dsh-perf] list gate degraded:', error)
+      }
+    } else if (!shouldGate && listGateDispose !== undefined) {
+      listGateDispose()
+      listGateDispose = undefined
     }
   }
   const isEnabled = (): boolean => {
@@ -214,6 +228,64 @@ export function apply(ctx: ClientContext): void {
   } catch (error) {
     console.warn('[dsh-perf] assistant shadow degraded:', error)
   }
+}
+
+/**
+ * #4: 会话列表 store 发布门控(单例, 方法级补丁)。
+ * projectList 每 flush 全量重建快照对象再 list.set; 流式期间主体是 usage 投影帧 ——
+ * 侧栏可见字段没变也触发整树重渲染(实测 1700+ 会话账号)。门控把"仅 projectionValues
+ * 身份变化"的发布合并到每 ~1s 一次尾部补发; 有可见变化立即发布。唯一可感知代价:
+ * 子代理 lineage 头部的 token 计数刷新降到 ~1Hz。dispose 时恢复原始 set 并补发挂起快照。
+ */
+let listGateInstalled = false
+function installListGate(ctx: ClientContext): () => void {
+  const sessions = ctx.get('sessions') as unknown as {
+    list?: {
+      set?: (next: SessionListSnapshotLike) => void
+      getSnapshot?: () => SessionListSnapshotLike
+      __dshPerfGate?: ListSetGate
+    }
+  } | undefined
+  const list = sessions?.list
+  if (list === undefined || typeof list.set !== 'function' || typeof list.getSnapshot !== 'function') {
+    console.warn('[dsh-perf] list gate: sessions.list store shape not recognized, skipped')
+    return () => {}
+  }
+  // 幂等: 重复安装(HMR/双源)直接复用已有门。
+  if (list.__dshPerfGate !== undefined) {
+    console.log('[dsh-perf] list gate: already installed, reuse')
+    return () => {}
+  }
+  const originalSet = list.set
+  const gate = makeListSetGate({
+    coalesceMs: readPositiveInt('dsh-perf-list-coalesce', 1000),
+    getPublished: () => list.getSnapshot?.() ?? {},
+    publish: (next) => { originalSet(next) },
+  })
+  list.set = gate.set
+  list.__dshPerfGate = gate
+  listGateInstalled = true
+  try {
+    if (localStorage.getItem('dsh-perf-debug') === '1') {
+      ;(window as unknown as { __dshPerfListGate?: ListSetGate }).__dshPerfListGate = gate
+    }
+  } catch { /* noop */ }
+  console.log('[dsh-perf] list gate: installed on sessions.list (coalesce projection-only publishes)')
+  return () => {
+    gate.dispose()
+    if (list.__dshPerfGate === gate) {
+      list.set = originalSet
+      delete list.__dshPerfGate
+    }
+    listGateInstalled = false
+  }
+}
+
+function readPositiveInt(key: string, fallback: number): number {
+  try {
+    const value = Number(localStorage.getItem(key))
+    return Number.isFinite(value) && value > 0 ? Math.round(value) : fallback
+  } catch { return fallback }
 }
 
 /** P0 CSS 降载样式(单例): 屏外消息行 content-visibility 近似虚拟化。 */
