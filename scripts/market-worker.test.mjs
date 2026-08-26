@@ -448,10 +448,12 @@ test('telemetry summary enforces the read key only when configured', async () =>
   const lockedEnv = { TELEMETRY_READ_KEY: 's3cret', DB: telemetryDb() }
   const denied = await worker.fetch(new Request('https://dsh-market.com/api/telemetry/summary'), lockedEnv, context())
   assert.equal(denied.status, 403)
-  const wrongKey = await worker.fetch(new Request('https://dsh-market.com/api/telemetry/summary?key=nope'), lockedEnv, context())
+  const wrongKey = await worker.fetch(new Request('https://dsh-market.com/api/telemetry/summary', {
+    headers: { 'x-telemetry-key': 'nope' },
+  }), lockedEnv, context())
   assert.equal(wrongKey.status, 403)
-  const queryOk = await worker.fetch(new Request('https://dsh-market.com/api/telemetry/summary?key=s3cret'), lockedEnv, context())
-  assert.equal(queryOk.status, 200)
+  const queryDenied = await worker.fetch(new Request('https://dsh-market.com/api/telemetry/summary?key=s3cret'), lockedEnv, context())
+  assert.equal(queryDenied.status, 403, 'URL query keys are no longer accepted')
   const headerOk = await worker.fetch(new Request('https://dsh-market.com/api/telemetry/summary', {
     headers: { 'x-telemetry-key': 's3cret' },
   }), lockedEnv, context())

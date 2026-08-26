@@ -136,6 +136,7 @@ export default {
       get: {
         summary: 'Aggregate UV/PV summary; counts only, never raw events',
         parameters: [
+          { name: 'x-telemetry-key', in: 'header', required: false, schema: { type: 'string' }, description: 'Required when TELEMETRY_READ_KEY is configured; the key is never accepted as a URL query parameter' },
           { name: 'days', in: 'query', required: false, schema: { type: 'integer', minimum: 1, maximum: 365 } },
           { name: 'paths_limit', in: 'query', required: false, schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 }, description: 'Hot-path page size' },
           { name: 'paths_offset', in: 'query', required: false, schema: { type: 'integer', minimum: 0, default: 0 }, description: 'Hot-path page offset; the full count is site.paths_total' },

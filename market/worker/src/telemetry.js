@@ -227,11 +227,15 @@ export async function handleTelemetryPost(request, env, json) {
 }
 
 /** GET /api/telemetry/summary handler. When TELEMETRY_READ_KEY is configured,
- * callers must present it via the x-telemetry-key header or ?key= parameter. */
-export function summaryAuthorized(request, url, env) {
+ * callers must present it via the x-telemetry-key header. The key is never
+ * accepted in the URL: query strings persist in edge logs, browser history
+ * and referrers. Comparison runs on SHA-256 digests, not raw strings. */
+export async function summaryAuthorized(request, url, env) {
   const key = env.TELEMETRY_READ_KEY
   if (!key) return true
-  return (request.headers.get('x-telemetry-key') || url.searchParams.get('key') || '') === key
+  const presented = request.headers.get('x-telemetry-key') || ''
+  if (!presented) return false
+  return (await sha256(presented)) === (await sha256(key))
 }
 
 /**
@@ -249,7 +253,7 @@ export async function handleTelemetryUsersBadge(env, json) {
 
 export async function handleTelemetrySummary(request, url, env, json) {
   if (!env.DB) return json({ ok: false, error: 'storage-unavailable' }, 503)
-  if (!summaryAuthorized(request, url, env)) return json({ ok: false, error: 'unauthorized' }, 403)
+  if (!(await summaryAuthorized(request, url, env))) return json({ ok: false, error: 'unauthorized' }, 403)
   let days = Number.parseInt(url.searchParams.get('days') || '', 10)
   if (!Number.isFinite(days)) days = 30
   days = Math.min(Math.max(days, 1), 365)
