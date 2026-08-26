@@ -218,6 +218,9 @@ export function MarketCard(props: MarketCardProps): ReactNode {
       setData(props.remote)
       setFailed(false)
       setLoading(false)
+      if (props.npmDownloads !== undefined && typeof props.npmDownloads !== 'function') {
+        setNpmDownloads(props.npmDownloads)
+      }
       return
     }
     let alive = true

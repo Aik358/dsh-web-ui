@@ -1103,6 +1103,7 @@ window.__ModuleLoader__.load({
 					setData(props.remote);
 					setFailed(false);
 					setLoading(false);
+					if (props.npmDownloads !== void 0 && typeof props.npmDownloads !== "function") setNpmDownloads(props.npmDownloads);
 					return;
 				}
 				let alive = true;

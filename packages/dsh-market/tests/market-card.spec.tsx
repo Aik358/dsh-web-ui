@@ -128,6 +128,22 @@ describe('MarketCard', () => {
     expect(screen.getByText(/赞 3/)).toBeTruthy()
   })
 
+  it('renders install and npm download metrics separately from votes', () => {
+    const withMetrics = {
+      ...REMOTE,
+      stats: {
+        ...REMOTE.stats,
+        installs: { skin: { 'whale-song': 3 }, pet: {}, plugin: { 'dsh-tui': 12 } },
+      },
+    }
+    render(<MarketCard {...cardProps(new FakeScope({}), { remote: withMetrics, gateway: null, pluginManager: null, npmDownloads: { 'dsh-tui': 1_234 } })} />)
+    expect(screen.getByText(/赞 3/)).toBeTruthy()
+    expect(screen.getByText('安装 3')).toBeTruthy()
+    fireEvent.click(screen.getByRole('tab', { name: /插件/ }))
+    expect(screen.getByText('安装 12')).toBeTruthy()
+    expect(screen.getByText('npm 近 30 天 1.2k')).toBeTruthy()
+  })
+
   it('links skin and plugin names plus source-repository addresses to GitHub (issue 1120)', () => {
     render(<MarketCard {...cardProps(new FakeScope({}), { remote: REMOTE, gateway: null, pluginManager: null })} />)
     const skinName = screen.getByRole('link', { name: /鲸吟/ })
