@@ -261,7 +261,8 @@ describe('TaskBoardHostService poll heartbeat', () => {
     await (service as unknown as { pollSessions(): Promise<void> }).pollSessions()
     expect(ledger.state().tasks[0].executions[0].result).toBe('succeeded')
     expect(list).toHaveBeenCalledOnce()
-    expect(history).toHaveBeenCalledOnce()
+    // One one-message head probe plus the single scan page.
+    expect(history).toHaveBeenCalledTimes(2)
     service.dispose()
   })
 

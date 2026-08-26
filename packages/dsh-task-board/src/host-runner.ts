@@ -50,6 +50,14 @@ function isErrorTurnEnd(data: unknown): boolean {
 }
 
 export class HostExecutionRunner {
+  /**
+   * Newest scanned event seq per session whose complete backward scan found
+   * no matching turn/end. While a session's newest seq is unchanged a
+   * re-scan cannot change the outcome, so only a one-message probe runs per
+   * poll tick instead of up to 100 history pages.
+   */
+  private readonly scanMemos = new Map<string, number>()
+
   constructor(
     private readonly api: ApiProxy,
     private readonly commands?: SessionCommandDispatcher,
@@ -124,8 +132,21 @@ export class HostExecutionRunner {
       items = response.result.value.items
     }
     const summary = items.find(item => item.sessionId === sessionId)
-    if (summary === undefined) return { outcome: 'cancelled', error: 'execution session no longer exists' }
+    if (summary === undefined) {
+      this.scanMemos.delete(sessionId)
+      return { outcome: 'cancelled', error: 'execution session no longer exists' }
+    }
     if (summary.running) return { outcome: 'pending' }
+    // Probe the newest event before paging: SessionSummary.updatedAt tracks
+    // human prompts, not event appends, so only the history head proves
+    // whether a re-scan could find anything new.
+    const probe = await this.api.sessions.history(request({ sessionId: summary.sessionId, maxMessages: 1 }))
+    if (!probe.result.ok) return { outcome: 'pending' }
+    const newestSeq = probe.result.value.events.reduce<number | undefined>((newest, entry) => {
+      const seq = entry.event.seq
+      return typeof seq !== 'number' ? newest : newest === undefined ? seq : Math.max(newest, seq)
+    }, undefined)
+    if (newestSeq !== undefined && this.scanMemos.get(sessionId) === newestSeq) return { outcome: 'pending' }
     const events: Array<{ event: { type: string; seq?: number; time?: number; data: unknown } }> = []
     let beforeSeq: number | undefined
     let reachedExecutionBoundary = false
@@ -158,7 +179,12 @@ export class HostExecutionRunner {
         startedAt <= 0 || (typeof entry.event.time === 'number' && entry.event.time >= startedAt)
       ))
       .sort((a, b) => (a.event.seq ?? Number.MAX_SAFE_INTEGER) - (b.event.seq ?? Number.MAX_SAFE_INTEGER))[0]
-    if (turnEnd === undefined) return { outcome: 'pending' }
+    if (turnEnd === undefined) {
+      // Complete scan, no match: remember the head so later ticks probe only.
+      if (newestSeq !== undefined) this.scanMemos.set(sessionId, newestSeq)
+      return { outcome: 'pending' }
+    }
+    this.scanMemos.delete(sessionId)
     return isErrorTurnEnd(turnEnd.event.data)
       ? { outcome: 'failed', error: 'agent turn ended with an error' }
       : { outcome: 'succeeded' }

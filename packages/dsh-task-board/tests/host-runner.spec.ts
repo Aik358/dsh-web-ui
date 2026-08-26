@@ -168,8 +168,10 @@ describe('HostExecutionRunner', () => {
       },
     }
     await expect(new HostExecutionRunner(api as unknown as ApiProxy).inspect('session-a', 1_000)).resolves.toEqual({ outcome: 'succeeded' })
-    expect(history).toHaveBeenCalledTimes(2)
-    expect(history.mock.calls[1][0].payload.beforeSeq).toBe(300)
+    // One one-message probe, then the two backward pages.
+    expect(history).toHaveBeenCalledTimes(3)
+    expect(history.mock.calls[0][0].payload).toMatchObject({ maxMessages: 1 })
+    expect(history.mock.calls[2][0].payload.beforeSeq).toBe(300)
   })
 
   it('carries the session list in listRunning and reuses it in inspect without another list RPC', async () => {
@@ -185,6 +187,74 @@ describe('HostExecutionRunner', () => {
     if (!running.known) throw new Error('expected known')
     await expect(runner.inspect('session-a', 1_000, running.items)).resolves.toEqual({ outcome: 'succeeded' })
     expect(list).toHaveBeenCalledOnce()
-    expect(history).toHaveBeenCalledOnce()
+    // Probe page plus the scan page; no second list RPC.
+    expect(history).toHaveBeenCalledTimes(2)
+  })
+
+  it('probes the history head instead of re-scanning a wedged session whose newest seq is unchanged', async () => {
+    let headSeq = 40
+    const history = vi.fn(async (request: { rpcId: unknown; payload: { maxMessages?: number } }) => {
+      if (request.payload.maxMessages === 1) {
+        return ok(request, { events: [{ event: { type: 'assistant/message', seq: headSeq, time: 4_000, data: {} } }], hasMore: false })
+      }
+      // Full page: no turn/end anywhere — the execution can never settle.
+      return ok(request, {
+        events: [{ event: { type: 'assistant/message', seq: headSeq, time: 4_000, data: {} } }],
+        hasMore: false,
+      })
+    })
+    const api = {
+      sessions: {
+        list: async (request: { rpcId: unknown }) => ok(request, { items: [{ sessionId: 'session-a', running: false }] }),
+        history,
+      },
+    }
+    const runner = new HostExecutionRunner(api as unknown as ApiProxy)
+    await expect(runner.inspect('session-a', 1_000)).resolves.toEqual({ outcome: 'pending' })
+    const afterFirst = history.mock.calls.length
+    expect(afterFirst).toBe(2) // probe + one complete page
+
+    // Head unchanged: the second tick probes once and skips the scan.
+    await expect(runner.inspect('session-a', 1_000)).resolves.toEqual({ outcome: 'pending' })
+    expect(history.mock.calls.length).toBe(afterFirst + 1)
+    expect(history.mock.calls[afterFirst]?.[0].payload).toMatchObject({ maxMessages: 1 })
+
+    // A later event bumps the head: the next tick runs the full scan again.
+    headSeq = 41
+    await expect(runner.inspect('session-a', 1_000)).resolves.toEqual({ outcome: 'pending' })
+    expect(history.mock.calls.length).toBe(afterFirst + 3)
+  })
+
+  it('drops the scan memo once the execution settles or the session vanishes', async () => {
+    let headSeq = 40
+    let found = false
+    const history = vi.fn(async (request: { rpcId: unknown; payload: { maxMessages?: number } }) => {
+      if (request.payload.maxMessages === 1) {
+        return ok(request, { events: [{ event: { type: 'assistant/message', seq: headSeq, time: 4_000, data: {} } }], hasMore: false })
+      }
+      return ok(request, {
+        events: found
+          ? [{ event: { type: 'turn/end', seq: headSeq, time: 4_000, data: { reason: { kind: 'complete' } } } }]
+          : [{ event: { type: 'assistant/message', seq: headSeq, time: 4_000, data: {} } }],
+        hasMore: false,
+      })
+    })
+    const api = {
+      sessions: {
+        list: async (request: { rpcId: unknown }) => ok(request, { items: [{ sessionId: 'session-a', running: false }] }),
+        history,
+      },
+    }
+    const runner = new HostExecutionRunner(api as unknown as ApiProxy)
+    await expect(runner.inspect('session-a', 1_000)).resolves.toEqual({ outcome: 'pending' })
+    // Late-arriving turn/end bumps the head; the full scan settles it.
+    found = true
+    headSeq = 41
+    await expect(runner.inspect('session-a', 1_000)).resolves.toEqual({ outcome: 'succeeded' })
+    // After settling, a vanished session reports cancelled without probing.
+    const callsBefore = history.mock.calls.length
+    api.sessions.list = async (request: { rpcId: unknown }) => ok(request, { items: [] })
+    await expect(runner.inspect('session-a', 1_000)).resolves.toEqual({ outcome: 'cancelled', error: 'execution session no longer exists' })
+    expect(history.mock.calls.length).toBe(callsBefore)
   })
 })
