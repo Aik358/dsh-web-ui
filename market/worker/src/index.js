@@ -6,12 +6,13 @@
  */
 
 import { handleTelemetryPost, handleTelemetrySummary, handleTelemetryUsersBadge } from './telemetry.js'
-import { handleNpmBadge } from './npm-badge.js'
+import { handleNpmBadge, handleNpmDownloads } from './npm-badge.js'
 import API_CATALOG from './api-catalog.js'
 import OPENAPI_SPEC from './openapi.js'
 import API_DOCS_HTML from './api-doc.js'
 
 const KINDS = new Set(['skin', 'pet', 'plugin'])
+const INSTALL_ACTIONS = new Set(['market-like', 'market-install'])
 const HOMEPAGE_PATHS = new Set(['/', '/index.html'])
 const HOME_LINK = '</.well-known/api-catalog>; rel="api-catalog", </openapi.json>; rel="service-desc", </api-docs.html>; rel="service-doc", </api-docs.html>; rel="describedby"'
 const ASSET_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
@@ -165,7 +166,7 @@ async function verifyTurnstile(request, env, token) {
     body: form,
   })
   const result = await response.json().catch(() => ({ success: false }))
-  return result.success === true && result.action === TURNSTILE_ACTION && result.hostname === 'dsh-market.com'
+  return result.success === true && INSTALL_ACTIONS.has(result.action) && result.hostname === 'dsh-market.com'
 }
 
 const CHALLENGE_HTML = [
@@ -173,10 +174,10 @@ const CHALLENGE_HTML = [
   '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"></script>',
   '<div id="challenge"></div>',
   '<script>(function(){',
-  'var origin="",requestId="",widget=null;',
+  'var origin="",requestId="",widget=null,action="' + TURNSTILE_ACTION + '";',
   'function reply(token){if(!origin||!requestId)return;parent.postMessage({source:"dsh-market-card",type:"token",id:requestId,token:token||""},origin);requestId=""}',
-  'function ready(){if(widget!==null||!window.turnstile)return widget;widget=window.turnstile.render("#challenge",{sitekey:"' + TURNSTILE_SITEKEY + '",action:"' + TURNSTILE_ACTION + '",size:"invisible",callback:reply,"error-callback":function(){reply("")},"timeout-callback":function(){reply("")}});return widget}',
-  'addEventListener("message",function(event){if(event.source!==parent||!event.data||event.data.source!=="dsh-market-card"||event.data.type!=="request")return;origin=event.origin;requestId=String(event.data.id||"");var tries=0,timer=setInterval(function(){tries++;var id=ready();if(id!==null){clearInterval(timer);try{window.turnstile.reset(id);window.turnstile.execute(id)}catch(error){reply("")}}else if(tries>=160){clearInterval(timer);reply("")}},50)});',
+  'function ensure(){if(widget!==null||!window.turnstile)return widget;widget=window.turnstile.render("#challenge",{sitekey:"' + TURNSTILE_SITEKEY + '",action:action,size:"invisible",callback:reply,"error-callback":function(){reply("")},"timeout-callback":function(){reply("")}});return widget}',
+  'addEventListener("message",function(event){if(event.source!==parent||!event.data||event.data.source!=="dsh-market-card"||event.data.type!=="request")return;action=String(event.data.action||"' + TURNSTILE_ACTION + '");if(!action)action="' + TURNSTILE_ACTION + '";origin=event.origin;requestId=String(event.data.id||"");var tries=0,timer=setInterval(function(){tries++;if(widget!==null&&window.turnstile){try{window.turnstile.reset(widget);window.turnstile.execute(widget)}catch(error){reply("")}clearInterval(timer);return}var id=ensure();if(id!==null){try{window.turnstile.reset(id);window.turnstile.execute(id)}catch(error){reply("")}clearInterval(timer)}else if(tries>=160){clearInterval(timer);reply("")}},50)});',
   '})()</script>',
 ].join('')
 
@@ -188,6 +189,43 @@ function challengePage() {
       'content-security-policy': "default-src 'none'; script-src 'unsafe-inline' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; connect-src https://challenges.cloudflare.com; style-src 'unsafe-inline'",
     },
   })
+}
+
+/**
+ * Record one Workshop install event and refresh the per-asset install count
+ * in one D1 batch. Retrying the same (asset, device, install_id) collapses via
+ * the deterministic event id; a fresh install_id counts again.
+ */
+async function mutateInstall(env, kind, assetId, hash, installId) {
+  const eventId = await sha256(['v1', kind, assetId, hash, installId].join('|'))
+  const insert = env.DB.prepare(
+    'INSERT OR IGNORE INTO install_events (id, kind, asset_id, device_hash, created_at) VALUES (?1, ?2, ?3, ?4, ?5)'
+  ).bind(eventId, kind, assetId, hash, Date.now())
+  const recount = env.DB.prepare(
+    'INSERT INTO install_counts (kind, asset_id, installs) SELECT ?1, ?2, COUNT(*) FROM install_events WHERE kind = ?1 AND asset_id = ?2 ON CONFLICT(kind, asset_id) DO UPDATE SET installs = excluded.installs'
+  ).bind(kind, assetId)
+  const select = env.DB.prepare('SELECT installs FROM install_counts WHERE kind = ?1 AND asset_id = ?2').bind(kind, assetId)
+  const results = await env.DB.batch([insert, recount, select])
+  const rows = results[2] && results[2].results
+  return Number(rows && rows[0] && rows[0].installs) || 0
+}
+
+/** Read per-asset cumulative install counts. */
+async function readInstalls(env) {
+  try {
+    const { results } = await env.DB.prepare('SELECT kind, asset_id, installs FROM install_counts').all()
+    const out = { skin: {}, pet: {}, plugin: {} }
+    for (const row of results || []) {
+      if (!(row.kind in out)) continue
+      out[row.kind][row.asset_id] = row.installs
+    }
+    return out
+  } catch {
+    // Migration not applied yet: fall back to empty counts so the stats API
+    // still serves votes. First install report will fail too, since the
+    // table is absent; deployed worker and D1 migration move together.
+    return null
+  }
 }
 
 async function mutateLike(env, kind, assetId, hash, unlike) {
@@ -208,16 +246,37 @@ export default {
     const url = new URL(request.url)
     const path = url.pathname
 
-    if (request.method === 'OPTIONS' && (path === '/api/like' || path === '/api/stats' || path === '/api/telemetry/event')) return preflight(request)
+    if (request.method === 'OPTIONS' && (path === '/api/like' || path === '/api/install' || path === '/api/stats' || path === '/api/telemetry/event')) return preflight(request)
     if (path === '/api/health') return json({ ok: true })
     if (path === '/api/npm-badge/downloads' && request.method === 'GET') return handleNpmBadge('downloads', json)
     if (path === '/api/npm-badge/version' && request.method === 'GET') return handleNpmBadge('version', json)
     if (path === '/api/npm-badge/total' && request.method === 'GET') return handleNpmBadge('total', json)
+    if (path === '/api/npm-downloads' && request.method === 'GET') return handleNpmDownloads(env, json)
     if (path === '/api/telemetry/badge/users' && request.method === 'GET') return handleTelemetryUsersBadge(env, json)
     if (path === '/api/turnstile/challenge' && request.method === 'GET') return challengePage()
 
     if (path === '/api/stats' && request.method === 'GET') {
-      return json(await readStats(env), 200, { 'cache-control': 'no-store' })
+      const [votes, installs] = await Promise.all([readStats(env), readInstalls(env)])
+      return json({ ...votes, installs }, 200, { 'cache-control': 'no-store' })
+    }
+
+    if (path === '/api/install' && request.method === 'POST') {
+      let body
+      try { body = await request.json() } catch { return json({ ok: false, error: 'invalid-json' }, 400) }
+      const kind = typeof body.kind === 'string' ? body.kind : ''
+      const assetId = typeof body.asset_id === 'string' ? body.asset_id : ''
+      const fp = typeof body.device_fp === 'string' ? body.device_fp : ''
+      const installId = typeof body.install_id === 'string' ? body.install_id : ''
+      if (!KINDS.has(kind) || !ASSET_RE.test(assetId) || !FP_RE.test(fp) || !/^[A-Za-z0-9_-]{16,64}$/.test(installId)) {
+        return json({ ok: false, error: 'invalid-params' }, 400)
+      }
+      const hash = await sha256(fp)
+      const token = typeof body.turnstile_token === 'string' ? body.turnstile_token : ''
+      if (!(await verifyTurnstile(request, env, token))) {
+        return json({ ok: false, error: token ? 'captcha-invalid' : 'captcha-required' }, 403)
+      }
+      const installs = await mutateInstall(env, kind, assetId, hash, installId)
+      return json({ ok: true, installs })
     }
 
     if (path === '/api/telemetry/event' && request.method === 'POST') {

@@ -119,6 +119,7 @@
   border-color: var(--dsw-alias-label-dimmed);
   background: var(--dsw-alias-bg-layer-2);
 }
+.metrics { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 11px; line-height: 1.5; color: var(--dsw-alias-label-tertiary); font-variant-numeric: tabular-nums; }
 .cardDesc {
   margin: 0;
   font-size: 13px;

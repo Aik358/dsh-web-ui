@@ -27,9 +27,12 @@ const FAMILY_PACKAGES = [
 ]
 const TTL_MS = 60 * 60 * 1000
 const BADGE_CACHE = { 'cache-control': 'public, max-age=1800' }
+/** Batch endpoint cache: one entry per served plugin manifest generation. */
+const DOWNLOADS_CACHE = { 'cache-control': 'public, max-age=1800, stale-while-revalidate=3600' }
 
 let cache = { at: 0, downloads: null, version: null }
 let totalCache = { at: 0, total: null }
+let pluginDownloadsCache = { at: 0, key: '', downloads: null }
 
 async function fetchJson(url) {
   try {
@@ -46,6 +49,12 @@ function formatDownloads(n) {
   if (n >= 1e6) return trim(n / 1e6) + 'm/month'
   if (n >= 1e3) return trim(n / 1e3) + 'k/month'
   return String(n) + '/month'
+}
+
+/** Last-30d npm download count for exactly one package, or null when npm has no data. */
+async function packageDownloads(pkg) {
+  const data = await fetchJson('https://api.npmjs.org/downloads/point/last-month/' + encodeURIComponent(pkg))
+  return data && Number.isFinite(data.downloads) ? data.downloads : null
 }
 
 /** Compact all-time count, e.g. 12.3k / 1.4m. */
@@ -102,6 +111,37 @@ async function totals() {
 }
 
 /** kind is 'downloads' | 'version' | 'total'; json is the worker's JSON responder. */
+/**
+ * Batch last-30d npm downloads for every plugin in the served manifest.
+ * The manifest-derived package list is the allowlist: no query parameter ever
+ * drives an upstream lookup. Unpublishable or unlisted packages stay null,
+ * and the whole batch cache-lines on the manifest generation.
+ */
+export async function handleNpmDownloads(env, json) {
+  const read = async (path) => {
+    const res = await env.ASSETS.fetch(new URL(path, 'https://dsh-market.com/'))
+    if (!res || res.status !== 200) return null
+    return res.json().catch(() => null)
+  }
+  const manifest = await read('/manifest/plugins.json')
+  if (!manifest || !Array.isArray(manifest.items)) return json({ ok: false, error: 'downloads-unavailable' }, 503)
+  const packages = []
+  for (const item of manifest.items) {
+    if (item && typeof item.npm === 'string' && item.npm && !packages.includes(item.npm)) packages.push(item.npm)
+  }
+  if (packages.length === 0) return json({ ok: true, generatedAt: new Date().toISOString(), ttlSeconds: 3600, downloads: {} }, 200, DOWNLOADS_CACHE)
+  const key = JSON.stringify(packages)
+  const now = Date.now()
+  if (now - pluginDownloadsCache.at < TTL_MS && pluginDownloadsCache.key === key && pluginDownloadsCache.downloads !== null) {
+    return json({ ok: true, generatedAt: new Date(pluginDownloadsCache.at).toISOString(), ttlSeconds: TTL_MS / 1000, downloads: pluginDownloadsCache.downloads }, 200, DOWNLOADS_CACHE)
+  }
+  const values = await Promise.all(packages.map((pkg) => packageDownloads(pkg)))
+  const downloads = {}
+  packages.forEach((pkg, index) => { if (values[index] !== null) downloads[pkg] = values[index] })
+  pluginDownloadsCache = { at: now, key, downloads }
+  return json({ ok: true, generatedAt: new Date(now).toISOString(), ttlSeconds: TTL_MS / 1000, downloads }, 200, DOWNLOADS_CACHE)
+}
+
 export async function handleNpmBadge(kind, json) {
   if (kind === 'total') {
     const total = await totalDownloads()

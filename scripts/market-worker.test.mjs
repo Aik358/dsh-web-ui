@@ -82,6 +82,57 @@ test('worker records a like via one D1 batch with recount and count read', async
   }
 })
 
+test('worker records an install via one D1 batch with recount and count read', async () => {
+  const realFetch = globalThis.fetch
+  globalThis.fetch = async () => new Response(JSON.stringify({ success: true, action: 'market-install', hostname: 'dsh-market.com' }))
+  try {
+    const seen = []
+    const db = {
+      prepare: (sql) => {
+        const s = { sql }
+        s.bind = (...args) => { seen.push({ kind: 'bind', sql, args }); return { kind: 'exec', sql } }
+        return { bind: s.bind }
+      },
+      batch: async (items) => {
+        seen.push({ kind: 'batch', count: items.length })
+        return [
+          { results: [], meta: { changed_db: 1 } },
+          { results: [] },
+          { results: [{ installs: 6 }] },
+        ]
+      },
+    }
+    const response = await worker.fetch(new Request('https://dsh-market.com/api/install', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ kind: 'skin', asset_id: 'harbor', device_fp: '0123456789abcdef', install_id: 'install-1-abcdef1234567890', turnstile_token: 'token-1' }),
+    }), { TURNSTILE_SECRET: 'configured', DB: db }, context())
+    assert.equal(response.status, 200)
+    const payload = await response.json()
+    assert.equal(payload.ok, true)
+    assert.equal(payload.installs, 6)
+    assert.equal(seen.filter((e) => e.kind === 'batch').length, 1)
+    const batch = seen.find((e) => e.kind === 'batch')
+    assert.equal(batch.count, 3)
+    const insert = seen.find((e) => e.kind === 'bind' && e.sql.includes('INSERT OR IGNORE INTO install_events'))
+    assert.ok(insert, 'install event insert statement present')
+    assert.match(insert.args[0], /^[0-9a-f]{64}$/, 'event id is a sha256')
+    assert.equal(insert.args[2], 'harbor')
+  } finally {
+    globalThis.fetch = realFetch
+  }
+})
+
+test('worker install endpoint rejects missing or invalid install params', async () => {
+  const response = await worker.fetch(new Request('https://dsh-market.com/api/install', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ kind: 'skin', asset_id: 'bad', device_fp: 'x', install_id: 'y' }),
+  }), { TURNSTILE_SECRET: 'configured' }, context())
+  assert.equal(response.status, 400)
+  assert.equal((await response.json()).error, 'invalid-params')
+})
+
 test('worker stats endpoint is never cached', async () => {
   const db = { prepare: () => ({ all: async () => ({ results: [] }) }) }
   const response = await worker.fetch(new Request('https://dsh-market.com/api/stats'), { DB: db }, context())
@@ -425,6 +476,43 @@ test('users badge degrades to grey without D1', async () => {
   const badge = await response.json()
   assert.equal(badge.message, 'unavailable')
   assert.equal(badge.color, 'lightgrey')
+})
+
+test('batch npm downloads endpoint derives its allowlist from the plugin manifest and caches', async () => {
+  const originalFetch = globalThis.fetch
+  let npmCalls = 0
+  const db = { prepare: () => ({ all: async () => ({ results: [] }) }) }
+  globalThis.fetch = async (url) => {
+    npmCalls += 1
+    assert.match(String(url), /api\.npmjs\.org\/downloads\/point\/last-month\//)
+    return new Response(JSON.stringify({ downloads: 41 }), { status: 200 })
+  }
+  const assets = {
+    async fetch() {
+      return new Response(JSON.stringify({ items: [{ id: 'a', npm: 'pkg-a' }, { id: 'b', repo: 'https://github.com/u/b' }, { id: 'c', npm: 'pkg-c' }] }), { status: 200 })
+    },
+  }
+  try {
+    const first = await worker.fetch(new Request('https://dsh-market.com/api/npm-downloads'), { ASSETS: assets, DB: db }, context())
+    assert.equal(first.status, 200)
+    assert.match(first.headers.get('cache-control') || '', /max-age/)
+    const payload = await first.json()
+    assert.equal(payload.ok, true)
+    assert.deepEqual(payload.downloads, { 'pkg-a': 41, 'pkg-c': 41 })
+    const callsAfterFirst = npmCalls
+    const second = await worker.fetch(new Request('https://dsh-market.com/api/npm-downloads'), { ASSETS: assets, DB: db }, context())
+    await second.json()
+    assert.equal(npmCalls, callsAfterFirst, 'second hit within the TTL must reuse the cache')
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+test('batch npm downloads degrades to 503 when the manifest is unreadable', async () => {
+  const assets = { async fetch() { return new Response('', { status: 404 }) } }
+  const response = await worker.fetch(new Request('https://dsh-market.com/api/npm-downloads'), { ASSETS: assets }, context())
+  assert.equal(response.status, 503)
+  assert.equal((await response.json()).error, 'downloads-unavailable')
 })
 
 test('total downloads badge sums the family range API with caching', async () => {

@@ -93,6 +93,8 @@ export const zh = {
   'installedAt': '安装到 {path}',
   'loading': '加载中…',
   'votes': '{count} 票',
+  'installs': '安装 {count}',
+  'npmDownloads': 'npm 近 30 天 {count}',
   'remote.note': '远程浏览器仅可浏览与复制命令；一键安装需在本机（回环）浏览器。',
 } as const
 
@@ -187,6 +189,8 @@ export const en = {
   'installedAt': 'Installed to {path}',
   'loading': 'Loading…',
   'votes': '{count} votes',
+  'installs': '{count} installs',
+  'npmDownloads': 'npm {count} last 30d',
   'remote.note': 'Remote browsers can browse and copy commands only; one-click install needs the local (loopback) browser.',
 } as const
 

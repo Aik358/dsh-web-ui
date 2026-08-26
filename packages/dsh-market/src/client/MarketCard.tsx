@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useRef, useState, useSyncExternalStore, type ComponentProps, type ReactNode } from 'react'
-import { marketTurnstileToken } from './turnstile.ts'
+import { marketTurnstileToken, TURNSTILE_ACTION_INSTALL } from './turnstile.ts'
 import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SettingsScope, SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
@@ -102,6 +102,7 @@ interface MarketStats {
   skin: Record<string, number>
   pet: Record<string, number>
   plugin: Record<string, number>
+  installs?: Record<Kind, Record<string, number>>
 }
 
 interface MarketData {
@@ -144,6 +145,16 @@ async function fetchJson(url: string): Promise<unknown> {
   return res.json()
 }
 
+async function fetchJsonOptional(url: string): Promise<unknown | null> {
+  try { return await fetchJson(url) } catch { return null }
+}
+
+function formatCount(count: number): string {
+  if (count >= 1_000_000) return (Math.round(count / 100_000) / 10) + 'm'
+  if (count >= 1_000) return (Math.round(count / 100) / 10) + 'k'
+  return String(count)
+}
+
 /** Props the renderer binds for the market card. */
 export type MarketCardProps =
   PropsLocale<'dsh-web-ui-market'>
@@ -160,6 +171,12 @@ export type MarketCardProps =
     pluginManager?: PluginManagerService | null
     /** Turnstile token override (injected for tests). */
     turnstileToken?: () => Promise<string>
+    /** Npm-downloads data override: a data object (injected for tests) or a loader. */
+    npmDownloads?: Record<string, number> | (() => Promise<Record<string, number> | null>)
+    /** Install-event recorder override (injected for tests); returns the fresh count. */
+    reportInstall?: (kind: Kind, id: string) => Promise<number>
+    /** Market-origin base for test injection. */
+    marketOrigin?: string
   }
 
 /**
@@ -192,6 +209,7 @@ export function MarketCard(props: MarketCardProps): ReactNode {
   const [callouts, setCallouts] = useState<Record<string, string>>({})
   const [pluginList, setPluginList] = useState<readonly InstalledPluginItem[] | null>(null)
   const [pluginErrors, setPluginErrors] = useState<Record<string, string>>({})
+  const [npmDownloads, setNpmDownloads] = useState<Record<string, number>>({})
   const likeSeq = useRef(new Map<string, number>())
 
   // Remote data (test override or the live market site).
@@ -204,12 +222,16 @@ export function MarketCard(props: MarketCardProps): ReactNode {
     }
     let alive = true
     setLoading(true)
+    const downloadsLoader: () => Promise<unknown | null> = typeof props.npmDownloads === 'function'
+      ? props.npmDownloads
+      : props.npmDownloads !== undefined ? async () => props.npmDownloads : () => fetchJsonOptional(MARKET_ORIGIN + '/api/npm-downloads')
     void Promise.all([
       fetchJson(MARKET_ORIGIN + '/manifest/skins.json'),
       fetchJson(MARKET_ORIGIN + '/manifest/pets.json'),
       fetchJson(MARKET_ORIGIN + '/manifest/plugins.json'),
       fetchJson(MARKET_ORIGIN + '/api/stats'),
-    ]).then(([skins, pets, plugins, stats]) => {
+      downloadsLoader(),
+    ]).then(([skins, pets, plugins, stats, downloads]) => {
       if (!alive) return
       const s = (stats ?? { skin: {}, pet: {}, plugin: {} }) as MarketStats
       setData({
@@ -218,8 +240,15 @@ export function MarketCard(props: MarketCardProps): ReactNode {
           pet: ((pets as { items: MarketRecord[] }).items) ?? [],
           plugin: ((plugins as { items: MarketRecord[] }).items) ?? [],
         },
-        stats: { skin: s.skin ?? {}, pet: s.pet ?? {}, plugin: s.plugin ?? {} },
+        stats: { skin: s.skin ?? {}, pet: s.pet ?? {}, plugin: s.plugin ?? {},
+          installs: s.installs ?? undefined } as MarketStats,
       })
+      if (downloads && typeof downloads === 'object' && (downloads as Record<string, unknown>).downloads) {
+        const list = (downloads as { downloads: Record<string, number> }).downloads
+        setNpmDownloads((prev) => ({ ...prev, ...list }))
+      } else if (downloads && typeof downloads === 'object') {
+        setNpmDownloads((prev) => ({ ...prev, ...(downloads as Record<string, number>) }))
+      }
       setFailed(false)
       setLoading(false)
     }).catch(() => {
@@ -228,7 +257,7 @@ export function MarketCard(props: MarketCardProps): ReactNode {
       setLoading(false)
     })
     return () => { alive = false }
-  }, [props.remote, loadAttempt])
+  }, [props.remote, props.npmDownloads, loadAttempt])
 
   // Host gateway probe: POST install routes + GET installed snapshot. When
   // the loopback gateway answers, asset install buttons become available;
@@ -293,6 +322,11 @@ export function MarketCard(props: MarketCardProps): ReactNode {
 
   const votesOf = (kind: Kind, id: string): number => {
     const bucket = data?.stats ?? { skin: {}, pet: {}, plugin: {} }
+    return (bucket[kind] as Record<string, number>)[id] ?? 0
+  }
+
+  const installsOf = (kind: Kind, id: string): number => {
+    const bucket = data?.stats?.installs ?? { skin: {}, pet: {}, plugin: {} }
     return (bucket[kind] as Record<string, number>)[id] ?? 0
   }
 
@@ -372,6 +406,15 @@ export function MarketCard(props: MarketCardProps): ReactNode {
       callout(id, t('installedAt', { path: result.dest }))
       const list = await gateway.list()
       setInstalled(list)
+      void reportInstall(kind, id).then((count) => {
+        setData((prev) => prev ? {
+          ...prev,
+          stats: {
+            ...prev.stats,
+            installs: { ...(prev.stats.installs ?? { skin: {}, pet: {}, plugin: {} }), [kind]: { ...(prev.stats.installs?.[kind] ?? {}), [id]: count } },
+          },
+        } : prev)
+      }).catch(() => { /* non-fatal */ })
       if (kind === 'skin') {
         try {
           await fetch('/api/skin-center/v2/active', {
@@ -413,6 +456,15 @@ export function MarketCard(props: MarketCardProps): ReactNode {
     face.install(spec).then(() => face.list()).then((list) => {
       setPluginList(list)
       callout(id, t('installed', {}))
+      void reportInstall('plugin', id).then((count) => {
+        setData((prev) => prev ? {
+          ...prev,
+          stats: {
+            ...prev.stats,
+            installs: { ...(prev.stats.installs ?? { skin: {}, pet: {}, plugin: {} }), plugin: { ...(prev.stats.installs?.plugin ?? {}), [id]: count } },
+          },
+        } : prev)
+      }).catch(() => { /* non-fatal */ })
     }).catch((reason: unknown) => {
       setPluginErrors((prev) => ({ ...prev, [id]: t('installFailed', { reason: messageOf(reason) }) }))
     }).finally(() => setInstalling(null))
@@ -450,6 +502,20 @@ export function MarketCard(props: MarketCardProps): ReactNode {
       setCallouts((prev) => ({ ...prev, [id]: t('likeFailed', {}) }))
     }
   }
+
+  const origin = props.marketOrigin ?? MARKET_ORIGIN
+  const reportInstall = props.reportInstall ?? (async (kind: Kind, id: string): Promise<number> => {
+    const token = await (props.turnstileToken ?? (() => marketTurnstileToken(TURNSTILE_ACTION_INSTALL)))()
+    const installId = window.crypto.randomUUID ? window.crypto.randomUUID() : 'ins-' + Math.random().toString(36).slice(2) + '-' + Date.now().toString(36)
+    const res = await fetch(origin + '/api/install', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ kind, asset_id: id, device_fp: deviceFp(), install_id: installId, turnstile_token: token }),
+    })
+    if (!res.ok) throw new Error('HTTP ' + res.status)
+    const out = (await res.json()) as { installs?: number }
+    return out.installs ?? 0
+  })
 
   const pluginItems = data?.items.plugin ?? []
   const chipClass = (isOn: boolean, isSub: boolean): string => {
@@ -588,6 +654,10 @@ export function MarketCard(props: MarketCardProps): ReactNode {
                       {item.description || item.descriptionEn ? (
                         <span className={css.cardDesc}>{(item.description ?? item.descriptionEn ?? '').slice(0, 140)}</span>
                       ) : null}
+                      <span className={css.metrics}>
+                        {installsOf(tab, id) > 0 ? <span>{t('installs', { count: formatCount(installsOf(tab, id)) })}</span> : null}
+                        {item.npm && npmDownloads[item.npm] !== undefined ? <span>{t('npmDownloads', { count: formatCount(npmDownloads[item.npm] ?? 0) })}</span> : null}
+                      </span>
                       <span className={css.cardFooter}>
                         <span className={css.actionRow}>
                           <button type="button" className={css.like} onClick={() => { void onLike(tab, id) }}>

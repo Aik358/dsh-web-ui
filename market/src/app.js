@@ -211,6 +211,8 @@
     subcat: 'all',
     data: { skin: [], pet: [], plugin: [] },
     votes: { skin: {}, pet: {}, plugin: {} },
+    installs: { skin: {}, pet: {}, plugin: {} },
+    npmDownloads: {},
     apiOk: false,
   }
 
@@ -248,6 +250,8 @@
   var myVotes = loadMyVotes()
 
   function votesFor(kind, id) { return (state.votes[kind] && state.votes[kind][id]) || 0 }
+  function installsFor(kind, id) { return (state.installs[kind] && state.installs[kind][id]) || 0 }
+  function npmDownloadsFor(item) { return (item.npm && state.npmDownloads[item.npm]) || null }
   function hasMyVote(kind, id) { return !!myVotes[kind + ':' + id] }
   function thumbSrc(kind, item) {
     if (kind === 'skin') return item.preview && item.preview.light
@@ -270,6 +274,10 @@
       safe(fetchJson('/api/stats')).then(function (s) {
         state.apiOk = !!s
         if (s && s.skin) state.votes = { skin: s.skin || {}, pet: s.pet || {}, plugin: s.plugin || {} }
+        if (s && s.installs) state.installs = { skin: s.installs.skin || {}, pet: s.installs.pet || {}, plugin: s.installs.plugin || {} }
+      }),
+      safe(fetchJson('/api/npm-downloads')).then(function (d) {
+        state.npmDownloads = (d && d.downloads) || {}
       }),
     ]).then(function () { renderTabCounts(); renderAll() })
   }
@@ -397,6 +405,15 @@
     }
   }
 
+  function metricLabel(kind, item) {
+    var parts = []
+    var installs = installsFor(kind, item.id)
+    if (installs > 0) parts.push('安装 ' + installs)
+    var npmDownload = npmDownloadsFor(item)
+    if (npmDownload !== null) parts.push('npm 近 30 天 ' + npmDownload)
+    return parts.join(' · ')
+  }
+
   function renderCard(kind, item) {
     var card = el('article', 'mk-card')
     // Community plugins carry no artwork: skip the media block so the card
@@ -442,6 +459,8 @@
     if (kind === 'plugin' && item.subcategory) meta.push(SUB_LABEL[item.subcategory] || item.subcategory)
     if (kind === 'pet' && item.renderer) meta.push(item.renderer)
     body.appendChild(el('div', 'mk-card-meta', meta.join(' · ')))
+    var metric = metricLabel(kind, item)
+    if (metric) body.appendChild(el('div', 'mk-card-metric', metric))
     var desc = item.tagline || item.description || item.descriptionEn || (kind === 'pet' ? '' : '')
     body.appendChild(el('div', 'mk-card-desc', desc))
     var actions = el('div', 'mk-card-actions')

@@ -29,6 +29,34 @@ export default {
         responses: { 200: { description: 'Vote counts' } },
       },
     },
+    '/api/install': {
+      post: {
+        summary: 'Record one successful Workshop install (skins, pets or community plugins); one event per install, Turnstile-gated when configured',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['kind', 'asset_id', 'device_fp', 'install_id', 'turnstile_token'],
+                properties: {
+                  kind: { type: 'string', enum: ['skin', 'pet', 'plugin'] },
+                  asset_id: { type: 'string' },
+                  device_fp: { type: 'string' },
+                  install_id: { type: 'string' },
+                  turnstile_token: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          200: { description: 'Install recorded; returns the refreshed cumulative install count' },
+          400: { description: 'Invalid parameters or JSON' },
+          403: { description: 'Turnstile challenge missing or invalid' },
+        },
+      },
+    },
     '/api/like': {
       post: {
         summary: 'Like or unlike an asset (one vote per device, Turnstile-gated when configured)',
@@ -133,6 +161,15 @@ export default {
       get: {
         summary: 'Shields endpoint badge: all-time cumulative npm downloads summed over every published family package (both aggregate names included)',
         responses: { 200: { description: 'Shields endpoint schema (schemaVersion 1)' } },
+      },
+    },
+    '/api/npm-downloads': {
+      get: {
+        summary: 'Last-30d npm downloads for every npm-backed plugin in the served manifest; npm registry public data, not Workshop install counts',
+        responses: {
+          200: { description: 'JSON map of npm package name to last-30d download count' },
+          503: { description: 'Plugin manifest unreadable' },
+        },
       },
     },
     '/api/telemetry/badge/users': {

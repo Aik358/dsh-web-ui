@@ -38,7 +38,7 @@ function challengeFrame(): Promise<HTMLIFrameElement> {
   return ready
 }
 
-async function requestOne(): Promise<string> {
+async function requestOne(action: string): Promise<string> {
   const iframe = await challengeFrame()
   const id = turnstileRequestId()
   return new Promise((resolve, reject) => {
@@ -62,13 +62,18 @@ async function requestOne(): Promise<string> {
       }
     }
     window.addEventListener('message', onMessage)
-    iframe.contentWindow?.postMessage({ source: 'dsh-market-card', type: 'request', id }, MARKET_ORIGIN)
+    iframe.contentWindow?.postMessage({ source: 'dsh-market-card', type: 'request', id, action }, MARKET_ORIGIN)
   })
 }
 
+/** Turnstile action for Workshop likes. */
+export const TURNSTILE_ACTION_LIKE = 'market-like'
+/** Turnstile action for Workshop install events. */
+export const TURNSTILE_ACTION_INSTALL = 'market-install'
+
 /** Serialize challenges because one invisible widget can execute only once at a time. */
-export function marketTurnstileToken(): Promise<string> {
-  const request = chain.then(requestOne)
+export function marketTurnstileToken(action: string = TURNSTILE_ACTION_LIKE): Promise<string> {
+  const request = chain.then(() => requestOne(action))
   chain = request.then(() => undefined, () => undefined)
   return request
 }

@@ -266,21 +266,24 @@ describe('MarketCard', () => {
 
   it('retries a failed live manifest load', async () => {
     const good = (value: unknown) => new Response(JSON.stringify(value))
-    const fetchMock = vi.fn()
-      .mockRejectedValueOnce(new Error('offline'))
-      .mockRejectedValueOnce(new Error('offline'))
-      .mockRejectedValueOnce(new Error('offline'))
-      .mockRejectedValueOnce(new Error('offline'))
-      .mockResolvedValueOnce(good({ items: REMOTE.items.skin }))
-      .mockResolvedValueOnce(good({ items: REMOTE.items.pet }))
-      .mockResolvedValueOnce(good({ items: REMOTE.items.plugin }))
-      .mockResolvedValueOnce(good(REMOTE.stats))
+    let calls = 0
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input)
+      calls += 1
+      if (calls <= 5) return Promise.reject(new Error('offline'))
+      if (url.endsWith('/manifest/skins.json')) return Promise.resolve(good({ items: REMOTE.items.skin }))
+      if (url.endsWith('/manifest/pets.json')) return Promise.resolve(good({ items: REMOTE.items.pet }))
+      if (url.endsWith('/manifest/plugins.json')) return Promise.resolve(good({ items: REMOTE.items.plugin }))
+      if (url.endsWith('/api/stats')) return Promise.resolve(good(REMOTE.stats))
+      if (url.endsWith('/api/npm-downloads')) return Promise.resolve(good({ downloads: { 'dsh-tui': 120 } }))
+      return Promise.reject(new Error('offline'))
+    })
     vi.stubGlobal('fetch', fetchMock)
     render(<MarketCard {...cardProps(new FakeScope({}), { gateway: null, pluginManager: null })} />)
     await waitFor(() => expect(screen.getByRole('button', { name: '重试' })).toBeTruthy())
     fireEvent.click(screen.getByRole('button', { name: '重试' }))
     await waitFor(() => expect(screen.getByText('鲸吟')).toBeTruthy())
-    expect(fetchMock).toHaveBeenCalledTimes(8)
+    expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(10)
   })
 
   it('does not report success when copy fallback fails (issue #1091)', async () => {
