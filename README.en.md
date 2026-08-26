@@ -316,7 +316,7 @@ A: Yes. The aggregate namespaces every row id with a `web-ui-` prefix (e.g. `web
 
 The community chat is here: talk usage, report issues and discuss ideas with the developers and other users. Scan the QQ code to join "DSH Web UI 交流群":
 
-![DSH Web UI community](docs/community-center.jpg)
+<img src="docs/community-center.jpg" alt="DSH Web UI community" width="240">
 
 You can also join the [Discord community](https://discord.gg/6v4gm9u4S), or head straight to [GitHub Issues](https://github.com/zhu1090093659/dsh-web/issues) to report bugs / request features.
 

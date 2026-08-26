@@ -315,7 +315,7 @@ A: 可以。聚合包的行 id 统一带 `web-ui-` 前缀（如 `web-ui-describe
 
 社区交流群在这里，和开发者、其他用户一起聊用法、报问题、提想法。QQ 扫码加入「DSH Web UI 交流群」：
 
-![DSH Web UI 交流群](docs/community-center.jpg)
+<img src="docs/community-center.jpg" alt="DSH Web UI 交流群" width="240">
 
 也可以加 [Discord 社区](https://discord.gg/6v4gm9u4S)，或直接到 [GitHub Issues](https://github.com/zhu1090093659/dsh-web/issues) 报 Bug / 提需求。
 
