@@ -594,11 +594,12 @@ describe('skin controller', () => {
     expect(backgroundImgSrc()).toBe('')
   })
 
-  it('drives --dsh-skin-scrim with the background media (whale-mom contract)', async () => {
+  it('manages backdrop scene activation while preserving user scrim (#1178)', async () => {
     document.head.innerHTML = ''
     document.body.innerHTML = ''
     document.body.removeAttribute('style')
     document.documentElement.removeAttribute('data-dsh-skin')
+    document.body.style.setProperty('--dsw-skin-scrim', '0.6')
     const ledger = createEffectLedger()
     const loadStylesheet = async (href: string) => {
       const link = document.createElement('link')
@@ -622,11 +623,13 @@ describe('skin controller', () => {
       persist: async () => {},
       suppressBackgroundMedia: () => false,
     })
-    expect(document.body.style.getPropertyValue('--dsh-skin-scrim')).toBe('')
+    expect(document.body.style.getPropertyValue('--dsw-skin-scrim')).toBe('0.6')
     await controller.switchTo('media-skin', mediaEntry)
-    expect(document.body.style.getPropertyValue('--dsh-skin-scrim')).toBe('1')
+    expect(document.documentElement.getAttribute('data-dsh-backdrop-active')).toBe('true')
+    expect(document.body.style.getPropertyValue('--dsw-skin-scrim')).toBe('0.6')
     await controller.switchTo(null, null)
-    expect(document.body.style.getPropertyValue('--dsh-skin-scrim')).toBe('0')
+    expect(document.documentElement.hasAttribute('data-dsh-backdrop-active')).toBe(false)
+    expect(document.body.style.getPropertyValue('--dsw-skin-scrim')).toBe('0.6')
   })
 
   it('marks the unified backdrop-active marker and installs the shared composer-seat neutralizer while media is mounted (#777)', async () => {

@@ -462,6 +462,12 @@ function applyImpl(ctx: Context, config?: Config): void {
     if (!resolve().enabled) return false
     return isPairedDeviceRequest(service, request)
   })
+
+  if (lanAddresses.length > 0) {
+    const urls = lanAddresses.map(ip => `http://${ip}:${String(ctx.webServer.port)}/m/`).join(' , ')
+    console.log(`remote-web-ui: mobile UI reachable on LAN at ${urls}`)
+  }
+
   const sync = (): void => {
     const value = resolve()
     service.config = pairingConfigOf(value)

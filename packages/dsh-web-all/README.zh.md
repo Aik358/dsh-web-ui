@@ -14,8 +14,19 @@ DSH Web UI 全家桶聚合插件：一键安装全部功能插件（task-board /
 
 ### 从 npm 安装（推荐）
 
+**DSH Web CLI（浏览器端）**：
 ```sh
 dsh plugin --profile web add @linxin666/dsh-web-all@latest
+# 重启 dsh web
+dsh web
+```
+
+**DSH Desktop（桌面客户端）**：
+```sh
+dsh plugin --profile desktop add @linxin666/dsh-web-all@latest
+# 检查是否已挂载
+dsh --profile desktop --dump-config
+# 完全退出并重新启动 DSH Desktop 桌面应用
 ```
 
 ### 从仓库安装（开发调试）
@@ -28,7 +39,7 @@ node scripts/link-profile.mjs
 dsh plugin --profile web add link:$(pwd)/packages/dsh-web-all
 ```
 
-安装后重启 `dsh web` 使插件生效。
+安装后重启 `dsh web`（或 DSH Desktop 客户端）使插件生效。
 
 ### 手工升级
 

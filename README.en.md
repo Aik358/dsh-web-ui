@@ -145,9 +145,14 @@ Classic Blue Fantasy is the default skin shipped with the skins plugin: whale ar
 
 ### Get Started in 3 Steps (npm, Recommended)
 
-1. Install the aggregate package: `dsh plugin --profile web add @linxin666/dsh-web-all@latest`
-2. Restart `dsh web`, every plugin entry appears in the sidebar
-3. Open "Settings > Plugin config" to toggle plugins, or try on skins in the skins panel
+- **DSH Web CLI (Browser)**:
+  1. Install the aggregate package: `dsh plugin --profile web add @linxin666/dsh-web-all@latest`
+  2. Restart `dsh web`, every plugin entry appears in the sidebar
+  3. Open "Settings > Plugin config" to toggle plugins, or try on skins in the skins panel
+- **DSH Desktop (Desktop Client)**:
+  1. Install the aggregate package: `dsh plugin --profile desktop add @linxin666/dsh-web-all@latest`
+  2. Verify bundle mount: `dsh --profile desktop --dump-config`
+  3. Fully quit and restart the DSH Desktop application to see all plugin and skin entries
 
 > Skins only? Install `@linxin666/dsh-client-ui-skin-center`. If you ended up with an old version (pnpm 11's release-age gate), see "Install Troubleshooting" below.
 

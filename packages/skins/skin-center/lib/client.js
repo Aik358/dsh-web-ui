@@ -3101,7 +3101,7 @@ window.__ModuleLoader__.load({
 		*/
 		function reconcileSkinBackgroundScope(current, snapshot, lastRevision, lastUserJson) {
 			const currentUserJson = serializeSkinBackgroundUserLayer(snapshot.user);
-			if (snapshot.revision === void 0 || snapshot.revision === lastRevision || currentUserJson === lastUserJson) return {
+			if (snapshot.revision === void 0 || snapshot.revision === lastRevision || currentUserJson === lastUserJson || currentUserJson === "") return {
 				accepted: false,
 				revision: snapshot.revision ?? lastRevision,
 				lastUserJson: currentUserJson,
@@ -3940,13 +3940,10 @@ window.__ModuleLoader__.load({
 			function setBackgroundLayer(activation, nodes) {
 				const style = doc.body.style;
 				const previousBackgroundColor = style.getPropertyValue("background-color");
-				const previousScrim = style.getPropertyValue("--dsh-skin-scrim");
 				const restore = () => {
 					if (currentActivation !== activation) return;
 					clearLayer(layers.background);
 					setSceneBackdropActive(doc, "skin", false);
-					if (previousScrim === "") style.removeProperty("--dsh-skin-scrim");
-					else style.setProperty("--dsh-skin-scrim", previousScrim);
 					if (previousBackgroundColor === "") style.removeProperty("background-color");
 					else style.setProperty("background-color", previousBackgroundColor);
 				};
@@ -3954,11 +3951,9 @@ window.__ModuleLoader__.load({
 				if (nodes.length > 0) {
 					for (const node of nodes) layers.background.appendChild(node);
 					style.setProperty("background-color", "transparent");
-					style.setProperty("--dsh-skin-scrim", "1");
 					setSceneBackdropActive(doc, "skin", true);
 				} else {
 					setSceneBackdropActive(doc, "skin", false);
-					style.setProperty("--dsh-skin-scrim", "0");
 					if (previousBackgroundColor === "") style.removeProperty("background-color");
 					else style.setProperty("background-color", previousBackgroundColor);
 				}
