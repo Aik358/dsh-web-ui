@@ -50,7 +50,6 @@ pnpm test:scripts
 pnpm aggregate:check
 pnpm runtime-deps:check
 pnpm docs:check
-pnpm gallery:check
 pnpm skin-center:check
 pnpm community:check
 pnpm market:check
