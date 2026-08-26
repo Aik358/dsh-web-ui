@@ -16,6 +16,19 @@ test('market worker answers like preflight with CORS', async () => {
   assert.equal(response.status, 204)
   assert.equal(response.headers.get('access-control-allow-origin'), '*')
   assert.match(response.headers.get('access-control-allow-methods') || '', /POST/)
+  assert.equal(response.headers.get('access-control-allow-headers'), 'content-type')
+})
+
+test('market worker preflight never reflects arbitrary request headers', async () => {
+  const response = await worker.fetch(new Request('https://dsh-market.com/api/like', {
+    method: 'OPTIONS',
+    headers: {
+      origin: 'https://evil.example',
+      'access-control-request-headers': 'content-type, x-custom-spam, authorization',
+    },
+  }), {}, context())
+  assert.equal(response.status, 204)
+  assert.equal(response.headers.get('access-control-allow-headers'), 'content-type')
 })
 
 test('market worker rejects the removed card-header Turnstile bypass', async () => {

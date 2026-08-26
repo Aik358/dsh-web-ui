@@ -134,9 +134,15 @@ function json(data, status = 200, extra = {}) {
 
 function preflight(request) {
   const headers = new Headers({
+    // ACAO * is intentional: the legitimate writers are MarketCards embedded
+    // in arbitrary per-user DSH GUI origins (loopback, LAN, custom domains),
+    // which cannot be enumerated. The abuse boundary is Turnstile + the
+    // manifest allowlist, not CORS. Allow-headers stays a static list instead
+    // of reflecting access-control-request-headers so the header surface
+    // cannot creep as new custom headers appear.
     'access-control-allow-origin': '*',
     'access-control-allow-methods': 'GET, POST, OPTIONS',
-    'access-control-allow-headers': request.headers.get('access-control-request-headers') || 'content-type',
+    'access-control-allow-headers': 'content-type',
     'access-control-max-age': '86400',
   })
   return new Response(null, { status: 204, headers })
