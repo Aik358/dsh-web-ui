@@ -61,6 +61,19 @@ dsh plugin --profile <name> add link:/absolute/path/to/dsh-git-graph
 
 A `link:` install references the local directory directly; a rebuild takes effect immediately without reinstalling (after a code change, `pnpm run build` then refresh the page). Note that `link:` takes an absolute path (`~` is expanded by the shell, not by pnpm semantics).
 
+## Worktree isolation
+
+The branch popover carries two worktree entries (a worktree is a linked git checkout that shares the repository history but owns its files and branch, so parallel sessions never touch each other's tree):
+
+- **Start a new session in a worktree…** opens a dialog: name the worktree and pick the base branch (the current branch is preselected). The host creates the worktree at `$DSH_HOME/worktrees/<repo-key>/<name>/` on a NEW branch `wt/<name>` (git forbids checking out one branch in two places), registers it as a workspace, and opens its blank session. The current checkout never moves.
+- **Manage worktrees…** lists every linked worktree of the repository with branch/head. Managed worktrees can be removed: a dirty worktree rejects once and then offers an inline force-confirm; the `wt/` branch survives removal unless the row's delete-branch checkbox is on. The primary checkout row is display-only.
+
+Two gates live in the plugin's settings card (both off by default):
+
+- **Auto-isolation** (`autoIsolate`): the New Session action of a git workspace silently creates a fresh managed worktree and starts the session there — the Claude-desktop-style automatic shape. `autoBaseline` picks the base: the checkout's current HEAD (`current`) or the remote default branch (`default`, resolved as `origin/HEAD` with a HEAD fallback when no remote exists). Workspaces already inside the managed home are never re-isolated, and any failure degrades to the official new-session behavior. This wraps the browser-side workspaces service at runtime — a shape-probed patch, not a source change; an SDK update that changes that service disables the feature with a console diagnostic instead of breaking anything.
+- **Agent tool** (`agentTool`): registers the model-facing `git_worktree` tool (create/list/remove over the same managed home, workspace-gated by the calling session's cwd). This deliberately lifts the package's "git stays off the model-visible surface" rule for opted-in users. Mind the sandbox boundary: a session's cwd is immutable, so the current session cannot move into the worktree, and under workspace-write sandboxing the agent cannot write outside its session root — `create` therefore also registers the worktree as a workspace and its reply tells the model to open a new session there. Under danger-full-access the agent may work in the returned path directly.
+
+Removal only ever targets direct children of the repository's managed directory (canonical-path containment on both sides) and unregisters the linked workspace after the disk removal succeeds.
 ## Uninstall
 
 ```sh

@@ -11,6 +11,7 @@ import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { GitService, gitSpawnArgv, type GitRunner, type GitRunResult, type WorkspaceGate } from '../src/host/git-service.ts'
+import { worktreePathFor } from '../src/host/worktree-home.ts'
 
 const execFileAsync = promisify(execFile)
 
@@ -368,3 +369,134 @@ describe('GitService status single-flight', () => {
     ])
   })
 })
+
+describe('GitService worktrees', () => {
+  let root: string
+  let repo: string
+  let savedHome: string | undefined
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), 'dsh-git-graph-wt-'))
+    savedHome = process.env.DSH_HOME
+    process.env.DSH_HOME = join(root, 'dsh-home')
+    repo = join(root, 'repo')
+    await mkdir(repo)
+    await git(repo, 'init', '-b', 'main')
+    await writeFile(join(repo, 'README.md'), 'hello\n')
+    await git(repo, 'add', '.')
+    await commit(repo, 'initial')
+    await git(repo, 'checkout', '-b', 'feature/x')
+    await writeFile(join(repo, 'feature.txt'), 'x\n')
+    await git(repo, 'add', '.')
+    await commit(repo, 'feature work')
+    await git(repo, 'checkout', 'main')
+  })
+
+  afterEach(async () => {
+    if (savedHome === undefined) delete process.env.DSH_HOME
+    else process.env.DSH_HOME = savedHome
+    await rm(root, { recursive: true, force: true })
+  })
+
+  const service = (): GitService => new GitService(runner, allowGate(repo))
+
+  /** The git-resolved repository root (symlink-canonical on macOS). */
+  const canonicalRoot = async (): Promise<string> => {
+    const status = await service().status(repo)
+    if (status === null) throw new Error('expected a repository')
+    return status.root
+  }
+
+  it('lists only the main worktree initially', async () => {
+    const view = await service().worktrees(repo)
+    expect(view).not.toBeNull()
+    expect(view?.worktrees).toHaveLength(1)
+    expect(view?.worktrees[0]?.main).toBe(true)
+    expect(view?.worktrees[0]?.branch).toBe('main')
+  })
+
+  it('creates a managed worktree on a new wt/ branch under DSH_HOME', async () => {
+    const rootCanonical = await canonicalRoot()
+    const result = await service().addWorktree(repo, 'Fix Login!')
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.name).toBe('fix-login')
+    expect(result.branch).toBe('wt/fix-login')
+    expect(result.path).toBe(worktreePathFor(rootCanonical, 'fix-login'))
+    expect(result.path.startsWith(join(process.env.DSH_HOME ?? '', 'worktrees'))).toBe(true)
+    const view = await service().worktrees(repo)
+    expect(view?.worktrees.map(item => item.branch).sort()).toEqual(['main', 'wt/fix-login'])
+  })
+
+  it('rejects duplicate names and unusable names', async () => {
+    const first = await service().addWorktree(repo, 'dup')
+    expect(first.ok).toBe(true)
+    const second = await service().addWorktree(repo, 'dup')
+    expect(second).toMatchObject({ ok: false, error: { code: 'worktree-already-exists' } })
+    const invalid = await service().addWorktree(repo, '!!!')
+    expect(invalid).toMatchObject({ ok: false, error: { code: 'invalid-worktree-name' } })
+  })
+
+  it('creates from a chosen base branch and rejects unknown base refs', async () => {
+    const featureHead = (await git(repo, 'rev-parse', 'feature/x')).stdout.trim()
+    const created = await service().addWorktree(repo, 'from-feature', 'feature/x')
+    expect(created.ok).toBe(true)
+    if (!created.ok) return
+    const wtHead = (await git(created.path, 'rev-parse', 'HEAD')).stdout.trim()
+    expect(wtHead).toBe(featureHead)
+    const missing = await service().addWorktree(repo, 'from-nothing', 'no/such-ref')
+    expect(missing).toMatchObject({ ok: false, error: { code: 'base-ref-not-found' } })
+  })
+
+  it('falls back to HEAD when origin/HEAD is requested without a remote', async () => {
+    const result = await service().addWorktree(repo, 'auto-default', 'origin/HEAD')
+    expect(result.ok).toBe(true)
+  })
+
+  it('rejects worktree operations for gated paths', async () => {
+    const outsider = new GitService(runner, allowGate())
+    expect(await outsider.addWorktree(repo, 'x')).toMatchObject({ ok: false, error: { code: 'workspace-unknown' } })
+    expect(await outsider.removeWorktree(repo, '/tmp/whatever')).toMatchObject({ ok: false, error: { code: 'workspace-unknown' } })
+    expect(await outsider.worktrees(repo)).toBeNull()
+  })
+
+  it('removes a clean worktree, keeps the branch, and deletes it on request', async () => {
+    const created = await service().addWorktree(repo, 'gone')
+    expect(created.ok).toBe(true)
+    if (!created.ok) return
+    const removed = await service().removeWorktree(repo, created.path)
+    expect(removed).toEqual({ ok: true })
+    expect((await git(repo, 'rev-parse', '--verify', '--quiet', 'refs/heads/wt/gone')).exitCode).toBe(0)
+    const view = await service().worktrees(repo)
+    expect(view?.worktrees).toHaveLength(1)
+
+    const again = await service().addWorktree(repo, 'gone-2')
+    expect(again.ok).toBe(true)
+    if (!again.ok) return
+    const purged = await service().removeWorktree(repo, again.path, { deleteBranch: true })
+    expect(purged).toEqual({ ok: true })
+    expect((await git(repo, 'rev-parse', '--verify', '--quiet', 'refs/heads/wt/gone-2')).exitCode).not.toBe(0)
+  })
+
+  it('rejects a dirty worktree without force and removes it with force', async () => {
+    const created = await service().addWorktree(repo, 'dirty')
+    expect(created.ok).toBe(true)
+    if (!created.ok) return
+    await writeFile(join(created.path, 'README.md'), 'changed\n')
+    const refused = await service().removeWorktree(repo, created.path)
+    expect(refused).toMatchObject({ ok: false, error: { code: 'worktree-dirty' } })
+    const forced = await service().removeWorktree(repo, created.path, { force: true })
+    expect(forced).toEqual({ ok: true })
+  })
+
+  it('refuses to remove the main checkout or an unmanaged path', async () => {
+    const rootCanonical = await canonicalRoot()
+    const main = await service().removeWorktree(repo, rootCanonical)
+    expect(main).toMatchObject({ ok: false, error: { code: 'worktree-not-found' } })
+    const outside = join(root, 'elsewhere')
+    await mkdir(outside)
+    const unmanaged = await service().removeWorktree(repo, outside)
+    expect(unmanaged).toMatchObject({ ok: false, error: { code: 'worktree-not-found' } })
+  })
+})
+

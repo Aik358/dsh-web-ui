@@ -25,6 +25,10 @@ export interface BranchPopoverProps {
   onCreate: () => void
   /** Open the Git graph panel. */
   onGraph: () => void
+  /** Open the create-worktree (new isolated session) dialog. */
+  onCreateWorktree: () => void
+  /** Open the worktree manager. */
+  onManageWorktrees: () => void
   /** Close the popover (backdrop / after a successful switch). */
   onClose: () => void
   t: Translate<GitGraphKey>
@@ -39,7 +43,7 @@ const SUCCESS_DISMISS_MS = 900
  * The branch picker popover.
  * @param props - see {@link BranchPopoverProps}.
  */
-export function BranchPopover({ view, onSwitch, onSwitched, onCreate, onGraph, onClose, t, hero = false }: BranchPopoverProps) {
+export function BranchPopover({ view, onSwitch, onSwitched, onCreate, onGraph, onCreateWorktree, onManageWorktrees, onClose, t, hero = false }: BranchPopoverProps) {
   const [query, setQuery] = useState('')
   const [pending, setPending] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -162,6 +166,14 @@ export function BranchPopover({ view, onSwitch, onSwitched, onCreate, onGraph, o
           <button type="button" className={css.footerItem} onClick={onGraph}>
             <IconBranchOutline16 size={14} />
             {t('branch.graph')}
+          </button>
+          <button type="button" className={css.footerItem} onClick={onCreateWorktree} data-dsh-part="worktree-create">
+            <IconBranchOutline16 size={14} />
+            {t('worktree.create')}
+          </button>
+          <button type="button" className={css.footerItem} onClick={onManageWorktrees} data-dsh-part="worktree-manage">
+            <IconBranchOutline16 size={14} />
+            {t('worktree.manage')}
           </button>
         </div>
       </div>

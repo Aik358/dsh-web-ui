@@ -481,3 +481,80 @@ describe('SSE poll loop', () => {
     second.close()
   })
 })
+
+describe('/git worktree routes', () => {
+  const featureConfig = {
+    autoIsolate: true,
+    autoBaseline: 'default' as const,
+    worktreesHome: '/home/u/.dsh/worktrees',
+  }
+
+  it('serves the live feature config without a path', async () => {
+    const { ctx, registrations } = fakeCtx()
+    registerGitRoutes(ctx as never, {} as never, () => featureConfig)
+    const prefix = registrations.find((row) => row.kind === 'prefix')!
+
+    const result = await drive(prefix.handler, '/git/config', { body: '{}' })
+    expect(JSON.parse(result.body)).toEqual({ ok: true, value: featureConfig })
+  })
+
+  it('adds a worktree through the service and returns path/branch/name', async () => {
+    const addWorktree = vi.fn(async () => ({ ok: true as const, path: '/home/u/.dsh/worktrees/r-1/fix', branch: 'wt/fix', name: 'fix' }))
+    const { ctx, registrations } = fakeCtx()
+    registerGitRoutes(ctx as never, { addWorktree } as never)
+    const prefix = registrations.find((row) => row.kind === 'prefix')!
+
+    const result = await drive(prefix.handler, '/git/worktree-add', {
+      body: JSON.stringify({ path: '/w', name: 'fix', baseRef: 'main' }),
+    })
+    expect(JSON.parse(result.body)).toEqual({
+      ok: true,
+      value: { path: '/home/u/.dsh/worktrees/r-1/fix', branch: 'wt/fix', name: 'fix' },
+    })
+    expect(addWorktree).toHaveBeenCalledWith('/w', 'fix', 'main')
+  })
+
+  it('rejects a worktree-add without a name and a remove without a path', async () => {
+    const { ctx, registrations } = fakeCtx()
+    registerGitRoutes(ctx as never, {} as never)
+    const prefix = registrations.find((row) => row.kind === 'prefix')!
+
+    const noName = await drive(prefix.handler, '/git/worktree-add', { body: JSON.stringify({ path: '/w' }) })
+    expect(JSON.parse(noName.body)).toEqual({ ok: false, error: { code: 'internal', message: 'malformed request' } })
+    const noPath = await drive(prefix.handler, '/git/worktree-remove', { body: JSON.stringify({ path: '/w' }) })
+    expect(JSON.parse(noPath.body)).toEqual({ ok: false, error: { code: 'internal', message: 'malformed request' } })
+  })
+
+  it('lists worktrees and removes one with force/deleteBranch flags', async () => {
+    const worktrees = vi.fn(async () => ({ root: '/w', worktrees: [{ path: '/w', head: 'aaaaaaa', branch: 'main', main: true }] }))
+    const removeWorktree = vi.fn(async () => ({ ok: true as const }))
+    const { ctx, registrations } = fakeCtx()
+    registerGitRoutes(ctx as never, { worktrees, removeWorktree } as never)
+    const prefix = registrations.find((row) => row.kind === 'prefix')!
+
+    const list = await drive(prefix.handler, '/git/worktrees', { body: JSON.stringify({ path: '/w' }) })
+    expect(JSON.parse(list.body)).toEqual({
+      ok: true,
+      value: { root: '/w', worktrees: [{ path: '/w', head: 'aaaaaaa', branch: 'main', main: true }] },
+    })
+
+    const removed = await drive(prefix.handler, '/git/worktree-remove', {
+      body: JSON.stringify({ path: '/w', worktreePath: '/w/wt-x', force: true, deleteBranch: true }),
+    })
+    expect(JSON.parse(removed.body)).toEqual({ ok: true, value: { removed: true } })
+    expect(removeWorktree).toHaveBeenCalledWith('/w', '/w/wt-x', { force: true, deleteBranch: true })
+  })
+
+  it('fences worktree mutations for unpaired non-loopback clients', async () => {
+    const { ctx, registrations } = fakeCtx()
+    registerGitRoutes(ctx as never, {} as never)
+    const prefix = registrations.find((row) => row.kind === 'prefix')!
+    const result = await drive(prefix.handler, '/git/worktree-add', {
+      body: JSON.stringify({ path: '/w', name: 'x' }),
+      remoteAddress: '192.168.1.10',
+      host: '192.168.1.10:3000',
+    })
+    expect(result.status).toBe(403)
+  })
+})
+

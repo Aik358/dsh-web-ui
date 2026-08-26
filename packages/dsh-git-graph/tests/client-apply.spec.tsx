@@ -48,6 +48,19 @@ function setup(declared: Set<string>) {
     slots: slotSystem,
     conversation: {},
     sessions: { list: { getSnapshot: () => ({ byId: {} }) } },
+    // The auto-isolation fiber wraps this stub's startSession; the probe
+    // members must exist so install takes the realistic path.
+    workspaces: {
+      startSession: vi.fn(),
+      create: vi.fn(),
+      connectWorkspace: vi.fn(),
+      list: { getSnapshot: () => ({ items: [] }) },
+    },
+    effect: vi.fn((fn: () => unknown) => {
+      const dispose = fn()
+      if (typeof dispose === 'function') disposers.push(dispose as () => void)
+      return () => {}
+    }),
   }
   const ctx = {
     effect: vi.fn((fn: () => unknown) => {
