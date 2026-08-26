@@ -15,7 +15,7 @@
   &nbsp;
   <a href="https://www.npmjs.com/package/@linxin666/dsh-web-all"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fdsh-market.com%2Fapi%2Fnpm-badge%2Fversion&style=flat-square&label=npm" alt="npm"></a>
   &nbsp;
-  [![dshfind](https://dshfind.com/api/badge/zhu1090093659/dsh-web?metric=downloads&lang=zh)](https://dshfind.com/zh/plugins/zhu1090093659/dsh-web?ref=badge)
+  <a href="https://dshfind.com/zh/plugins/zhu1090093659/dsh-web?ref=badge"><img src="https://dshfind.com/api/badge/zhu1090093659/dsh-web?metric=downloads&amp;lang=zh" alt="dshfind"></a>
   &nbsp;
   <a href="https://dsh-market.com"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fdsh-market.com%2Fapi%2Ftelemetry%2Fbadge%2Fusers&style=flat-square&label=users" alt="users"></a>
   &nbsp;
