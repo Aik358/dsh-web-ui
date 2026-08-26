@@ -34,3 +34,6 @@ test-results/
 
 # Cloudflare Workers 本地状态（wrangler dev 缓存，不入库）
 .wrangler/
+
+# 构建产物（tsdown 输出）
+packages/dsh-perf/lib/
