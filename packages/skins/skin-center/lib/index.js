@@ -808,6 +808,8 @@ const REVIEWED_SKIN_HOOKS = {
 */
 /** Provenance filename written by the market installer (mirrors PROVENANCE_FILENAME in @linxin666/dsh-client-ui-market; no cross-package runtime import). */
 const MARKET_PROVENANCE_FILENAME = "dsh-market.provenance.json";
+/** Market origin the provenance must pin (mirrors MARKET_ORIGIN in @linxin666/dsh-client-ui-market). */
+const MARKET_PROVENANCE_SOURCE = "https://dsh-market.com";
 function sha256Hex(abs) {
 	try {
 		return createHash("sha256").update(readFileSync(abs)).digest("hex");
@@ -855,6 +857,235 @@ function verifyReviewedLegacyHooks(dir, skinId, hooksEntry) {
 	const manifestHash = sha256Hex(join(dir, "skin.json"));
 	const hooksHash = sha256Hex(join(dir, ...hooksEntry.split("/")));
 	return manifestHash === reviewed.manifestSha256 && hooksHash === reviewed.hooksSha256;
+}
+/**
+* Deep integrity verification of one skin directory: checks all files declared
+* in dsh-market.provenance.json against recorded sha256 hashes, or verifies
+* against the reviewed legacy registry when provenance is absent.
+*/
+function verifySkinIntegrity(dir, skinId, options = {}) {
+	if (options.isBuiltin) return {
+		id: skinId,
+		status: "valid",
+		hooksTrusted: true,
+		hasProvenance: false,
+		mismatches: [],
+		missing: [],
+		totalFilesChecked: 0
+	};
+	let raw = null;
+	try {
+		raw = JSON.parse(readFileSync(join(dir, MARKET_PROVENANCE_FILENAME), "utf8"));
+	} catch {
+		raw = null;
+	}
+	if (typeof raw === "object" && raw !== null) {
+		const prov = raw;
+		if (prov.version === 1 && prov.source === "https://dsh-market.com" && prov.id === skinId && typeof prov.files === "object" && prov.files !== null) {
+			const hashes = prov.files;
+			const mismatches = [];
+			const missing = [];
+			let totalFilesChecked = 0;
+			for (const [rel, expected] of Object.entries(hashes)) {
+				if (typeof expected !== "string") continue;
+				totalFilesChecked++;
+				const actual = sha256Hex(join(dir, ...rel.split("/")));
+				if (actual === null) missing.push(rel);
+				else if (actual !== expected) mismatches.push(rel);
+			}
+			if (missing.length > 0) return {
+				id: skinId,
+				status: "missing-files",
+				hooksTrusted: false,
+				hasProvenance: true,
+				mismatches,
+				missing,
+				totalFilesChecked
+			};
+			if (mismatches.length > 0) return {
+				id: skinId,
+				status: "tampered",
+				hooksTrusted: false,
+				hasProvenance: true,
+				mismatches,
+				missing,
+				totalFilesChecked
+			};
+			return {
+				id: skinId,
+				status: "valid",
+				hooksTrusted: true,
+				hasProvenance: true,
+				mismatches: [],
+				missing: [],
+				totalFilesChecked
+			};
+		}
+	}
+	const hooksEntry = options.hooksEntry;
+	if (hooksEntry) {
+		if (verifyReviewedLegacyHooks(dir, skinId, hooksEntry)) return {
+			id: skinId,
+			status: "valid",
+			hooksTrusted: true,
+			hasProvenance: false,
+			mismatches: [],
+			missing: [],
+			totalFilesChecked: 2
+		};
+		return {
+			id: skinId,
+			status: "missing-provenance",
+			hooksTrusted: false,
+			hasProvenance: false,
+			mismatches: [],
+			missing: [],
+			totalFilesChecked: 0
+		};
+	}
+	return {
+		id: skinId,
+		status: "unverified",
+		hooksTrusted: false,
+		hasProvenance: false,
+		mismatches: [],
+		missing: [],
+		totalFilesChecked: 0
+	};
+}
+const SAFE_REL_RE = /^[A-Za-z0-9._][A-Za-z0-9._\-/]{0,199}$/;
+function isSafeRel(rel) {
+	if (typeof rel !== "string" || !SAFE_REL_RE.test(rel)) return false;
+	if (rel.includes("..") || rel.includes("//") || rel.startsWith("/") || rel.endsWith("/")) return false;
+	return true;
+}
+function collectLocalFiles(dir, base = "") {
+	const list = [];
+	for (const name of readdirSync(dir)) {
+		if (name.startsWith(".") || name === "dsh-market.provenance.json") continue;
+		const abs = join(dir, name);
+		const rel = base ? `${base}/${name}` : name;
+		const st = statSync(abs);
+		if (st.isDirectory()) list.push(...collectLocalFiles(abs, rel));
+		else if (st.isFile()) list.push(rel);
+	}
+	return list;
+}
+/**
+* Repairs a corrupted or tampered skin directory by pulling pristine files
+* from the local source tree or the official DSH Market and rewriting provenance.
+*/
+async function repairSkinFromMarket(destDir, skinId, options = {}) {
+	if (!skinId || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(skinId)) return {
+		ok: false,
+		id: skinId,
+		error: "invalid-id"
+	};
+	const localDir = options.localSourceDir ?? (existsSync(join(import.meta.dirname, "..", "skins", skinId, "skin.json")) ? join(import.meta.dirname, "..", "skins", skinId) : null);
+	if (localDir && existsSync(join(localDir, "skin.json"))) {
+		const files = collectLocalFiles(localDir);
+		if (files.length > 0) {
+			const hashes = {};
+			mkdirSync(destDir, { recursive: true });
+			for (const rel of files) {
+				const src = join(localDir, ...rel.split("/"));
+				const target = join(destDir, ...rel.split("/"));
+				const guard = rel.split("/").slice(0, -1).join(sep);
+				if (guard) mkdirSync(join(destDir, guard), { recursive: true });
+				cpSync(src, target, { force: true });
+				const h = sha256Hex(target);
+				if (h) hashes[rel] = h;
+			}
+			const provenance = {
+				version: 1,
+				source: MARKET_PROVENANCE_SOURCE,
+				kind: "skin",
+				id: skinId,
+				installedAt: (/* @__PURE__ */ new Date()).toISOString(),
+				files: hashes
+			};
+			writeFileSync(join(destDir, MARKET_PROVENANCE_FILENAME), JSON.stringify(provenance, null, 2) + "\n");
+			return {
+				ok: true,
+				id: skinId,
+				repairedFiles: files.length
+			};
+		}
+	}
+	const fetchImpl = options.fetchImpl ?? fetch;
+	const timeoutMs = options.timeoutMs ?? 15e3;
+	try {
+		const res = await fetchImpl(`${MARKET_PROVENANCE_SOURCE}/manifest/skins.json`, { signal: AbortSignal.timeout(timeoutMs) });
+		if (!res.ok) return {
+			ok: false,
+			id: skinId,
+			error: `manifest-fetch-failed: ${res.status}`
+		};
+		const item = (await res.json())?.items?.find((it) => it.id === skinId);
+		if (!item || !Array.isArray(item.files) || item.files.length === 0) return {
+			ok: false,
+			id: skinId,
+			error: "skin-not-found-on-market"
+		};
+		const tmp = destDir + ".repair-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
+		mkdirSync(tmp, { recursive: true });
+		const hashes = {};
+		try {
+			for (const rel of item.files) {
+				if (!isSafeRel(rel)) throw new Error(`unsafe manifest path: ${rel}`);
+				const fileRes = await fetchImpl(`${MARKET_PROVENANCE_SOURCE}/assets/skins/${encodeURIComponent(skinId)}/${rel.split("/").map(encodeURIComponent).join("/")}`, { signal: AbortSignal.timeout(timeoutMs) });
+				if (!fileRes.ok) throw new Error(`failed to download ${rel}: ${fileRes.status}`);
+				const buf = Buffer.from(await fileRes.arrayBuffer());
+				const target = join(tmp, ...rel.split("/"));
+				const guard = rel.split("/").slice(0, -1).join(sep);
+				if (guard) mkdirSync(join(tmp, guard), { recursive: true });
+				writeFileSync(target, buf);
+				hashes[rel] = createHash("sha256").update(buf).digest("hex");
+			}
+			const provenance = {
+				version: 1,
+				source: MARKET_PROVENANCE_SOURCE,
+				kind: "skin",
+				id: skinId,
+				installedAt: (/* @__PURE__ */ new Date()).toISOString(),
+				files: hashes
+			};
+			writeFileSync(join(tmp, MARKET_PROVENANCE_FILENAME), JSON.stringify(provenance, null, 2) + "\n");
+			if (existsSync(destDir)) rmSync(destDir, {
+				recursive: true,
+				force: true,
+				maxRetries: 3,
+				retryDelay: 50
+			});
+			try {
+				renameSync(tmp, destDir);
+			} catch {
+				const start = Date.now();
+				while (Date.now() - start < 50);
+				renameSync(tmp, destDir);
+			}
+			return {
+				ok: true,
+				id: skinId,
+				repairedFiles: item.files.length
+			};
+		} finally {
+			try {
+				if (existsSync(tmp)) rmSync(tmp, {
+					recursive: true,
+					force: true,
+					maxRetries: 3,
+					retryDelay: 50
+				});
+			} catch {}
+		}
+	} catch (err) {
+		return {
+			ok: false,
+			id: skinId,
+			error: err instanceof Error ? err.message : String(err)
+		};
+	}
 }
 //#endregion
 //#region src/skin-repo.ts
@@ -1140,6 +1371,111 @@ function resolveInsideSkin(entry, relPath) {
 	const rootWithSep = root.endsWith(sep) ? root : root + sep;
 	if (abs !== root && !abs.startsWith(rootWithSep)) return null;
 	return abs;
+}
+/**
+* Uninstall one user-directory skin by removing its directory under userDir.
+* Fails closed if the id is invalid, escapes the user directory, or targets a builtin.
+*/
+function uninstallUserSkin(skinId, options = {}) {
+	if (!skinId || typeof skinId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(skinId)) return {
+		ok: false,
+		error: "invalid-id"
+	};
+	const userDir = options.userDir ?? userSkinsDir();
+	const target = resolve(userDir, skinId);
+	const userRoot = resolve(userDir);
+	const userRootWithSep = userRoot.endsWith(sep) ? userRoot : userRoot + sep;
+	if (!target.startsWith(userRootWithSep)) return {
+		ok: false,
+		error: "invalid-id"
+	};
+	if (!existsSync(target)) return {
+		ok: false,
+		error: "skin-not-found"
+	};
+	try {
+		rmSync(target, {
+			recursive: true,
+			force: true,
+			maxRetries: 3,
+			retryDelay: 50
+		});
+	} catch (error) {
+		return {
+			ok: false,
+			error: "write-error",
+			detail: error instanceof Error ? error.message : String(error)
+		};
+	}
+	(options.catalogCache ?? DEFAULT_CATALOG_CACHE).clear();
+	return { ok: true };
+}
+/**
+* Verify integrity of all skins in the catalog.
+*/
+function verifyAllSkinsIntegrity(catalog) {
+	const details = [];
+	let validCount = 0;
+	let issuesCount = 0;
+	for (const entry of catalog.skins) {
+		const isBuiltin = entry.origin === "builtin";
+		const hooksEntry = entry.manifest.facets?.client?.entry ?? null;
+		const report = verifySkinIntegrity(entry.dir, entry.manifest.id, {
+			isBuiltin,
+			hooksEntry
+		});
+		details.push(report);
+		if (report.status === "valid") validCount++;
+		else issuesCount++;
+	}
+	return {
+		total: details.length,
+		valid: validCount,
+		issues: issuesCount,
+		details
+	};
+}
+/**
+* Repairs a specific user skin by id.
+*/
+async function repairSkin(skinId, options = {}) {
+	const res = await repairSkinFromMarket(join(options.userDir ?? userSkinsDir(), skinId), skinId, {
+		fetchImpl: options.fetchImpl,
+		timeoutMs: options.timeoutMs,
+		localSourceDir: options.localSourceDir
+	});
+	if (res.ok) (options.catalogCache ?? DEFAULT_CATALOG_CACHE).clear();
+	return res;
+}
+/**
+* Verifies all skins in catalog, and automatically repairs any skin with integrity issues.
+*/
+async function verifyAndRepairAllSkins(catalogGetter, options = {}) {
+	const initialCatalog = catalogGetter();
+	const initialSummary = verifyAllSkinsIntegrity(initialCatalog);
+	if (options.autoRepair === false || initialSummary.issues === 0) return {
+		...initialSummary,
+		repaired: [],
+		repairFailed: []
+	};
+	const repaired = [];
+	const repairFailed = [];
+	for (const report of initialSummary.details) if (report.status !== "valid") {
+		const skinEntry = findSkin(initialCatalog, report.id);
+		if (skinEntry && skinEntry.origin === "user") {
+			const res = await repairSkin(report.id, options);
+			if (res.ok) repaired.push(report.id);
+			else repairFailed.push({
+				id: report.id,
+				error: res.error ?? "unknown-error"
+			});
+		}
+	}
+	return {
+		...verifyAllSkinsIntegrity(catalogGetter()),
+		repaired,
+		repairFailed
+	};
 }
 //#endregion
 //#region src/active-state.ts
@@ -2101,12 +2437,108 @@ function makeSkinCenterV2Routes(deps = {}) {
 			diagnostics: catalog.diagnostics
 		});
 	};
+	const verifyHandler = async (req, res) => {
+		if (!requireSameOrigin(req, res)) return;
+		if (req.method !== "POST") {
+			writeJson(res, 405, {
+				ok: false,
+				error: "method-not-allowed"
+			});
+			return;
+		}
+		let body = null;
+		try {
+			body = await readJsonBody(req, { maxBytes: 16 * 1024 });
+		} catch {
+			body = null;
+		}
+		const autoRepair = body?.autoRepair !== false;
+		writeJson(res, 200, {
+			ok: true,
+			...await verifyAndRepairAllSkins(loadCatalog, {
+				userDir: deps.userDir,
+				fetchImpl: deps.fetchImpl,
+				localSourceDir: deps.localSourceDir,
+				autoRepair
+			})
+		});
+	};
 	const skinPrefix = `${SKIN_CENTER_V2_PREFIX}/skins/`;
-	const skinsHandler = (req, res) => {
+	const skinsHandler = async (req, res) => {
 		const [id, ...tail] = new URL(req.url ?? "/", "http://localhost").pathname.slice(skinPrefix.length).split("/");
 		const sub = tail.join("/");
 		const catalog = loadCatalog();
 		const entry = id ? findSkin(catalog, id) : null;
+		if (sub === "uninstall") {
+			if (!requireSameOrigin(req, res)) return;
+			if (req.method !== "POST") {
+				writeJson(res, 405, {
+					ok: false,
+					error: "method-not-allowed"
+				});
+				return;
+			}
+			if (!entry) {
+				writeJson(res, 404, {
+					ok: false,
+					error: "skin-not-found"
+				});
+				return;
+			}
+			if (entry.origin === "builtin") {
+				writeJson(res, 400, {
+					ok: false,
+					error: "cannot-uninstall-builtin"
+				});
+				return;
+			}
+			const uninstallRes = uninstallUserSkin(id, { userDir: deps.userDir ?? (entry.dir ? dirname(entry.dir) : void 0) });
+			if (!uninstallRes.ok) {
+				writeJson(res, uninstallRes.error === "skin-not-found" ? 404 : 500, {
+					ok: false,
+					error: uninstallRes.error,
+					detail: uninstallRes.detail
+				});
+				return;
+			}
+			if (readActiveState(activeStatePath).active === id) writeActiveState(activeStatePath, { active: null });
+			writeJson(res, 200, {
+				ok: true,
+				id
+			});
+			return;
+		}
+		if (sub === "repair") {
+			if (!requireSameOrigin(req, res)) return;
+			if (req.method !== "POST") {
+				writeJson(res, 405, {
+					ok: false,
+					error: "method-not-allowed"
+				});
+				return;
+			}
+			if (!entry) {
+				writeJson(res, 404, {
+					ok: false,
+					error: "skin-not-found"
+				});
+				return;
+			}
+			if (entry.origin === "builtin") {
+				writeJson(res, 400, {
+					ok: false,
+					error: "cannot-repair-builtin"
+				});
+				return;
+			}
+			const repairRes = await repairSkin(id, {
+				userDir: deps.userDir ?? (entry.dir ? dirname(entry.dir) : void 0),
+				fetchImpl: deps.fetchImpl,
+				localSourceDir: deps.localSourceDir
+			});
+			writeJson(res, repairRes.ok ? 200 : 500, repairRes);
+			return;
+		}
 		if (!entry) {
 			writeJson(res, 404, {
 				ok: false,
@@ -2249,6 +2681,11 @@ function makeSkinCenterV2Routes(deps = {}) {
 			kind: "exact",
 			path: `${SKIN_CENTER_V2_PREFIX}/catalog`,
 			handler: catalogHandler
+		},
+		{
+			kind: "exact",
+			path: `${SKIN_CENTER_V2_PREFIX}/verify`,
+			handler: verifyHandler
 		},
 		{
 			kind: "prefix",

@@ -11,7 +11,7 @@ import { pathToFileURL } from 'node:url'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { findSkin, loadSkinCatalog, resolveInsideSkin, shippedSkinIds, userSkinsDir } from '../src/skin-repo.ts'
+import { findSkin, loadSkinCatalog, repairSkin, resolveInsideSkin, shippedSkinIds, uninstallUserSkin, userSkinsDir, verifyAllSkinsIntegrity, verifyAndRepairAllSkins } from '../src/skin-repo.ts'
 import type { SkinCatalogEntry } from '../src/skin-repo.ts'
 
 let root: string
@@ -248,5 +248,153 @@ describe('findSkin / resolveInsideSkin', () => {
     expect(resolveInsideSkin(entry, '../../etc/passwd')).toBeNull()
     expect(resolveInsideSkin(entry, 'a/../../secret')).toBeNull()
     expect(findSkin(catalog, 'nope')).toBeNull()
+  })
+})
+
+describe('uninstallUserSkin', () => {
+  it('uninstalls an existing user skin and clears catalog cache', () => {
+    writeSkin(user, 'custom-skin', v2('custom-skin'))
+    const cache = new Map()
+    const cat1 = loadSkinCatalog({ builtinDir: builtin, userDir: user, catalogCache: cache })
+    expect(cat1.skins.find((s) => s.manifest.id === 'custom-skin')).toBeDefined()
+
+    const res = uninstallUserSkin('custom-skin', { userDir: user, catalogCache: cache })
+    expect(res).toEqual({ ok: true })
+
+    const cat2 = loadSkinCatalog({ builtinDir: builtin, userDir: user, catalogCache: cache })
+    expect(cat2.skins.find((s) => s.manifest.id === 'custom-skin')).toBeUndefined()
+  })
+
+  it('rejects invalid or escaping ids', () => {
+    expect(uninstallUserSkin('', { userDir: user })).toEqual({ ok: false, error: 'invalid-id' })
+    expect(uninstallUserSkin('../escape', { userDir: user })).toEqual({ ok: false, error: 'invalid-id' })
+    expect(uninstallUserSkin('invalid/path', { userDir: user })).toEqual({ ok: false, error: 'invalid-id' })
+  })
+
+  it('returns skin-not-found when directory does not exist', () => {
+    expect(uninstallUserSkin('nonexistent', { userDir: user })).toEqual({ ok: false, error: 'skin-not-found' })
+  })
+})
+
+describe('verifyAllSkinsIntegrity', () => {
+  it('reports valid for builtins and valid user market skins', () => {
+    writeSkin(builtin, 'harbor', v2('harbor'))
+    const manifestText = JSON.stringify(v2('user-good'), null, 2)
+    writeSkin(user, 'user-good', JSON.parse(manifestText))
+    writeFileSync(join(user, 'user-good', 'skin.css'), '.good { color: green; }')
+    const jsonHash = createHash('sha256').update(manifestText).digest('hex')
+    const cssHash = createHash('sha256').update('.good { color: green; }').digest('hex')
+    writeFileSync(join(user, 'user-good', 'dsh-market.provenance.json'), JSON.stringify({
+      version: 1,
+      source: 'https://dsh-market.com',
+      id: 'user-good',
+      files: {
+        'skin.json': jsonHash,
+        'skin.css': cssHash,
+      },
+    }))
+
+    const catalog = loadSkinCatalog({ builtinDir: builtin, userDir: user })
+    const summary = verifyAllSkinsIntegrity(catalog)
+    expect(summary.total).toBe(2)
+    expect(summary.valid).toBe(2)
+    expect(summary.issues).toBe(0)
+    expect(summary.details.every((d) => d.status === 'valid')).toBe(true)
+  })
+
+  it('detects tampered and missing files in provenance', () => {
+    const manifestText = JSON.stringify(v2('tampered-skin'), null, 2)
+    writeSkin(user, 'tampered-skin', JSON.parse(manifestText))
+    writeFileSync(join(user, 'tampered-skin', 'skin.css'), '.tampered { color: red; }')
+    writeFileSync(join(user, 'tampered-skin', 'dsh-market.provenance.json'), JSON.stringify({
+      version: 1,
+      source: 'https://dsh-market.com',
+      id: 'tampered-skin',
+      files: {
+        'skin.json': '0000000000000000000000000000000000000000000000000000000000000000',
+        'missing.css': '1111111111111111111111111111111111111111111111111111111111111111',
+      },
+    }))
+
+    const catalog = loadSkinCatalog({ builtinDir: builtin, userDir: user })
+    const summary = verifyAllSkinsIntegrity(catalog)
+    expect(summary.issues).toBe(1)
+    const report = summary.details.find((d) => d.id === 'tampered-skin')
+    expect(report?.status).toBe('missing-files')
+    expect(report?.missing).toContain('missing.css')
+    expect(report?.mismatches).toContain('skin.json')
+  })
+})
+
+describe('repairSkin and verifyAndRepairAllSkins', () => {
+  it('automatically repairs tampered skins from local source mirror or mock fetch', async () => {
+    // Write mirror source for 'my-skin'
+    const mirror = join(root, 'mirror')
+    const mirrorSkinDir = join(mirror, 'my-skin')
+    mkdirSync(mirrorSkinDir, { recursive: true })
+    const manifestContent = JSON.stringify(v2('my-skin'), null, 2)
+    writeFileSync(join(mirrorSkinDir, 'skin.json'), manifestContent)
+    writeFileSync(join(mirrorSkinDir, 'skin.css'), '.pristine { color: blue; }')
+
+    // Write a corrupted user install of 'my-skin'
+    writeSkin(user, 'my-skin', JSON.parse(manifestContent))
+    writeFileSync(join(user, 'my-skin', 'skin.css'), '.corrupted { color: red; }')
+    // Provenance with incorrect hash
+    writeFileSync(join(user, 'my-skin', 'dsh-market.provenance.json'), JSON.stringify({
+      version: 1,
+      source: 'https://dsh-market.com',
+      id: 'my-skin',
+      files: {
+        'skin.json': createHash('sha256').update(manifestContent).digest('hex'),
+        'skin.css': createHash('sha256').update('.pristine { color: blue; }').digest('hex'),
+      },
+    }))
+
+    const catalogCache = new Map()
+    const getCatalog = () => loadSkinCatalog({ builtinDir: builtin, userDir: user, catalogCache })
+
+    // Verify and auto-repair
+    const summary = await verifyAndRepairAllSkins(getCatalog, {
+      userDir: user,
+      catalogCache,
+      localSourceDir: mirrorSkinDir,
+      autoRepair: true,
+    })
+
+    expect(summary.repaired).toContain('my-skin')
+    expect(summary.issues).toBe(0)
+    expect(summary.valid).toBe(1)
+
+    // Check that file on disk is restored to pristine content
+    const restoredCss = readFileSync(join(user, 'my-skin', 'skin.css'), 'utf8')
+    expect(restoredCss).toBe('.pristine { color: blue; }')
+  })
+
+  it('handles repair failure gracefully when skin is not available', async () => {
+    writeSkin(user, 'custom-offline', v2('custom-offline'))
+    writeFileSync(join(user, 'custom-offline', 'dsh-market.provenance.json'), JSON.stringify({
+      version: 1,
+      source: 'https://dsh-market.com',
+      id: 'custom-offline',
+      files: { 'skin.json': '00000000' },
+    }))
+
+    const mockFetch = async () => new Response(JSON.stringify({ items: [] }), { status: 200 })
+
+    const catalogCache = new Map()
+    const getCatalog = () => loadSkinCatalog({ builtinDir: builtin, userDir: user, catalogCache })
+
+    const summary = await verifyAndRepairAllSkins(getCatalog, {
+      userDir: user,
+      catalogCache,
+      fetchImpl: mockFetch as any,
+      localSourceDir: join(root, 'nonexistent'),
+      autoRepair: true,
+    })
+
+    expect(summary.repaired).toHaveLength(0)
+    expect(summary.repairFailed).toHaveLength(1)
+    expect(summary.repairFailed[0].id).toBe('custom-offline')
+    expect(summary.issues).toBe(1)
   })
 })

@@ -24,7 +24,7 @@
 
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { extname, join } from 'node:path'
+import { dirname, extname, join } from 'node:path'
 
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 
@@ -33,7 +33,7 @@ import { readJsonBody } from './http.ts'
 import { defaultActiveStatePath, readActiveState, writeActiveState } from './active-state.ts'
 import { sanitizeSkinBackground, type SkinBackgroundConfig } from './core/background.ts'
 import { transformSkinCss, SkinCssSafetyError } from './core/css-safety/transform.ts'
-import { canServeSkinHooks, findSkin, loadSkinCatalog, resolveInsideSkin, shippedSkinIds } from './skin-repo.ts'
+import { canServeSkinHooks, findSkin, loadSkinCatalog, repairSkin, resolveInsideSkin, shippedSkinIds, uninstallUserSkin, verifyAllSkinsIntegrity, verifyAndRepairAllSkins } from './skin-repo.ts'
 import { MARKET_PROVENANCE_FILENAME } from './provenance.ts'
 import type { SkinCatalog, SkinCatalogEntry } from './skin-repo.ts'
 
@@ -64,8 +64,14 @@ export interface RoutesV2Deps {
   shippedSkinIds?: () => Set<string>
   /** Where the active-skin selection persists (defaults under $DSH_HOME). */
   activeStatePath?: string
+  /** User skins directory override (tests). */
+  userDir?: string
   /** Now function for catalog capture. */
   now?: () => number
+  /** fetch implementation override (tests). */
+  fetchImpl?: typeof fetch
+  /** Local source dir mirror override (tests). */
+  localSourceDir?: string
 }
 
 function sendCss(res: ServerResponse, status: number, code: string): void {
@@ -151,15 +157,92 @@ export function makeSkinCenterV2Routes(deps: RoutesV2Deps = {}): WebRoute[] {
     })
   }
 
+  const verifyHandler: WebRoute['handler'] = async (req, res) => {
+    if (!requireSameOrigin(req, res)) return
+    if (req.method !== 'POST') {
+      writeJson(res, 405, { ok: false, error: 'method-not-allowed' })
+      return
+    }
+    let body: { autoRepair?: boolean } | null = null
+    try {
+      body = (await readJsonBody(req, { maxBytes: 16 * 1024 })) as { autoRepair?: boolean } | null
+    } catch {
+      body = null
+    }
+    const autoRepair = body?.autoRepair !== false
+    const result = await verifyAndRepairAllSkins(loadCatalog, {
+      userDir: deps.userDir,
+      fetchImpl: deps.fetchImpl,
+      localSourceDir: deps.localSourceDir,
+      autoRepair,
+    })
+    writeJson(res, 200, { ok: true, ...result })
+  }
+
   const skinPrefix = `${SKIN_CENTER_V2_PREFIX}/skins/`
 
-  const skinsHandler: WebRoute['handler'] = (req, res) => {
+  const skinsHandler: WebRoute['handler'] = async (req, res) => {
     const url = new URL(req.url ?? '/', 'http://localhost')
     const rest = url.pathname.slice(skinPrefix.length)
     const [id, ...tail] = rest.split('/')
     const sub = tail.join('/')
     const catalog = loadCatalog()
     const entry = id ? findSkin(catalog, id) : null
+
+    if (sub === 'uninstall') {
+      if (!requireSameOrigin(req, res)) return
+      if (req.method !== 'POST') {
+        writeJson(res, 405, { ok: false, error: 'method-not-allowed' })
+        return
+      }
+      if (!entry) {
+        writeJson(res, 404, { ok: false, error: 'skin-not-found' })
+        return
+      }
+      if (entry.origin === 'builtin') {
+        writeJson(res, 400, { ok: false, error: 'cannot-uninstall-builtin' })
+        return
+      }
+      const userDir = deps.userDir ?? (entry.dir ? dirname(entry.dir) : undefined)
+      const uninstallRes = uninstallUserSkin(id, { userDir })
+      if (!uninstallRes.ok) {
+        const status = uninstallRes.error === 'skin-not-found' ? 404 : 500
+        writeJson(res, status, { ok: false, error: uninstallRes.error, detail: uninstallRes.detail })
+        return
+      }
+      // If the uninstalled skin was active, reset active to null
+      const currentActive = readActiveState(activeStatePath).active
+      if (currentActive === id) {
+        writeActiveState(activeStatePath, { active: null })
+      }
+      writeJson(res, 200, { ok: true, id })
+      return
+    }
+
+    if (sub === 'repair') {
+      if (!requireSameOrigin(req, res)) return
+      if (req.method !== 'POST') {
+        writeJson(res, 405, { ok: false, error: 'method-not-allowed' })
+        return
+      }
+      if (!entry) {
+        writeJson(res, 404, { ok: false, error: 'skin-not-found' })
+        return
+      }
+      if (entry.origin === 'builtin') {
+        writeJson(res, 400, { ok: false, error: 'cannot-repair-builtin' })
+        return
+      }
+      const userDir = deps.userDir ?? (entry.dir ? dirname(entry.dir) : undefined)
+      const repairRes = await repairSkin(id, {
+        userDir,
+        fetchImpl: deps.fetchImpl,
+        localSourceDir: deps.localSourceDir,
+      })
+      writeJson(res, repairRes.ok ? 200 : 500, repairRes)
+      return
+    }
+
     if (!entry) {
       writeJson(res, 404, { ok: false, error: 'skin-not-found' })
       return
@@ -266,6 +349,7 @@ export function makeSkinCenterV2Routes(deps: RoutesV2Deps = {}): WebRoute[] {
 
   return [
     { kind: 'exact', path: `${SKIN_CENTER_V2_PREFIX}/catalog`, handler: catalogHandler },
+    { kind: 'exact', path: `${SKIN_CENTER_V2_PREFIX}/verify`, handler: verifyHandler },
     { kind: 'prefix', path: skinPrefix.replace(/\/$/, ''), handler: skinsHandler },
     { kind: 'exact', path: `${SKIN_CENTER_V2_PREFIX}/active`, handler: (req, res) => {
       if (req.method === 'GET') return activeGetHandler(req, res)

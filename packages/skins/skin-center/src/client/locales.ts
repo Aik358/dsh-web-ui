@@ -97,6 +97,25 @@ export type SkinCenterKey =
   | 'customThemeReset'
   | 'customThemeResetHint'
   | 'customThemeSaveFailed'
+  | 'uninstall'
+  | 'uninstalling'
+  | 'uninstallConfirm'
+  | 'uninstallFailed'
+  | 'verifyIntegrity'
+  | 'verifyingIntegrity'
+  | 'verifyAllPassed'
+  | 'verifyFoundIssues'
+  | 'integrityValid'
+  | 'integrityTampered'
+  | 'integrityMissing'
+  | 'integrityHooksRefused'
+  | 'cancel'
+  | 'confirm'
+  | 'verifyRepaired'
+  | 'verifyRepairFailed'
+  | 'repair'
+  | 'repairing'
+  | 'repaired'
 
 export const en: Record<SkinCenterKey, string> = {
   title: 'Skin Center',
@@ -190,6 +209,25 @@ export const en: Record<SkinCenterKey, string> = {
   customThemeReset: 'Restore current mode default',
   customThemeResetHint: 'Only resets the selected light or dark profile.',
   customThemeSaveFailed: 'Could not save custom theme changes.',
+  uninstall: 'Uninstall',
+  uninstalling: 'Uninstalling…',
+  uninstallConfirm: 'Are you sure you want to uninstall "{name}"? Local files will be deleted.',
+  uninstallFailed: 'Uninstall failed',
+  verifyIntegrity: 'Verify integrity',
+  verifyingIntegrity: 'Verifying…',
+  verifyAllPassed: 'All {count} installed skin(s) passed integrity verification',
+  verifyFoundIssues: 'Found {count} skin(s) with integrity issues',
+  integrityValid: 'Verified',
+  integrityTampered: 'Modified',
+  integrityMissing: 'Missing files',
+  integrityHooksRefused: 'Hooks refused',
+  cancel: 'Cancel',
+  confirm: 'Confirm',
+  verifyRepaired: 'Successfully repaired {count} skin(s) with integrity issues',
+  verifyRepairFailed: 'Failed to repair {count} skin(s)',
+  repair: 'Repair',
+  repairing: 'Repairing…',
+  repaired: 'Repaired',
 }
 
 export const zh: Record<SkinCenterKey, string> = {
@@ -284,4 +322,23 @@ export const zh: Record<SkinCenterKey, string> = {
   customThemeReset: '恢复当前模式默认',
   customThemeResetHint: '只重置当前选择的浅色或深色配置。',
   customThemeSaveFailed: '自定义主题修改保存失败。',
+  uninstall: '卸载',
+  uninstalling: '卸载中…',
+  uninstallConfirm: '确定要卸载皮肤「{name}」吗？本地文件将被永久删除。',
+  uninstallFailed: '卸载失败',
+  verifyIntegrity: '验证完整性',
+  verifyingIntegrity: '正在验证…',
+  verifyAllPassed: '所有 {count} 款已安装皮肤完整性正常',
+  verifyFoundIssues: '发现 {count} 款皮肤存在完整性异常',
+  verifyRepaired: '已自动修复 {count} 款皮肤的完整性异常',
+  verifyRepairFailed: '{count} 款皮肤自动修复失败',
+  repair: '修复',
+  repairing: '修复中…',
+  repaired: '已修复',
+  integrityValid: '完整',
+  integrityTampered: '文件已修改',
+  integrityMissing: '缺少文件',
+  integrityHooksRefused: 'Hooks 已拒绝',
+  cancel: '取消',
+  confirm: '确定',
 }

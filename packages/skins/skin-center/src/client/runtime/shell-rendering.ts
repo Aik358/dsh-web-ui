@@ -34,6 +34,23 @@ export function shellRenderingCss(): string {
   const scopes = ACTIVE_VISUAL_SELECTOR.split(', ')
   const scoped = (selector: string): string => scopes.map(scope => `${scope} ${selector}`).join(',\n')
   return `
+    /* Viewport and root lock: prevent outer page scrollbar and viewport
+       displacement during element focus/scrollIntoView. */
+    ${ACTIVE_VISUAL_SELECTOR},
+    ${scoped('body')} {
+      height: 100% !important;
+      width: 100% !important;
+      overflow: hidden !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+    ${scoped('[id="root"]')} {
+      box-sizing: border-box !important;
+      height: 100% !important;
+      width: 100% !important;
+      max-height: 100% !important;
+      overflow: hidden !important;
+    }
     ${scoped('[data-slot="sidebar.workspaces"] [class*="_fade"]')} {
       background: none !important;
       background-image: none !important;
@@ -122,6 +139,7 @@ export function installShellRenderingAdapter(doc: Document): () => void {
   doc.head.appendChild(style)
 
   const win = doc.defaultView
+  try { win?.scrollTo?.(0, 0) } catch {}
   let resizeObserver: ResizeObserver | null = null
   let mutationObserver: MutationObserver | null = null
   let observedComposer: Element | null = null

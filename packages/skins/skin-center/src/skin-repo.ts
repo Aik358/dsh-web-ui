@@ -26,15 +26,23 @@
  * @module @linxin666/dsh-client-ui-skin-center/skin-repo
  */
 
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs'
 import { dirname, join, resolve as resolvePath, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { validateSkinManifestV2 } from './core/manifest-v2/validate.ts'
-import { auditTokenContract, type TokenAuditStylesheet } from './core/css-safety/token-audit.ts'
 import type { SkinManifestV2 } from './core/manifest-v2/types.ts'
+import { auditTokenContract, type TokenAuditStylesheet } from './core/css-safety/token-audit.ts'
 import { resolveHarnessHome } from './harness-home.ts'
-import { verifyMarketProvenance, verifyReviewedLegacyHooks } from './provenance.ts'
+import {
+  repairSkinFromMarket,
+  verifyMarketProvenance,
+  verifyReviewedLegacyHooks,
+  verifySkinIntegrity,
+  type SkinIntegrityReport,
+  type SkinRepairOptions,
+  type SkinRepairResult,
+} from './provenance.ts'
 
 export type SkinOrigin = 'builtin' | 'user'
 
@@ -339,4 +347,168 @@ export function resolveInsideSkin(entry: SkinCatalogEntry, relPath: string): str
   const rootWithSep = root.endsWith(sep) ? root : root + sep
   if (abs !== root && !abs.startsWith(rootWithSep)) return null
   return abs
+}
+
+/** Result of uninstalling a user skin directory. */
+export interface UninstallSkinResult {
+  ok: boolean
+  error?: 'invalid-id' | 'skin-not-found' | 'cannot-uninstall-builtin' | 'write-error'
+  detail?: string
+}
+
+/**
+ * Uninstall one user-directory skin by removing its directory under userDir.
+ * Fails closed if the id is invalid, escapes the user directory, or targets a builtin.
+ */
+export function uninstallUserSkin(
+  skinId: string,
+  options: { userDir?: string; catalogCache?: Map<string, CatalogCacheEntry> } = {},
+): UninstallSkinResult {
+  if (!skinId || typeof skinId !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(skinId)) {
+    return { ok: false, error: 'invalid-id' }
+  }
+  const userDir = options.userDir ?? userSkinsDir()
+  const target = resolvePath(userDir, skinId)
+  const userRoot = resolvePath(userDir)
+  const userRootWithSep = userRoot.endsWith(sep) ? userRoot : userRoot + sep
+  if (!target.startsWith(userRootWithSep)) {
+    return { ok: false, error: 'invalid-id' }
+  }
+
+  if (!existsSync(target)) {
+    return { ok: false, error: 'skin-not-found' }
+  }
+
+  try {
+    rmSync(target, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 })
+  } catch (error) {
+    return { ok: false, error: 'write-error', detail: error instanceof Error ? error.message : String(error) }
+  }
+
+  const cache = options.catalogCache ?? DEFAULT_CATALOG_CACHE
+  cache.clear()
+
+  return { ok: true }
+}
+
+export interface SkinIntegritySummary {
+  total: number
+  valid: number
+  issues: number
+  details: SkinIntegrityReport[]
+}
+
+/**
+ * Verify integrity of all skins in the catalog.
+ */
+export function verifyAllSkinsIntegrity(catalog: SkinCatalog): SkinIntegritySummary {
+  const details: SkinIntegrityReport[] = []
+  let validCount = 0
+  let issuesCount = 0
+
+  for (const entry of catalog.skins) {
+    const isBuiltin = entry.origin === 'builtin'
+    const hooksEntry = entry.manifest.facets?.client?.entry ?? null
+    const report = verifySkinIntegrity(entry.dir, entry.manifest.id, {
+      isBuiltin,
+      hooksEntry,
+    })
+    details.push(report)
+    if (report.status === 'valid') {
+      validCount++
+    } else {
+      issuesCount++
+    }
+  }
+
+  return {
+    total: details.length,
+    valid: validCount,
+    issues: issuesCount,
+    details,
+  }
+}
+
+export interface RepairAllSummary extends SkinIntegritySummary {
+  repaired: string[]
+  repairFailed: Array<{ id: string; error: string }>
+}
+
+/**
+ * Repairs a specific user skin by id.
+ */
+export async function repairSkin(
+  skinId: string,
+  options: {
+    userDir?: string
+    catalogCache?: Map<string, unknown>
+    fetchImpl?: typeof fetch
+    timeoutMs?: number
+    localSourceDir?: string
+  } = {},
+): Promise<SkinRepairResult> {
+  const userDir = options.userDir ?? userSkinsDir()
+  const destDir = join(userDir, skinId)
+  const res = await repairSkinFromMarket(destDir, skinId, {
+    fetchImpl: options.fetchImpl,
+    timeoutMs: options.timeoutMs,
+    localSourceDir: options.localSourceDir,
+  })
+  if (res.ok) {
+    const cache = options.catalogCache ?? DEFAULT_CATALOG_CACHE
+    cache.clear()
+  }
+  return res
+}
+
+/**
+ * Verifies all skins in catalog, and automatically repairs any skin with integrity issues.
+ */
+export async function verifyAndRepairAllSkins(
+  catalogGetter: () => SkinCatalog,
+  options: {
+    userDir?: string
+    catalogCache?: Map<string, unknown>
+    fetchImpl?: typeof fetch
+    timeoutMs?: number
+    localSourceDir?: string
+    autoRepair?: boolean
+  } = {},
+): Promise<RepairAllSummary> {
+  const initialCatalog = catalogGetter()
+  const initialSummary = verifyAllSkinsIntegrity(initialCatalog)
+
+  if (options.autoRepair === false || initialSummary.issues === 0) {
+    return {
+      ...initialSummary,
+      repaired: [],
+      repairFailed: [],
+    }
+  }
+
+  const repaired: string[] = []
+  const repairFailed: Array<{ id: string; error: string }> = []
+
+  for (const report of initialSummary.details) {
+    if (report.status !== 'valid') {
+      const skinEntry = findSkin(initialCatalog, report.id)
+      if (skinEntry && skinEntry.origin === 'user') {
+        const res = await repairSkin(report.id, options)
+        if (res.ok) {
+          repaired.push(report.id)
+        } else {
+          repairFailed.push({ id: report.id, error: res.error ?? 'unknown-error' })
+        }
+      }
+    }
+  }
+
+  const freshCatalog = catalogGetter()
+  const freshSummary = verifyAllSkinsIntegrity(freshCatalog)
+
+  return {
+    ...freshSummary,
+    repaired,
+    repairFailed,
+  }
 }

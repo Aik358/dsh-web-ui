@@ -257,6 +257,72 @@ body[data-dsh-skin-center] .buttonPrimary:active:not(:disabled) {
   opacity: 0.88;
 }
 
+body[data-dsh-skin-center] .buttonDanger {
+  border-color: var(--dsw-alias-border-l2);
+  background: transparent;
+  color: var(--dsw-alias-state-danger-primary, #d93025);
+}
+
+body[data-dsh-skin-center] .buttonDanger:hover:not(:disabled) {
+  border-color: var(--dsw-alias-state-danger-primary, #d93025);
+  background: var(--dsw-alias-state-danger-tertiary, rgba(217, 48, 37, 0.08));
+}
+
+body[data-dsh-skin-center] .buttonDangerConfirm {
+  border-color: var(--dsw-alias-state-danger-primary, #d93025);
+  background: var(--dsw-alias-state-danger-primary, #d93025);
+  color: #ffffff;
+}
+
+body[data-dsh-skin-center] .toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 4px 0 2px;
+}
+
+body[data-dsh-skin-center] .verifySummary {
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: var(--dsw-alias-bg-layer-2);
+  border: 1px solid var(--dsw-alias-border-l2);
+}
+
+body[data-dsh-skin-center] .verifySummarySuccess {
+  color: var(--dsw-alias-state-success-primary, #0f6b3a);
+  border-color: var(--dsw-alias-state-success-tertiary, #dcf3e5);
+}
+
+body[data-dsh-skin-center] .verifySummaryWarning {
+  color: var(--dsw-alias-state-warning-primary, #b06000);
+  border-color: var(--dsw-alias-state-warning-tertiary, #feebd3);
+}
+
+body[data-dsh-skin-center] .badgeSuccess {
+  color: var(--dsw-alias-state-success-primary, #0f6b3a);
+  background: var(--dsw-alias-state-success-tertiary, #dcf3e5);
+}
+
+body[data-dsh-skin-center] .badgeWarning {
+  color: var(--dsw-alias-state-warning-primary, #b06000);
+  background: var(--dsw-alias-state-warning-tertiary, #feebd3);
+}
+
+body[data-dsh-skin-center] .badgeDanger {
+  color: var(--dsw-alias-state-danger-primary, #d93025);
+  background: var(--dsw-alias-state-danger-tertiary, rgba(217, 48, 37, 0.12));
+}
+
+body[data-dsh-skin-center] .integrityNote {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--dsw-alias-state-warning-primary, #b06000);
+}
+
 body[data-dsh-skin-center] .buttonGhost {
   border-color: transparent;
   background: transparent;

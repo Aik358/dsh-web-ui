@@ -82,6 +82,8 @@ body[data-ds-dark-theme] .QecUDa_mcScrim {
 
 [id="root"] {
   z-index: 1;
+  box-sizing: border-box;
+  height: 100%;
   background: #0d18106b;
   border: 2px solid #0b0f14;
   position: relative;

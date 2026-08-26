@@ -12,6 +12,8 @@ html[data-dsh-skin="matrix"] a:hover {
 }
 
 html[data-dsh-skin="matrix"] [id="root"] {
+  box-sizing: border-box;
+  height: 100%;
   background: linear-gradient(#071009 0%, #040805 100%);
   border: 1px solid #0f63;
   box-shadow: 0 0 24px #00e6760d, 0 4px 14px #0009;

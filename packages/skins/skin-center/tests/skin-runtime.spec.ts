@@ -124,6 +124,16 @@ describe('semantic adapter', () => {
 })
 
 describe('shared shell rendering adapter (#954)', () => {
+  it('locks html, body and root to prevent outer viewport overflow (#1135)', () => {
+    const css = shellRenderingCss()
+    expect(css).toContain('html[data-dsh-skin],')
+    expect(css).toContain('html[data-dsh-custom-theme]:not([data-dsh-skin]),')
+    expect(css).toContain('html[data-dsh-wallpaper-active],')
+    expect(css).toContain('overflow: hidden !important;')
+    expect(css).toContain('height: 100% !important;')
+    expect(css).toContain('box-sizing: border-box !important;')
+  })
+
   it('scopes the workspace fade correction to active skin-center visual modes', () => {
     const css = shellRenderingCss()
     expect(css).toContain('html[data-dsh-skin] [data-slot="sidebar.workspaces"] [class*="_fade"]')
