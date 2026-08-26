@@ -54,8 +54,10 @@ function fakeApi(): { api: SshApi, connection: FakeConnection } {
     onReady: undefined,
     onOutput: undefined,
     onExit: undefined,
+    onAuthPrompt: undefined,
     send: () => undefined,
     resize: vi.fn(),
+    sendAuthResponse: vi.fn(),
     close: () => undefined,
   }
   return {

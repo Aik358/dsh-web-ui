@@ -41,8 +41,10 @@ function fakeApi(): SshApi {
       onReady: undefined,
       onOutput: undefined,
       onExit: undefined,
+      onAuthPrompt: undefined,
       send: () => undefined,
       resize: () => undefined,
+      sendAuthResponse: () => undefined,
       close: () => undefined,
     }) as TerminalConnection),
   } as unknown as SshApi
