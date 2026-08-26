@@ -11,7 +11,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SessionId } from '@deepseek-ai/dsh-client-runtime/client'
-import type { BranchesView, GraphView, RepoStatus, SwitchResult } from '../src/core/types.ts'
+import type { BranchesView, GraphView, RepoStatus, SwitchResult, WorktreeListView } from '../src/core/types.ts'
 import type { GitGraphInjected } from '../src/client/index.ts'
 import type { BranchChipProps } from '../src/client/chips/BranchChip.tsx'
 import { BranchChip } from '../src/client/chips/BranchChip.tsx'
@@ -62,6 +62,10 @@ interface BenchOptions {
   switchResult?: SwitchResult
   createResult?: SwitchResult
   graphView?: GraphView | null
+  /** The worktree list served by the worktrees verb. */
+  worktreesView?: WorktreeListView | null
+  /** Scripted createWorktreeSession outcome. */
+  createWorktreeResult?: { ok: true; path: string; branch: string; name: string } | { ok: false; error: { code: 'worktree-already-exists'; message: string } }
   /** Override the graph verb (e.g. a deferred promise for the loading state). */
   graph?: (limit?: number) => Promise<GraphView | null>
   /** The dock seat's conversation composer phase (blank = the hero phase). */
@@ -95,6 +99,7 @@ function bench(options: BenchOptions = {}, seat: BenchSeat = 'context') {
 
   const calls: Record<string, unknown[]> = {
     repoStatus: [], branches: [], switchBranch: [], createBranch: [], graph: [],
+    worktrees: [], createWorktreeSession: [], removeWorktree: [], gitConfig: [],
     subscribeChanges: [],
   }
   const record = <K extends keyof typeof calls>(key: K, ...args: unknown[]): void => {
@@ -117,6 +122,22 @@ function bench(options: BenchOptions = {}, seat: BenchSeat = 'context') {
     graph: vi.fn(async (sessionId: SessionId | undefined, limit?: number) => {
       record('graph', sessionId, limit)
       return options.graph !== undefined ? options.graph(limit) : options.graphView ?? null
+    }),
+    worktrees: vi.fn(async (sessionId: SessionId | undefined) => {
+      record('worktrees', sessionId)
+      return options.worktreesView === undefined ? null : options.worktreesView
+    }),
+    createWorktreeSession: vi.fn(async (sessionId: SessionId | undefined, name: string, baseRef?: string) => {
+      record('createWorktreeSession', sessionId, name, baseRef)
+      return options.createWorktreeResult ?? { ok: true as const, path: `/home/u/.dsh/worktrees/proj-a1b2c3d4/${name}`, branch: `wt/${name}`, name }
+    }),
+    removeWorktree: vi.fn(async (sessionId: SessionId | undefined, worktreePath: string, opts?: { force?: boolean }) => {
+      record('removeWorktree', sessionId, worktreePath, opts)
+      return { ok: true as const }
+    }),
+    gitConfig: vi.fn(async () => {
+      record('gitConfig')
+      return { autoIsolate: false, autoBaseline: 'current' as const, worktreesHome: '/home/u/.dsh/worktrees' }
     }),
     subscribeChanges: vi.fn((sessionId: SessionId | undefined, _onChange: () => void) => { record('subscribeChanges', sessionId); return () => {} }),
   }
@@ -622,3 +643,69 @@ describe('popover search box focus', () => {
     expect(document.activeElement).toBe(input)
   })
 })
+
+describe('worktree UI', () => {
+  const worktreesView: WorktreeListView = {
+    root: '/ws/proj',
+    worktrees: [
+      { path: '/ws/proj', head: 'abc1234def', branch: 'main', main: true },
+      { path: '/home/u/.dsh/worktrees/proj-a1b2c3d4/fix-x', head: 'bbbbbbbcccc', branch: 'wt/fix-x', main: false },
+    ],
+  }
+
+  it('opens the create-worktree dialog from the popover footer and submits', async () => {
+    const { injected } = bench()
+    fireEvent.click(await screen.findByRole('button', { name: '分支' }))
+    fireEvent.click(await screen.findByRole('button', { name: /在 worktree 中开始新会话/ }))
+    const input = screen.getByLabelText('worktree 名称')
+    fireEvent.change(input, { target: { value: 'Fix Login!' } })
+    fireEvent.click(screen.getByRole('button', { name: '创建并开始会话' }))
+    await waitFor(() => {
+      expect(injected.createWorktreeSession).toHaveBeenCalledWith(sid('sess-1'), 'fix-login', 'main')
+    })
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: '在 worktree 中开始新会话' })).toBeNull()
+    })
+  })
+
+  it('shows invalid-name copy and never calls the verb for unusable names', async () => {
+    const { injected } = bench()
+    fireEvent.click(await screen.findByRole('button', { name: '分支' }))
+    fireEvent.click(await screen.findByRole('button', { name: /在 worktree 中开始新会话/ }))
+    fireEvent.change(screen.getByLabelText('worktree 名称'), { target: { value: '!!!' } })
+    fireEvent.click(screen.getByRole('button', { name: '创建并开始会话' }))
+    expect(await screen.findByText('worktree 名称无效，请重新输入。')).toBeTruthy()
+    expect(injected.createWorktreeSession).not.toHaveBeenCalled()
+  })
+
+  it('shows the host rejection copy for duplicate worktree names', async () => {
+    bench({
+      createWorktreeResult: { ok: false, error: { code: 'worktree-already-exists', message: 'dup' } },
+    })
+    fireEvent.click(await screen.findByRole('button', { name: '分支' }))
+    fireEvent.click(await screen.findByRole('button', { name: /在 worktree 中开始新会话/ }))
+    fireEvent.change(screen.getByLabelText('worktree 名称'), { target: { value: 'dup' } })
+    fireEvent.click(screen.getByRole('button', { name: '创建并开始会话' }))
+    expect(await screen.findByText('同名 worktree 或分支已存在，请换一个名称。')).toBeTruthy()
+  })
+
+  it('lists worktrees in the manager and removes a linked one', async () => {
+    const { injected } = bench({ worktreesView })
+    fireEvent.click(await screen.findByRole('button', { name: '分支' }))
+    fireEvent.click(await screen.findByRole('button', { name: /管理 worktree/ }))
+    expect(await screen.findByText('wt/fix-x')).toBeTruthy()
+    expect(screen.getByText('主检出')).toBeTruthy()
+    // The main checkout row renders no remove control.
+    const removeButtons = screen.getAllByRole('button', { name: '删除' })
+    expect(removeButtons).toHaveLength(1)
+    fireEvent.click(removeButtons[0]!)
+    await waitFor(() => {
+      expect(injected.removeWorktree).toHaveBeenCalledWith(
+        sid('sess-1'),
+        '/home/u/.dsh/worktrees/proj-a1b2c3d4/fix-x',
+        expect.objectContaining({ force: false }),
+      )
+    })
+  })
+})
+

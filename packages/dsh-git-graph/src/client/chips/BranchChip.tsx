@@ -16,6 +16,8 @@ import type { GitGraphInjected } from '../index.ts'
 import { Chip, cx } from './Chip.tsx'
 import { BranchPopover } from './BranchPopover.tsx'
 import { CreateBranchDialog } from './CreateBranchDialog.tsx'
+import { CreateWorktreeDialog } from './CreateWorktreeDialog.tsx'
+import { WorktreeManager } from '../worktrees/WorktreeManager.tsx'
 import { GraphDialog } from '../graph/GraphDialog.tsx'
 import css from './context.module.css'
 
@@ -145,6 +147,8 @@ export function BranchChip(props: BranchChipProps) {
   const [branchOpen, setBranchOpen] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [graphOpen, setGraphOpen] = useState(false)
+  const [worktreeCreateOpen, setWorktreeCreateOpen] = useState(false)
+  const [worktreeManageOpen, setWorktreeManageOpen] = useState(false)
   /** Measured hero-row placement (relative to the composer stack); null until measured. */
   const [heroPlacement, setHeroPlacement] = useState<{ left: number, top: number } | null>(null)
   const anchorRef = useRef<HTMLDivElement | null>(null)
@@ -280,6 +284,14 @@ export function BranchChip(props: BranchChipProps) {
               setBranchOpen(false)
               setGraphOpen(true)
             }}
+            onCreateWorktree={() => {
+              setBranchOpen(false)
+              setWorktreeCreateOpen(true)
+            }}
+            onManageWorktrees={() => {
+              setBranchOpen(false)
+              setWorktreeManageOpen(true)
+            }}
             onClose={() => { setBranchOpen(false) }}
             t={props.t}
           />
@@ -296,6 +308,26 @@ export function BranchChip(props: BranchChipProps) {
         <GraphDialog
           graph={(limit) => props.graph(sessionId, limit)}
           onClose={() => { setGraphOpen(false) }}
+          t={props.t}
+        />
+      )}
+      {worktreeCreateOpen && branchesView !== null && (
+        <CreateWorktreeDialog
+          branches={branchesView.branches}
+          currentBranch={branchesView.branch}
+          onCreate={(name, baseRef) => props.createWorktreeSession(sessionId, name, baseRef)}
+          onClose={() => {
+            setWorktreeCreateOpen(false)
+            refetch()
+          }}
+          t={props.t}
+        />
+      )}
+      {worktreeManageOpen && (
+        <WorktreeManager
+          fetchWorktrees={() => props.worktrees(sessionId)}
+          onRemove={(worktreePath, opts) => props.removeWorktree(sessionId, worktreePath, opts)}
+          onClose={() => { setWorktreeManageOpen(false) }}
           t={props.t}
         />
       )}

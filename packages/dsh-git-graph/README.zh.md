@@ -61,6 +61,19 @@ dsh plugin --profile <name> add link:/absolute/path/to/dsh-git-graph
 
 `link:` 安装直接引用本地目录，重建后立即生效、无需重装（改完 `pnpm run build` 后刷新页面即可）。注意 `link:` 后跟的是绝对路径（`~` 由 shell 展开，不是 pnpm 语义）。
 
+## Worktree 隔离
+
+分支弹层底部有两个 worktree 入口（worktree 是共享仓库历史、但文件与分支各自独立的链接检出，并行会话互不触碰对方的工作树）：
+
+- **在 worktree 中开始新会话…** 打开对话框：命名 worktree 并选择基线分支（默认预填当前分支）。host 在 `$DSH_HOME/worktrees/<repo-key>/<名称>/` 创建 worktree，携带新分支 `wt/<名称>`（git 不允许同一分支两处检出），随即注册为 workspace 并打开其空白会话。当前检出不受影响。
+- **管理 worktree…** 列出仓库的全部链接 worktree（分支/HEAD）。托管的 worktree 可删除：有未提交更改时先拒绝一次，随后给出行内强制确认；`wt/` 分支默认保留，勾选该行的“同时删除分支”才会一并删除。主检出行只读。
+
+插件设置卡里有两个开关（默认都关闭）：
+
+- **自动隔离**（`autoIsolate`）：git 工作区的“新会话”动作会静默创建全新托管 worktree 并在其中开会话——Claude 桌面版式的自动形态。`autoBaseline` 选择基线：当前检出 HEAD（`current`）或远程默认分支（`default`，解析为 `origin/HEAD`，无远程时回退 HEAD）。已在托管目录下的工作区不会被二次隔离；任何失败都降级回官方新会话行为。实现上是浏览器半区对 workspaces 服务的运行时包装（形状探测过的 patch，不改 DSH 源码）——SDK 升级若改变该服务形状，功能自动关闭并打印诊断，不会硬崩。
+- **Agent 工具**（`agentTool`）：注册模型可见的 `git_worktree` 工具（对同一托管目录做 create/list/remove，以调用会话的 cwd 做工作区门卫）。这是对“git 能力不进模型可见面”既定规则的有意豁免，仅对开启者生效。注意沙盒边界：会话 cwd 不可变，当前会话无法迁入 worktree；workspace-write 沙盒下 agent 也不能写会话根之外——所以 `create` 会同时把 worktree 注册成 workspace，工具回复会提示模型在其上开新会话。danger-full-access 模式下 agent 可直接在返回路径里工作。
+
+删除只针对仓库托管目录的直接子级（双侧 canonical 路径包含校验），且在磁盘删除成功后才注销关联的 workspace。
 ## 卸载
 
 ```sh

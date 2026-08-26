@@ -4,12 +4,14 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
-  classifySwitchFailure, extractBlockedPaths, validateBranchName,
+  classifySwitchFailure, extractBlockedPaths, sanitizeWorktreeName, validateBranchName,
+  worktreeAddArgv, worktreeRemoveArgv,
 } from '../src/core/git-command.ts'
 import {
-  computeLanes, isBranchesView, isGitError, isGraphView, isRepoStatus,
+  computeLanes, isBranchesView, isGitError, isGitFeatureConfig, isGraphView, isRepoStatus,
+  isWorktreeListView,
   parseBranches, parseDecoration, parseGraph, parsePorcelain,
-  parseWorktreeBranches,
+  parseWorktreeBranches, parseWorktrees,
 } from '../src/core/types.ts'
 
 describe('parseBranches', () => {
@@ -250,3 +252,81 @@ describe('wire runtime guards', () => {
     expect(isGitError({ code: 'internal', message: 42 })).toBe(false)
   })
 })
+
+describe('parseWorktrees', () => {
+  it('parses full porcelain records with the main flag and branches', () => {
+    const stdout = [
+      'worktree /repo',
+      'HEAD aaaaaaaa',
+      'branch refs/heads/main',
+      '',
+      'worktree /home/user/.dsh/worktrees/repo-12345678/fix-x',
+      'HEAD bbbbbbbb',
+      'branch refs/heads/wt/fix-x',
+      '',
+      'worktree /home/user/.dsh/worktrees/repo-12345678/det',
+      'HEAD cccccccc',
+      'detached',
+      '',
+    ].join('\n')
+    expect(parseWorktrees(stdout)).toEqual([
+      { path: '/repo', head: 'aaaaaaaa', branch: 'main', main: true },
+      { path: '/home/user/.dsh/worktrees/repo-12345678/fix-x', head: 'bbbbbbbb', branch: 'wt/fix-x', main: false },
+      { path: '/home/user/.dsh/worktrees/repo-12345678/det', head: 'cccccccc', branch: '', main: false },
+    ])
+  })
+
+  it('handles a bare repository record and an empty listing', () => {
+    expect(parseWorktrees('worktree /repo.git\nHEAD aaaa\nbare\n')).toEqual([
+      { path: '/repo.git', head: 'aaaa', branch: '', main: true },
+    ])
+    expect(parseWorktrees('')).toEqual([])
+  })
+})
+
+describe('sanitizeWorktreeName', () => {
+  it('keeps safe names and normalizes unsafe characters', () => {
+    expect(sanitizeWorktreeName('fix-login-race')).toBe('fix-login-race')
+    expect(sanitizeWorktreeName('Fix Login Race!')).toBe('fix-login-race')
+    expect(sanitizeWorktreeName('  --weird..name--  ')).toBe('weird..name')
+  })
+
+  it('rejects empty and dot-only names', () => {
+    expect(sanitizeWorktreeName('')).toBeNull()
+    expect(sanitizeWorktreeName('!!!')).toBeNull()
+    expect(sanitizeWorktreeName('.')).toBeNull()
+    expect(sanitizeWorktreeName('..')).toBeNull()
+  })
+
+  it('caps length at 64 chars', () => {
+    expect(sanitizeWorktreeName('a'.repeat(100))).toBe('a'.repeat(64))
+  })
+})
+
+describe('worktree argv builders', () => {
+  it('builds add/remove argv', () => {
+    expect(worktreeAddArgv('/t/wt-x', 'wt/x', 'main')).toEqual(['worktree', 'add', '-b', 'wt/x', '/t/wt-x', 'main'])
+    expect(worktreeRemoveArgv('/t/wt-x', false)).toEqual(['worktree', 'remove', '/t/wt-x'])
+    expect(worktreeRemoveArgv('/t/wt-x', true)).toEqual(['worktree', 'remove', '--force', '/t/wt-x'])
+  })
+})
+
+describe('worktree view guards', () => {
+  it('narrows a valid WorktreeListView and rejects drift', () => {
+    const view = {
+      root: '/w',
+      worktrees: [{ path: '/w', head: 'aaaaaaa', branch: 'main', main: true }],
+    }
+    expect(isWorktreeListView(view)).toBe(true)
+    expect(isWorktreeListView({ ...view, worktrees: [{ path: '/w', head: 'a', branch: 'main', main: 'yes' }] })).toBe(false)
+    expect(isWorktreeListView({ root: '/w' })).toBe(false)
+  })
+
+  it('narrows a valid GitFeatureConfig and rejects drift', () => {
+    const config = { autoIsolate: true, autoBaseline: 'default', worktreesHome: '/h/worktrees' }
+    expect(isGitFeatureConfig(config)).toBe(true)
+    expect(isGitFeatureConfig({ ...config, autoBaseline: 'weird' })).toBe(false)
+    expect(isGitFeatureConfig({ ...config, autoIsolate: 'yes' })).toBe(false)
+  })
+})
+

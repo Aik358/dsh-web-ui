@@ -65,6 +65,7 @@ const MANIFEST = [
       'packages/dsh-desktop-launcher/src/dsh-home.ts',
       'packages/dsh-web-settings/src/dsh-home.ts',
       'packages/dsh-market/src/dsh-home.ts',
+      'packages/dsh-git-graph/src/host/dsh-home.ts',
     ],
   },
   {

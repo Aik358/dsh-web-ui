@@ -7,7 +7,7 @@
 
 import { subscribeSharedEvents } from './sse-leader.ts'
 import type {
-  BranchesView, GitError, GraphView, RepoStatus,
+  BranchesView, GitError, GitFeatureConfig, GraphView, RepoStatus, WorktreeListView,
 } from '../core/types.ts'
 
 /** One /git envelope response. */
@@ -66,6 +66,26 @@ export class GitApi {
   /** Topo-ordered commit graph across branches/tags/remotes. */
   graph(path: string, limit?: number): Promise<ApiResult<GraphView | null>> {
     return post('/git/graph', limit === undefined ? { path } : { path, limit })
+  }
+
+  /** All linked worktrees of the workspace's repository. */
+  worktrees(path: string): Promise<ApiResult<WorktreeListView | null>> {
+    return post('/git/worktrees', { path })
+  }
+
+  /** Create a managed worktree on a new wt/<name> branch (host picks the path). */
+  addWorktree(path: string, name: string, baseRef?: string): Promise<ApiResult<{ path: string; branch: string; name: string }>> {
+    return post('/git/worktree-add', baseRef === undefined ? { path, name } : { path, name, baseRef })
+  }
+
+  /** Remove a managed worktree (dirty rejects unless force; deleteBranch drops the wt/ branch). */
+  removeWorktree(path: string, worktreePath: string, opts?: { force?: boolean; deleteBranch?: boolean }): Promise<ApiResult<{ removed: true }>> {
+    return post('/git/worktree-remove', { path, worktreePath, force: opts?.force === true, deleteBranch: opts?.deleteBranch === true })
+  }
+
+  /** The live feature config (auto-isolation flags + managed worktree home). */
+  config(): Promise<ApiResult<GitFeatureConfig>> {
+    return post('/git/config', {})
   }
 }
 

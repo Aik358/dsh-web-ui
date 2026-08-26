@@ -31,6 +31,41 @@ export const unmergedArgv = (): string[] => ['diff', '--name-only', '--diff-filt
 /** `git worktree list --porcelain` — all worktrees and their checked-out branches. */
 export const worktreeListArgv = (): string[] => ['worktree', 'list', '--porcelain']
 
+/** `git worktree add -b <branch> <path> <baseRef>` — a linked worktree on a NEW branch. */
+export const worktreeAddArgv = (path: string, branch: string, baseRef: string): string[] => [
+  'worktree', 'add', '-b', branch, path, baseRef,
+]
+
+/** `git worktree remove [--force] <path>` — remove a linked worktree. */
+export const worktreeRemoveArgv = (path: string, force: boolean): string[] =>
+  force ? ['worktree', 'remove', '--force', path] : ['worktree', 'remove', path]
+
+/** `git branch -D <name>` — force-delete a branch (only for opted-in wt/ cleanup after removal). */
+export const branchDeleteForceArgv = (name: string): string[] => ['branch', '-D', name]
+
+/** `git rev-parse --verify --quiet <rev>` — generic revision probe (base refs such as origin/HEAD). */
+export const verifyRevArgv = (rev: string): string[] => ['rev-parse', '--verify', '--quiet', rev]
+
+/** Branch prefix every plugin-created worktree checks out (never the base branch itself). */
+export const WORKTREE_BRANCH_PREFIX = 'wt/'
+
+/**
+ * Sanitize a user/agent-supplied worktree name into a safe directory and
+ * branch component: lowercase, alnum plus ._-, no leading/trailing dash/dot,
+ * capped at 64 chars. Returns null when nothing usable remains.
+ * @param raw - the proposed worktree name.
+ */
+export function sanitizeWorktreeName(raw: string): string | null {
+  const cleaned = raw.trim().toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/-{2,}/g, '-')
+    .replace(/^[-.]+/, '')
+    .replace(/[-.]+$/, '')
+    .slice(0, 64)
+  if (cleaned === '' || cleaned === '.' || cleaned === '..') return null
+  return cleaned
+}
+
 /** `git rev-parse --verify --quiet refs/heads/<branch>` — branch existence probe. */
 export const verifyRefArgv = (branch: string): string[] => ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`]
 

@@ -78,6 +78,7 @@ family / 插件区域：
 | `dialog` | git-graph | 图对话框；`[data-gitgraph-dialog]` |
 | `graph-row` | git-graph | 提交行；dialog 内行容器 |
 | `ref` | git-graph | 分支徽标；`[data-gitgraph-ref]` |
+| `worktree-create` / `worktree-manage` | git-graph | worktree 创建/管理入口按钮；分支弹层 footer 内裸值按钮 |
 | `sprite` | pet | 精灵；`[data-dsh-pet-root]` 子树 float 容器 |
 | `bubble` | pet | 气泡容器 |
 | `panel` | pet | 交互面板；`[data-placement]` |

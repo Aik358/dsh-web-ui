@@ -41,6 +41,44 @@ export interface BranchesView {
   operationInProgress: boolean
 }
 
+/** One linked worktree row (git worktree list --porcelain). */
+export interface WorktreeInfo {
+  /** Absolute worktree path. */
+  path: string
+  /** Full HEAD oid of the worktree. */
+  head: string
+  /** Checked-out branch short name; empty when detached or bare. */
+  branch: string
+  /** Whether this is the primary checkout (first porcelain record). */
+  main: boolean
+}
+
+/** The worktree-list view. */
+export interface WorktreeListView {
+  root: string
+  worktrees: WorktreeInfo[]
+}
+
+/** Outcome of one worktree-add attempt. */
+export type WorktreeAddResult =
+  | { ok: true; path: string; branch: string; name: string }
+  | { ok: false; error: GitError }
+
+/** Outcome of one worktree-remove attempt. */
+export type WorktreeRemoveResult =
+  | { ok: true }
+  | { ok: false; error: GitError }
+
+/** Plugin feature config served to the browser (the /git/config view). */
+export interface GitFeatureConfig {
+  /** Auto-isolate every New Session of a git workspace into a fresh worktree. */
+  autoIsolate: boolean
+  /** Baseline for auto-created worktrees: the checkout's current HEAD or the remote default branch. */
+  autoBaseline: 'current' | 'default'
+  /** Absolute prefix every plugin-managed worktree lives under. */
+  worktreesHome: string
+}
+
 /** Stable switch/create rejection codes (ZCode-style guard vocabulary). */
 export type GitErrorCode =
   | 'conflicts-present'
@@ -52,6 +90,12 @@ export type GitErrorCode =
   | 'invalid-branch-name'
   | 'branch-already-exists'
   | 'workspace-unknown'
+  | 'invalid-worktree-name'
+  | 'worktree-already-exists'
+  | 'worktree-dirty'
+  | 'worktree-not-found'
+  | 'worktree-is-main'
+  | 'base-ref-not-found'
   | 'internal'
 
 /** One rejection with the copy key payload the client needs. */
@@ -112,6 +156,42 @@ export function parseWorktreeBranches(stdout: string): string[] {
     if (name !== '' && !branches.includes(name)) branches.push(name)
   }
   return branches
+}
+
+/**
+ * Parse `git worktree list --porcelain` into full rows: blank-line-separated
+ * records of `worktree <path>` / `HEAD <oid>` / `branch refs/heads/<name>`
+ * (or `detached` / `bare`). The first record is the primary checkout.
+ */
+export function parseWorktrees(stdout: string): WorktreeInfo[] {
+  const rows: WorktreeInfo[] = []
+  let current: { path?: string; head?: string; branch?: string } | null = null
+  const flush = (): void => {
+    if (current === null || current.path === undefined) return
+    rows.push({
+      path: current.path,
+      head: current.head ?? '',
+      branch: current.branch ?? '',
+      main: rows.length === 0,
+    })
+  }
+  for (const line of stdout.split('\n')) {
+    if (line === '') {
+      flush()
+      current = null
+      continue
+    }
+    if (line.startsWith('worktree ')) {
+      flush()
+      current = { path: line.slice('worktree '.length).trim() }
+      continue
+    }
+    if (current === null) continue
+    if (line.startsWith('HEAD ')) current.head = line.slice('HEAD '.length).trim()
+    else if (line.startsWith('branch refs/heads/')) current.branch = line.slice('branch refs/heads/'.length).trim()
+  }
+  flush()
+  return rows
 }
 
 /** Parse the porcelain status into counts. */
@@ -303,8 +383,41 @@ const GIT_ERROR_CODES = new Set<GitErrorCode>([
   'invalid-branch-name',
   'branch-already-exists',
   'workspace-unknown',
+  'invalid-worktree-name',
+  'worktree-already-exists',
+  'worktree-dirty',
+  'worktree-not-found',
+  'worktree-is-main',
+  'base-ref-not-found',
   'internal',
 ])
+
+/** Narrow an unknown value onto {@link WorktreeInfo}. */
+export function isWorktreeInfo(value: unknown): value is WorktreeInfo {
+  if (typeof value !== 'object' || value === null) return false
+  const record = value as Record<string, unknown>
+  return typeof record.path === 'string'
+    && typeof record.head === 'string'
+    && typeof record.branch === 'string'
+    && typeof record.main === 'boolean'
+}
+
+/** Narrow an unknown value onto {@link WorktreeListView}. */
+export function isWorktreeListView(value: unknown): value is WorktreeListView {
+  if (typeof value !== 'object' || value === null) return false
+  const record = value as Record<string, unknown>
+  return typeof record.root === 'string'
+    && Array.isArray(record.worktrees) && record.worktrees.every(isWorktreeInfo)
+}
+
+/** Narrow an unknown value onto {@link GitFeatureConfig}. */
+export function isGitFeatureConfig(value: unknown): value is GitFeatureConfig {
+  if (typeof value !== 'object' || value === null) return false
+  const record = value as Record<string, unknown>
+  return typeof record.autoIsolate === 'boolean'
+    && (record.autoBaseline === 'current' || record.autoBaseline === 'default')
+    && typeof record.worktreesHome === 'string'
+}
 
 /** Narrow an unknown value onto {@link GitErrorCode}. */
 export function isGitErrorCode(value: unknown): value is GitErrorCode {
