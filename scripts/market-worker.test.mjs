@@ -28,6 +28,22 @@ test('market worker rejects the removed card-header Turnstile bypass', async () 
   assert.equal((await response.json()).error, 'captcha-required')
 })
 
+test('market worker fails closed on writes when TURNSTILE_SECRET is unset', async () => {
+  const db = { prepare: () => { throw new Error('DB must not be touched without the Turnstile binding') } }
+  for (const [path, body] of [
+    ['/api/like', { kind: 'skin', asset_id: 'harbor', device_fp: '0123456789abcdef', turnstile_token: 'token-1' }],
+    ['/api/install', { kind: 'skin', asset_id: 'harbor', device_fp: '0123456789abcdef', install_id: 'install-1-abcdef1234567890', turnstile_token: 'token-1' }],
+  ]) {
+    const response = await worker.fetch(new Request('https://dsh-market.com' + path, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    }), { DB: db }, context())
+    assert.equal(response.status, 403, path + ' rejects without the secret binding')
+    assert.equal((await response.json()).error, 'captcha-invalid')
+  }
+})
+
 test('market worker preserves static asset cache validators', async () => {
   let requested = ''
   const response = await worker.fetch(new Request('https://dsh-market.com/api/skin-center/v2/skins/harbor/stylesheet'), {

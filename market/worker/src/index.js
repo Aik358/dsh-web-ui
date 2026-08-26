@@ -1,6 +1,6 @@
 /**
  * dsh-market — edge API for the DSH marketplace.
- * Anonymous likes are Turnstile-gated when configured and stored in D1.
+ * Anonymous likes are Turnstile-gated (fail closed without the secret) and stored in D1.
  * The API surface is advertised via /.well-known/api-catalog (RFC 9727),
  * described by /openapi.json and documented at /api-docs.html.
  */
@@ -153,7 +153,9 @@ async function readStats(env) {
 }
 
 async function verifyTurnstile(request, env, token) {
-  if (!env.TURNSTILE_SECRET) return true
+  // Fail closed: without the secret binding no challenge can be verified,
+  // so writes are rejected instead of passing anonymously.
+  if (!env.TURNSTILE_SECRET) return false
   if (!token) return false
   const form = new URLSearchParams()
   form.set('secret', env.TURNSTILE_SECRET)

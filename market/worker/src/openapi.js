@@ -31,7 +31,7 @@ export default {
     },
     '/api/install': {
       post: {
-        summary: 'Record one successful Workshop install (skins, pets or community plugins); one event per install, Turnstile-gated when configured',
+        summary: 'Record one successful Workshop install (skins, pets or community plugins); one event per install, Turnstile-gated',
         requestBody: {
           required: true,
           content: {
@@ -59,7 +59,7 @@ export default {
     },
     '/api/like': {
       post: {
-        summary: 'Like or unlike an asset (one vote per device, Turnstile-gated when configured)',
+        summary: 'Like or unlike an asset (one vote per device, Turnstile-gated)',
         requestBody: {
           required: true,
           content: {
