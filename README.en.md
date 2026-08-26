@@ -507,3 +507,11 @@ This repository is licensed under [Apache-2.0](LICENSE). Third-party code merged
 [Report Bug](https://github.com/zhu1090093659/dsh-web/issues) · [Request Feature](https://github.com/zhu1090093659/dsh-web/issues) · [View Releases](https://github.com/zhu1090093659/dsh-web/releases)
 
 </div>
+
+## Support the Project
+
+Thank you to everyone who uses, gives feedback on and contributes to dsh-web. If this project helps you, you are welcome to scan the QR code to support its continued maintenance and development:
+
+<p align="center">
+  <img src="docs/zanzhu-wechat.jpg" alt="WeChat sponsorship QR code" width="360">
+</p>

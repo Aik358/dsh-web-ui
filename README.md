@@ -506,3 +506,11 @@ A: 可以。聚合包的行 id 统一带 `web-ui-` 前缀（如 `web-ui-describe
 [报告 Bug](https://github.com/zhu1090093659/dsh-web/issues) · [请求功能](https://github.com/zhu1090093659/dsh-web/issues) · [查看 Releases](https://github.com/zhu1090093659/dsh-web/releases)
 
 </div>
+
+## 赞助支持
+
+感谢每一位使用、反馈和贡献 dsh-web 的朋友。如果这个项目对你有帮助，欢迎扫码赞助，支持项目持续维护与发展：
+
+<p align="center">
+  <img src="docs/zanzhu-wechat.jpg" alt="微信赞助二维码" width="360">
+</p>
