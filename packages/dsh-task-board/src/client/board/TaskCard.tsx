@@ -37,11 +37,12 @@ export function formatTime(ms: number, timeZone?: string): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
-/** One card in a column. */
 function TaskCardInner({ task, pending, timeZone, onClick }: { task: TaskRecord; pending: boolean; timeZone?: string; onClick: () => void }) {
   const latest = task.executions[task.executions.length - 1]
   const runs = task.executions.length
   const archived = task.archivedAt !== undefined
+  const isDraggable = !archived && task.status !== 'running' && !pending
+
   return (
     <button
       type="button"
@@ -49,6 +50,11 @@ function TaskCardInner({ task, pending, timeZone, onClick }: { task: TaskRecord;
       data-status={archived ? 'archived' : task.status}
       data-dsh-part="card"
       data-pending={pending || undefined}
+      draggable={isDraggable}
+      onDragStart={isDraggable ? (event) => {
+        event.dataTransfer.setData('text/plain', task.id)
+        event.dataTransfer.effectAllowed = 'move'
+      } : undefined}
       onClick={onClick}
       title={task.description !== '' ? task.description : task.title}
     >

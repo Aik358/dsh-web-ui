@@ -42,7 +42,10 @@ function task(overrides: Partial<TaskRecord> = {}): TaskRecord {
   }
 }
 
-function fakeController(snapshot?: Partial<ControllerSnapshot>): BoardController {
+function fakeController(
+  snapshot?: Partial<ControllerSnapshot>,
+  overrides?: Partial<BoardController>,
+): BoardController {
   const state: ControllerSnapshot = {
     tasks: [task()],
     boardOpen: false,
@@ -59,6 +62,8 @@ function fakeController(snapshot?: Partial<ControllerSnapshot>): BoardController
     toggleArchiveView: () => {},
     retryHostSync: async () => {},
     openTask: () => {},
+    moveTask: () => {},
+    ...overrides,
   } as unknown as BoardController
 }
 
@@ -100,6 +105,122 @@ describe('TaskBoard L2 semantic attributes (#506)', () => {
     const archive = container.querySelector('section[data-status="archived"]')
     expect(archive).not.toBeNull()
     expect(archive!.getAttribute('data-dsh-part')).toBe('column')
+  })
+})
+
+describe('TaskBoard card drag-and-drop status changes (#1195)', () => {
+  it('marks manual tasks as draggable and running/pending/archived tasks as not draggable', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    roots.push(root)
+
+    const controller = fakeController({
+      tasks: [
+        task({ id: 't-todo', status: 'todo' }),
+        task({ id: 't-running', status: 'running' }),
+        task({ id: 't-pending', status: 'todo' }),
+      ],
+      pendingTaskIds: ['t-pending'],
+    })
+    await act(async () => { root.render(<TaskBoard controller={controller} />) })
+
+    const cards = container.querySelectorAll('button[data-dsh-part="card"]')
+    expect(cards).toHaveLength(3)
+
+    // Todo card is draggable
+    const todoCard = Array.from(cards).find(c => c.getAttribute('data-status') === 'todo' && !c.hasAttribute('data-pending'))
+    expect(todoCard?.getAttribute('draggable')).toBe('true')
+
+    // Running card is not draggable
+    const runningCard = Array.from(cards).find(c => c.getAttribute('data-status') === 'running')
+    expect(runningCard?.getAttribute('draggable')).toBe('false')
+
+    // Pending card is not draggable
+    const pendingCard = Array.from(cards).find(c => c.getAttribute('data-pending') === 'true')
+    expect(pendingCard?.getAttribute('draggable')).toBe('false')
+  })
+
+  it('drops a backlog card onto the todo column and triggers controller.moveTask', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    roots.push(root)
+
+    const moveCalls: Array<{ id: string; status: string }> = []
+    const controller = fakeController(
+      {
+        tasks: [task({ id: 't-backlog', status: 'backlog', title: 'Task Backlog' })],
+      },
+      {
+        moveTask: (id, status) => { moveCalls.push({ id, status }) },
+      },
+    )
+    await act(async () => { root.render(<TaskBoard controller={controller} />) })
+
+    const todoColumn = container.querySelector('section[data-status="todo"]')
+    expect(todoColumn).not.toBeNull()
+
+    // Simulate drag and drop
+    const dataTransfer = {
+      data: { 'text/plain': 't-backlog' } as Record<string, string>,
+      setData(type: string, val: string) { this.data[type] = val },
+      getData(type: string) { return this.data[type] ?? '' },
+      dropEffect: 'none',
+    }
+
+    await act(async () => {
+      todoColumn!.dispatchEvent(
+        Object.assign(new Event('drop', { bubbles: true, cancelable: true }), { dataTransfer }),
+      )
+    })
+
+    expect(moveCalls).toEqual([{ id: 't-backlog', status: 'todo' }])
+  })
+
+  it('rejects invalid drops (same column or dropping running tasks)', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    roots.push(root)
+
+    const moveCalls: Array<{ id: string; status: string }> = []
+    const controller = fakeController(
+      {
+        tasks: [
+          task({ id: 't-todo', status: 'todo' }),
+          task({ id: 't-running', status: 'running' }),
+        ],
+      },
+      {
+        moveTask: (id, status) => { moveCalls.push({ id, status }) },
+      },
+    )
+    await act(async () => { root.render(<TaskBoard controller={controller} />) })
+
+    const todoColumn = container.querySelector('section[data-status="todo"]')
+
+    // Dropping on the same column does nothing
+    const sameColTransfer = {
+      getData: (type: string) => (type === 'text/plain' ? 't-todo' : ''),
+    }
+    await act(async () => {
+      todoColumn!.dispatchEvent(
+        Object.assign(new Event('drop', { bubbles: true, cancelable: true }), { dataTransfer: sameColTransfer }),
+      )
+    })
+    expect(moveCalls).toHaveLength(0)
+
+    // Dropping a running task does nothing
+    const runningTransfer = {
+      getData: (type: string) => (type === 'text/plain' ? 't-running' : ''),
+    }
+    await act(async () => {
+      todoColumn!.dispatchEvent(
+        Object.assign(new Event('drop', { bubbles: true, cancelable: true }), { dataTransfer: runningTransfer }),
+      )
+    })
+    expect(moveCalls).toHaveLength(0)
   })
 })
 
