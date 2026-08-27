@@ -1,4 +1,6 @@
 import { readFile } from 'node:fs/promises'
+import { resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { DOCTOR_PROTOCOL_VERSION } from './core/protocol.ts'
 import { managedLaunch, findRealDsh } from './agent/launch.ts'
 import { DoctorSupervisor, runSupervisor } from './agent/supervisor.ts'
@@ -80,6 +82,31 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
   return command === 'help' || command === '--help' || command === '-h' ? 0 : 2
 }
 
-if (import.meta.url === new URL(process.argv[1] ?? '', 'file:').href) main().then(code => { process.exitCode = code }, error => { console.error(error instanceof Error ? error.message : String(error)); process.exitCode = 1 })
+/**
+ * Check if the current module is the direct CLI entry point across platforms.
+ * Handles Windows backslashes, drive letters, and relative/absolute paths cleanly.
+ */
+export function isDirectCliRun(metaUrl: string, entryArg: string | undefined = process.argv[1]): boolean {
+  if (!entryArg || entryArg.trim() === '') return false
+  try {
+    const entryPath = resolve(entryArg)
+    const metaPath = fileURLToPath(metaUrl)
+    return process.platform === 'win32'
+      ? entryPath.toLowerCase() === metaPath.toLowerCase()
+      : entryPath === metaPath
+  } catch {
+    return false
+  }
+}
+
+if (isDirectCliRun(import.meta.url)) {
+  main().then(
+    code => { process.exitCode = code },
+    error => {
+      console.error(error instanceof Error ? error.message : String(error))
+      process.exitCode = 1
+    },
+  )
+}
 
 export { DoctorSupervisor }
