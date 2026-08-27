@@ -29,7 +29,7 @@ With maintainer approval obtained from the upstream author (morlay) on 2026-08-2
 
 ## Consequences
 
-- Storage surface changes when the aggregate loads better-session: its bundle patch swaps `ctx.sessionPersistence` from the jsonl files under `$DSH_HOME/sessions/` to `$DSH_HOME/sessions/sessions.sqlite`. There is **no migration toolchain**: existing jsonl sessions are invisible to the new backend until reopened through their own store; users upgrading the family bundle must be told prominently.
+- Storage surface changes when the aggregate loads better-session: its bundle patch swaps `ctx.sessionPersistence` from the jsonl files under `$DSH_HOME/sessions/` to `$DSH_HOME/sessions/sessions.sqlite`. There is **no migration toolchain**: existing jsonl sessions are invisible to the new backend until reopened through their own store; users upgrading the family bundle must be told prominently. (Rollout update, same day: the integration now ships inactive by default with a jsonl importer — see [better-session-default-off-and-jsonl-import](2026-08-27-better-session-default-off-and-jsonl-import.md).)
 - Editing semantics improve: in-place rewrite keeps one canonical log per session; no stale-child accumulation; first-turn edits no longer fall back to a blank session.
 - Single-writer-per-session guard: concurrent hosts sharing one sqlite store fail loud instead of interleaving logs (multi-process safe across different sessions only).
 - Performance governance interplay shifts: dsh-perf's restated jsonl write-batch row stops matching once jsonl rows are superseded; its observe/degrade halves remain valid, and PerfMeter becomes the A/B measurement tool for jsonl vs rdb write behavior.

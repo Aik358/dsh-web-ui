@@ -29,7 +29,7 @@ dsh-chat-recovery 与上游 [morlay/better-session](https://github.com/morlay/be
 
 ## Consequences
 
-- 全家桶加载 better-session 后存储面改变：其 bundle patch 把 `ctx.sessionPersistence` 从 `$DSH_HOME/sessions/` 下的 jsonl 文件换成 `$DSH_HOME/sessions/sessions.sqlite`。**没有迁移工具链**：既有 jsonl 会话对新后端不可见（仍留在原文件里）；升级全家桶的用户必须在公告里显著告知。
+- 全家桶加载 better-session 后存储面改变：其 bundle patch 把 `ctx.sessionPersistence` 从 `$DSH_HOME/sessions/` 下的 jsonl 文件换成 `$DSH_HOME/sessions/sessions.sqlite`。**没有迁移工具链**：既有 jsonl 会话对新后端不可见（仍留在原文件里）；升级全家桶的用户必须在公告里显著告知。（同日更新：该集成本身改为默认关闭并附带 jsonl 导入器——见 [better-session-default-off-and-jsonl-import](2026-08-27-better-session-default-off-and-jsonl-import.md)。）
 - 编辑语义增强：就地重写让每个会话保持单一 canonical log，无陈旧子会话堆积；首轮消息编辑不再退化为空白新会话。
 - 单会话单写入者守卫：多进程共享同一 sqlite 库时对同一会话的并发写入 fail loud，不同会话的并发写不受影响。
 - 性能治理联动变化：jsonl 行被替换后，dsh-perf 复述的 jsonl 写批次行不再生效；其观测/降载两半仍然有效，PerfMeter 正好用作 jsonl 与 rdb 写行为的 A/B 测量工具。
