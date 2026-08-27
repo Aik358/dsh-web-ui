@@ -150,7 +150,9 @@ describe('orca-link hooks: scene layers and chrome', () => {
     const character = document.body.querySelector('[data-orca-link-character]')
     expect(character).not.toBeNull()
     expect(character?.getAttribute('data-orca-link-status')).toBe('working')
-    expect(character?.style.getPropertyValue('--orca-status-column')).not.toBe('')
+    const sprite = document.body.querySelector('[data-orca-link-character-sprite]')
+    expect(sprite?.style.getPropertyValue('--orca-status-x')).not.toBe('')
+    expect(character?.style.getPropertyValue('--orca-status-column')).toBe('')
     expect(character?.style.getPropertyValue('--orca-link-status-atlas')).toContain(
       'assets/orca-link-status-atlas.webp',
     )
