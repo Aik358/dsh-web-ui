@@ -25,3 +25,5 @@ The third 2026-08-27 /pr-issue-maintenance run re-checked the five open pull req
 - #1185 remains open and blocked until a rebuilt branch arrives; when it does, the earlier requirement (committed regenerated manifest plus check-output evidence in the body) still applies alongside inspecting the fresh head for stray control characters.
 - Next run must re-read reply threads on #1098, #1144, and #1100 before acting again; nothing else may move meanwhile.
 - Branch-tip content must be inspected locally whenever a PR pushes hundreds or thousands of renamed files; rename-only diffs have slipped past plugin-mount CI once already.
+
+> 2026-08-27 later run update: #1185 returned as the clean single-commit rebuild f25166296 requested here and merged as 5e85b6ebc; follow-ups for #1100 and the parked items continue in [the five-PR round](2026-08-27-maintenance-run-delete-message-merge-four-registration-reviews.md).
