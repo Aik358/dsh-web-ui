@@ -187,12 +187,16 @@ export function apply(ctx: ClientContext): void {
     } | undefined
     ctx.slots.inject('conversation.chat.node', () => {
       try {
-        // 注册优先级: 取该 cell 已有条目的最小 priority 再低 1, 保证在 "lowest renders"
-        // 投影规则下永远先于官方(priority 0 或动态分配值), 且不与任何已注册条目同值冲突。
+        // 注册优先级: 取该 cell 已有条目的最小 priority, 再额外下探一段保留带,
+        // 保证 "lowest renders" 投影下本影子永远排最前, 同时给第三方替换渲染器
+        // 留出落位空间 —— 它们常把 priority 硬编码为 -1(例如
+        // @morlay/ui-conversation-message-actions), 而 keyed slot 对同 key 同
+        // priority 是硬校验, 撞值会让后注册方整个插件加载失败。
+        const SHADOW_PRIORITY_HEADROOM = 8
         const existing = (slotsCore?.entries?.('conversation.chat.node') ?? [])
           .filter((entry) => entry?.options?.key === 'assistant-step')
           .map((entry) => Number(entry?.options?.priority ?? 0))
-        const floor = existing.length === 0 ? -1 : Math.min(...existing) - 1
+        const floor = (existing.length === 0 ? 0 : Math.min(...existing)) - 1 - SHADOW_PRIORITY_HEADROOM
         // 影子组件先建好: 懒捕获回调需要排除自身(entries 按 priority 排序, 影子排最前)。
         const shadow = makePerfAssistantShadow(undefined, () => renderDegrade, () => {
           // React.memo 组件 typeof === 'object'(Symbol(react.memo) 标签对象), 不能用
