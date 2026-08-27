@@ -28,7 +28,7 @@ Phase-1 基线普查把每 8 秒约 39 次 `<img>.src` 换图（空闲稳态的 
 
 - 可见期间归因到宠物的空闲页 DOM 写入降为零；解码工作从 O(ticks) 变为一次性的 O(总帧数)。
 - 位图内存自 mount 到 dispose 常驻，上界由下发的轨道列表决定（帧都是小块 webp）。
-- 两种模式按构造像素等价；本轮验证为单位级（canvas 假件证明绘制/dispose 契约）。现场前后数字与其他同日修复一样，门闸在下次服务重启。
+- 两种模式按构造像素等价；canvas 假件证明绘制/dispose 契约。当日服务重启后已拿到现场确认（归档快照 [20260827-phase1-performance-round-snapshot](../../../../docs/archive/20260827-phase1-performance-round-snapshot.md)）：运行中 GUI 上归因到宠物的 `<img>.src` 变更在 15 秒窗口内从 74 次降到 0，总变更 -24%，时间线任务时长 -10%、UpdateLayoutTree -21%、Paint -28%、脚本执行 -44%（对 Phase-1 基线）。
 
 ## Testing
 

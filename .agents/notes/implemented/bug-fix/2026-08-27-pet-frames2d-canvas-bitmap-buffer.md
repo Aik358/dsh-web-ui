@@ -28,7 +28,7 @@ Playback scheduling, phase mapping, gameplay override/release, stall watchdog, r
 
 - Idle-page DOM writes attributable to the pet drop to zero while visible; decode work becomes O(total frames) once instead of O(ticks).
 - Bitmap memory is pinned from mount to dispose and bounded by the served track list (frames are small webp cells).
-- Behavior is pixel-equivalent by construction in both modes; verification today is unit-level (canvas fakes prove the paint/dispose contract). Live GUI before/after numbers stay gated behind the next service restart like the same-day dsh-perf build.
+- Behavior is pixel-equivalent by construction in both modes; the canvas fakes prove the paint/dispose contract. Live confirmation captured same day after service restart (archived snapshot [20260827-phase1-performance-round-snapshot](../../../../docs/archive/20260827-phase1-performance-round-snapshot.md)): pet-attributed `<img>.src` mutations dropped 74 -> 0 per 15 s window on the running GUI, total mutations -24%, trace TaskDuration -10%, UpdateLayoutTree -21%, Paint -28%, ScriptDuration -44% versus the Phase-1 baseline.
 
 ## Testing
 
