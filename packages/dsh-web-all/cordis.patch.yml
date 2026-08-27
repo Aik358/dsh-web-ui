@@ -84,11 +84,6 @@
     - id: web-ui-describe-image
       name: '@linxin666/dsh-tool-describe-image'
 
-# from ../dsh-chat-recovery
-- insert:
-    - id: web-ui-chat-recovery
-      name: '@linxin666/dsh-chat-recovery'
-
 # from ../dsh-liangshen
 - insert:
     - id: web-ui-liangshen
@@ -127,3 +122,8 @@
 - insert:
     - id: web-ui-archive-manager
       name: '@mlgbnb/dsh-archive-manager'
+
+# external: @morlay/better-session
+- insert:
+    - id: web-ui-better-session
+      name: '@morlay/better-session'
