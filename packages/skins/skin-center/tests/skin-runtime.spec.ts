@@ -124,7 +124,7 @@ describe('semantic adapter', () => {
 })
 
 describe('shared shell rendering adapter (#954)', () => {
-  it('locks html, body and root to prevent outer viewport overflow (#1135)', () => {
+  it('locks html, body and root to prevent outer viewport overflow without breaking layout width (#1135, #1222)', () => {
     const css = shellRenderingCss()
     expect(css).toContain('html[data-dsh-skin],')
     expect(css).toContain('html[data-dsh-custom-theme]:not([data-dsh-skin]),')
@@ -132,6 +132,9 @@ describe('shared shell rendering adapter (#954)', () => {
     expect(css).toContain('overflow: hidden !important;')
     expect(css).toContain('height: 100% !important;')
     expect(css).toContain('box-sizing: border-box !important;')
+    expect(css).toContain('max-width: 100% !important;')
+    // [id="root"] must not lock width: 100% !important so better-sidebar right panel push works (#1222)
+    expect(css).not.toMatch(/\[id="root"\][^{]*\{[^}]*(?<![a-z-])width:\s*100%\s*!important/s)
   })
 
   it('scopes the workspace fade correction to active skin-center visual modes', () => {
