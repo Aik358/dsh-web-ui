@@ -75,6 +75,8 @@ What you give up / must accept:
 - The switch is one-way per point in time: sessions created while enabled exist only in SQLite (new jsonl writes stop once enabled). Run the importer right before enabling.
 - The stock jsonl persistence row stays disabled for as long as you stay opted in, and two hosts cannot write one store at the same time.
 
+The recommended path is the **Better Session** card under Settings → Web 插件 (shipped by `@linxin666/dsh-client-ui-better-session-manager`): it shows both stores, runs the migration with an automatic backup on confirm, and flips the managed block live — no restart needed beyond refreshing open tabs. Repository-checkout alternative:
+
 Enablement steps from a repository checkout (`dsh web` stopped):
 
 ```sh

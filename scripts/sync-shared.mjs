@@ -101,6 +101,7 @@ const MANIFEST = [
       'packages/dsh-doctor/src/mount-once.ts',
       'packages/skins/skin-center/src/mount-once.ts',
       'packages/dsh-market/src/mount-once.ts',
+      'packages/better-session-manager/src/mount-once.ts',
     ],
   },
 

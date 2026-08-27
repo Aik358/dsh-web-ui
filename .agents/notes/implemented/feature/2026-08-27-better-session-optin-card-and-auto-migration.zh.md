@@ -1,0 +1,38 @@
+# Agent Note: better-session 的启用入口以设置卡形式发布并自动迁移
+
+Status: implemented
+
+Supersession check: [better-session-default-off-and-jsonl-import](../architecture/2026-08-27-better-session-default-off-and-jsonl-import.md) 持有默认关闭的上线策略与迁移语义，均不受影响。本文件为其补充面向用户的操作面——卡片——并把导入核心下沉进包，使卡片与 CLI 共享同一实现。
+
+## Problem
+
+最初的 opt-in 路径只有文档加一个仓库内 CLI：从 npm 安装全家桶的用户必须手改 profile patch 文件（手写 YAML），且没有仓库 checkout 就完全无法迁移旧会话。切换动作附带的存储更换警告也只存在于 README 的散文里，离决策时刻太远。
+
+## Decision
+
+新增公开家族包 `@linxin666/dsh-client-ui-better-session-manager`（聚合内行名 `web-ui-better-session-manager`），把开关放进决策发生的现场：
+
+- **卡片**位于 设置 → Web 插件（"Better Session"，order 145）：卡面上声明第三方来源（[morlay/better-session](https://github.com/morlay/better-session)，MIT），实时展示两个存储的计数与当前状态；启用/停用都包在确认弹窗里，弹窗文案逐条列出 README 承诺过的代价。
+- **启用流程**：确认 → 子进程导入全部旧 jsonl 日志到 `sessions.sqlite`（现有库自动备份；库不存在则按镜像 DDL 引导创建）→ 向 profile patch 写托管覆盖块。导入失败时 profile 保持原样。profile 层在长生命周期宿主上热重载，因此启用即时生效；已打开页面刷新一次即可。
+- **核心共享**：解码/投影/入库代码原样迁入本包（`src/core/*`，并经 tsdown companions 编译为独立产物 `lib/better-session-import.mjs`）。host 半区以子进程执行它，解码不再阻塞服务事件循环；`scripts/dsh-better-session.mjs` 改为导入同一产物的薄壳——语义自此只存在一份。
+
+不设 settings 命名空间：本卡没有可保存的偏好，真正驱动行为的状态是 profile 文件里的补丁行，两个入口都把它当作唯一真源。
+
+## Alternatives considered
+
+- **像 dsh-ssh 那样用 settings 命名空间的 enabled 开关**：否决——上游各行走的是 loader 层 disabled 标志而非 config 载荷；翻转 settings 值会与组合实际运行的东西脱节。
+- **直接借用 dsh-plugin-manager 的启停路由**：否决——plugin-manager 面向任意插件逐条编辑，而 better-session 需要"三行 insert + 永久 jsonl 禁用"的原子块，这正是本包要固化的契约。
+- **启用后在启动时自动迁移**：否决——彼时 RDB provider 已在进程内持有库文件，批量导入与首个活跃会话产生竞态、回滚路径含糊；确认时刻官方 jsonl 仍在服务，才是干净窗口。
+- **导入器留在 scripts/、host 用 shell 外部调仓库路径**：否决——npm 安装没有 checkout，复制两份必然漂移。
+
+## Consequences
+
+- opt-in 不再依赖仓库 checkout：声明、警告、迁移、切换随聚合包一体发布。
+- 版本化队列新增一员（publish-prep 清单 18 → 19），release 校验需与其余家族包一同构建。
+- 卡片的状态读数依赖能读到聚合清单文本：npm profile 场景通过 `DSH_WEB_AGGREGATE_PATCH` 或 cwd 上溯解析；都不可达时报「状态未知」而不是猜。
+
+## Testing
+
+- 包内 vitest（11 例）：编码/断尾/header 校验、丢弃/剪枝/dims 镜像、稠密桥接 + head 游标 + 真实目录形态（含裸 UUID 年代）的幂等重跑、托管块替换/移除、分层姿态判定。
+- CLI node:test（3 例）：argv 契约、提醒门控下经由真实 `$DSH_HOME` 路径的启用写入、出厂关闭姿态下的 status JSON 形状。
+- 重生成后的聚合产物（20 行 / 18 依赖）由 `pnpm aggregate:check` 验证；dump-config 下四个 better-session 相关产物保持不变（卡片行激活、集成行禁用）。

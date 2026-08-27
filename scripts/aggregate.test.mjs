@@ -112,7 +112,10 @@ test('web-ui-all mounts @mlgbnb/dsh-archive-manager as an external row', () => {
 test('web-ui-all expands @morlay/better-session into importable but inactive bundle rows', () => {
   const patch = readFileSync(join(ROOT, 'packages/dsh-web-all/cordis.patch.yml'), 'utf8')
   const lines = patch.split(/\r?\n/)
-  assert.doesNotMatch(patch, /web-ui-better-session/, 'bundle-only package must not be emitted as an importable row')
+  // The bundle-only external must never appear as an importable row. (Anchor
+  // to the full row: web-ui-better-session-MANAGER, the carrier card package,
+  // legitimately contains the substring.)
+  assert.doesNotMatch(patch, /^ {4}- id: web-ui-better-session$/m, 'bundle-only package must not be emitted as an importable row')
   // The manifest marks the external inactive: the three namespaced insert rows
   // ship defined-but-disabled so the stock jsonl persistence stays active
   // until the user opts in.

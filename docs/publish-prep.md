@@ -2,10 +2,11 @@
 
 ## 范围
 
-本版本统一发布 `packages/` 与 `packages/skins/` 下由 `scripts/lib/family-packages.mjs` 发现的 18 个公开家族包；根 package.json 与 shared 私有包不发布。所有家族包版本为 0.3.3，皮肤中心只随包分发 blue-fantasy，其余皮肤由 Workshop 按需安装。
+本版本统一发布 `packages/` 与 `packages/skins/` 下由 `scripts/lib/family-packages.mjs` 发现的 19 个公开家族包；根 package.json 与 shared 私有包不发布。所有家族包版本为 0.3.3，皮肤中心只随包分发 blue-fantasy，其余皮肤由 Workshop 按需安装。
 
 | 目录 | npm 包 | 版本 | 发布状态 |
 | --- | --- | --- | --- |
+| packages/better-session-manager | @linxin666/dsh-client-ui-better-session-manager | 0.3.3 | public（首次发布，better-session 启用卡片 + 迁移工具）|
 | packages/dsh-aionui-panel | @linxin666/dsh-client-ui-aionui-panel | 0.3.3 | public |
 | packages/dsh-community-plugins | @linxin666/dsh-client-ui-community-plugins | 0.3.3 | public |
 | packages/dsh-desktop-launcher | @linxin666/dsh-desktop-launcher | 0.3.3 | public |
