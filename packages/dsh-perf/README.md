@@ -53,7 +53,7 @@ Restart `dsh web` (Web mode does not enable HMR at load time) for the host half;
 ## HUD / panel
 
 - Server side: events/s, active sessions, event-loop p99/mean latency, RSS/Heap, applied write-batch delay (read from the live persistence service).
-- Browser: FPS (last 1s), Longtask (last 60s); × collapses the panel to a small tab (click to expand).
+- Browser: FPS (last 1s), Longtask (last 60s with worst duration), and a per-plugin activity scoreboard - added-node rates attributed to each `data-dsh-plugin` root (top 3 + rest), so a plugin that chews the main thread without emitting semantic attributes shows up under `rest=` instead of invisibly; nodes beyond the per-callback budget share that bucket; `dsh-perf-debug=1` exposes a `window.__dshPerfAttribution` handle (raw snapshots, long-task log, top sources); × collapses the panel to a small tab (click to expand).
 - The host endpoint auto-hides the HUD after 3 consecutive failures (silent degradation when the host half is absent).
 - Idle agents get a `·idle` badge on their session row (from `agent/status` migration events, zero upstream changes).
 

@@ -3,7 +3,8 @@
  *
  * One poll loop reads the host's loopback-fenced /api/dsh-perf/stats
  * (event/s, event-loop delay, memory, batch delay) and merges it with local
- * browser sampling (rAF FPS + longtask count). Everything degrades silently:
+ * browser sampling (rAF FPS + per-plugin DOM-activity scoreboard + an
+ * attributed long-task log). Everything degrades silently:
  * a missing host half hides the HUD, a hostile environment keeps the GUI
  * unaffected. apply() never throws.
  * @module @linxin666/dsh-perf/client
@@ -23,6 +24,13 @@ import { PerfSettingsCard, PerfSettingsCardController, type PerfSettings, type P
 import { makePerfAssistantShadow, type ShadowOwner } from './perf-assistant-shadow.tsx'
 import { startIntegrityObserver } from './perf-integrity.ts'
 import { makeListSetGate, type ListSetGate, type SessionListSnapshotLike } from './perf-list-gate.ts'
+import {
+  createAttributionAggregator,
+  createLongtaskLog,
+  readLongtaskSource,
+  startDomAttributionSampler,
+  type LongtaskRecord,
+} from './perf-attribution.ts'
 
 /** Locale namespace owned by this plugin. */
 export const NS = 'dsh-perf'
@@ -73,7 +81,6 @@ const API_STATS = '/api/dsh-perf/stats'
 const POLL_MS = 2000
 const STORAGE_KEY = 'dsh-perf-hud-visible'
 const FPS_WINDOW_MS = 1000
-const LONGTASK_WINDOW_MS = 60_000
 
 export function apply(ctx: ClientContext): void {
   // 全局开关: 与 host 共用 dsh-perf 命名空间; false 时 HUD 与 CSS 降载一并停用。
@@ -337,8 +344,11 @@ function boot(isEnabled: () => boolean): () => void {
   ].join(';')
 
   const cache: { stats?: StatsWire; stale: boolean; failures: number } = { stats: undefined, stale: true, failures: 0 }
-  const longtasks: number[] = []
   let fps = 0
+  // --- 按插件活动度归因([data-dsh-plugin]) + 长任务来源记录 ----------------
+  const longtaskLog = createLongtaskLog()
+  const activityAgg = createAttributionAggregator()
+  const stopAttribution = startDomAttributionSampler(activityAgg)
 
   // --- 本地采样: FPS(近 1s) + Longtask(近 60s) ----------------------
   let frames = 0
@@ -358,9 +368,11 @@ function boot(isEnabled: () => boolean): () => void {
   try {
     const observer = new PerformanceObserver((list) => {
       const now = performance.now()
-      longtasks.push(now)
-      const cutoff = now - LONGTASK_WINDOW_MS
-      while (longtasks.length > 0 && longtasks[0] < cutoff) longtasks.shift()
+      // 一个回调可能批量送达多条长任务, 逐条记录(旧实现按回调只记一条)。
+      for (const entry of list.getEntries()) {
+        longtaskLog.push({ t: now, durationMs: entry.duration, source: readLongtaskSource(entry) })
+      }
+      longtaskLog.prune(now)
     })
     observer.observe({ entryTypes: ['longtask'] })
   } catch { /* Safari/旧 Chrome 无 longtask: 静默 */ }
@@ -394,7 +406,7 @@ function boot(isEnabled: () => boolean): () => void {
       return
     }
     try {
-      render(root, cache, fps, longtasks.length)
+      render(root, cache, fps)
     } catch (error) {
       // 畸形 wire(host 版本漂移)按缺失处理: 静默, 不产生 unhandled rejection。
       console.debug('[dsh-perf] render degraded:', error)
@@ -404,7 +416,7 @@ function boot(isEnabled: () => boolean): () => void {
 
   // --- 渲染 -----------------------------------------------------------
   let renderInto: HTMLElement | undefined
-  function render(hostEl: HTMLElement, state: { stats?: StatsWire }, currentFps: number, longtaskCount: number): void {
+  function render(hostEl: HTMLElement, state: { stats?: StatsWire }, currentFps: number): void {
     const s = state.stats
     if (s === undefined) return
     const lines: string[] = []
@@ -424,7 +436,21 @@ function boot(isEnabled: () => boolean): () => void {
     lines.push('events ' + (ev.perSec ?? '?') + '/s  active=' + (ev.activeSessions ?? '?') + '  win=' + (ev.window ?? '?'))
     const el = s.elDelay ?? {}
     lines.push('EL p99=' + fmtMs(el.p99Ms) + ' mean=' + fmtMs(el.meanMs))
-    lines.push('fps=' + currentFps + '  longtasks(60s)=' + longtaskCount)
+    const nowTs = performance.now()
+    lines.push(
+      'fps=' + currentFps +
+      '  longtasks(60s)=' + longtaskLog.countSince(nowTs, 60_000) +
+      '  max=' + fmtMs(longtaskLog.maxSince(nowTs, 60_000)),
+    )
+    // 按插件活动度计分板: data-dsh-plugin 归因的 DOM 新增速率 Top3。
+    try {
+      const act = activityAgg.snapshot(nowTs, 3)
+      if (act.topPlugins.length > 0 || act.totalNodesPerSec > 0.05) {
+        const parts = act.topPlugins.map((p) => p.name + '=' + fmtRate(p.nodesPerSec))
+        if (act.otherNodesPerSec >= 0.1) parts.push('rest=' + fmtRate(act.otherNodesPerSec))
+        lines.push('act ' + parts.join(' · '))
+      }
+    } catch { /* 计分板任何异常都不影响主 HUD 输出 */ }
     const mem = s.mem ?? {}
     lines.push('rss=' + (mem.rssMB ?? '?') + 'MB  heap=' + (mem.heapUsedMB ?? '?') + 'MB')
     const top = Array.isArray(s.topSessions) ? s.topSessions : []
@@ -441,6 +467,9 @@ function boot(isEnabled: () => boolean): () => void {
   function fmtMs(value: number | undefined): string {
     if (value === undefined) return '?'
     return (value >= 100 ? Math.round(value) : Math.round(value * 10) / 10) + 'ms'
+  }
+  function fmtRate(value: number): string {
+    return (value >= 10 ? String(Math.round(value)) : String(Math.round(value * 10) / 10)) + '/s'
   }
   function shortId(id: string): string {
     return id.length > 12 ? id.slice(0, 12) + '…' : id
@@ -497,7 +526,20 @@ function boot(isEnabled: () => boolean): () => void {
     }
   }
   applyCollapse()
+  // 调试句柄: 与列表门控同款开关(dsh-perf-debug=1), 供现场取证用。
+  try {
+    if (localStorage.getItem('dsh-perf-debug') === '1') {
+      ;(window as unknown as { __dshPerfAttribution?: unknown }).__dshPerfAttribution = {
+        snapshot: (): unknown => activityAgg.snapshot(performance.now(), 12),
+        longtasks: (): readonly LongtaskRecord[] => longtaskLog.list(),
+        topSources: (n?: number): unknown => longtaskLog.topSources(performance.now(), 60_000, n),
+      }
+    }
+  } catch { /* noop */ }
   void poll()
   const timer = setInterval(poll, POLL_MS)
-  return () => { clearInterval(timer) }
+  return () => {
+    clearInterval(timer)
+    stopAttribution?.()
+  }
 }

@@ -225,6 +225,12 @@ packages/dsh-perf/src/client/index.ts 第 317-496 行的 HUD 默认关闭；打�
 
 连续 3 次请求失败会隐藏 HUD，host 半区缺失、版本漂移或浏览器不支持 longtask 时静默降级；HUD 轮询本身约为 0.5 requests/s，所以它是诊断工具而非默认优化。
 
+### 5.2.1 按插件活动度归因计分板
+
+`perf-attribution.ts` 用一个合并的 body MutationObserver 把每个变更节点解析到最近的 `data-dsh-plugin` 根（语义属性契约约定），按固定时间网格桶累计新增节点速率，HUD 渲染 Top 3 插件加 rest 一行。采样跟随 HUD 开关生命周期，HUD 默认关闭时零成本；长任务从「按回调记一条」改为逐条入环并携带 best-effort 来源标注与耗时。
+
+语义边界刻意保持谦卑：速率为墙钟口径，空闲时间会稀释读数——这有利于识别长期持续成本，不适合宣称瞬时峰值；超出单次回调预算的节点与无语义属性根的节点共用 unattributed 桶，未打属性的插件在该桶里显形是设计意图而不是缺陷。`dsh-perf-debug=1` 时暴露 window.__dshPerfAttribution 调试句柄（快照、长任务记录、来源汇总）。该能力的验证目前限于单元测试（分类、轮转、速率数学、budget 溢出、jsdom 接线共 12 条），尚未在运行中的 GUI 完成视觉验收。
+
 ### 5.3 会话尾部完整性观察器：定位“执行完成但尾部未显示”
 
 packages/dsh-perf/src/client/perf-integrity.ts 第 119-211 行订阅 sessions.list，在会话 running 到 idle 的边沿执行只读检查：settled 的最后一个 assistant-step 是否缺少 finalNode，Host history 尾部的 assistant/message seq 是否领先窗口最后节点，以及 idle 后编辑框是否仍有草稿。
@@ -267,10 +273,11 @@ packages/dsh-perf/src/host/routes.ts 第 7-22 行只暴露聚合指标，不返�
 | 加权判定 | packages/dsh-perf/tests/heaviness.spec.ts，8 条 | 结构计分、低权重和病态定界符输入的逻辑契约 | 权重是否适合所有真实消息和机器 |
 | 翻转队列 | packages/dsh-perf/tests/flip-queue.spec.ts，4 条 | 延迟、FIFO、间隔、取消语义 | 浏览器主线程真实长任务分布 |
 | 列表门控 | packages/dsh-perf/tests/list-gate.spec.ts，10 条 | 可见变化立即发布、投影变化合并、dispose 恢复 | 所有官方侧栏组件的端到端视觉结果 |
+| 归因计分板 | packages/dsh-perf/tests/attribution.spec.ts，12 条 | 分类归因、窗口轮转与墙钟速率、budget 溢出、jsdom 观察器接线 | 真实页面上各插件速率分布与长任务来源标注覆盖率 |
 | 完整性分类 | packages/dsh-perf/tests/integrity.spec.ts，6 条 | finalNode 缺失和 stale-tail 分类器 | 真实网络、历史接口和 DOM 现场的发现率 |
 | 包级门禁 | Agent Note 记录的 test、typecheck、build、docs:check | 当前实现可构建、类型可检查、纯逻辑测试通过 | 未覆盖的 Host、React 组件和视觉回归 |
 
-当前包的测试总计为 28 条：heaviness 8、flip-queue 4、list-gate 10、integrity 6；测试集中在纯逻辑模块，Host PerfMeter、shadow React 组件和端到端视觉没有同等强度的自动化覆盖。
+当前包的测试总计为 40 条：heaviness 8、flip-queue 4、list-gate 10、integrity 6、attribution 12；测试集中在纯逻辑模块，Host PerfMeter、shadow React 组件和端到端视觉没有同等强度的自动化覆盖。
 
 ### 7.2 真实 GUI 记录
 
@@ -314,6 +321,7 @@ shadow 的视觉一致性也只有单样本 headless CDP 检查，没有自动�
 | assistant shadow 与 CSS 修复 | packages/dsh-perf/src/client/index.ts 第 181-227、291-315 行；packages/dsh-perf/src/client/perf-assistant-shadow.tsx 第 88-168 行 | .agents/notes/implemented/bug-fix/2026-08-26-dsh-perf-render-shadow-rework.md |
 | 加权 heavy 与翻转队列 | packages/dsh-perf/src/client/perf-heaviness.ts；packages/dsh-perf/src/client/perf-flip-queue.ts | packages/dsh-perf/tests/heaviness.spec.ts；packages/dsh-perf/tests/flip-queue.spec.ts；.agents/notes/implemented/feature/2026-08-26-dsh-perf-render-pipeline-batch2.md |
 | 列表发布门控 | packages/dsh-perf/src/client/perf-list-gate.ts；packages/dsh-perf/src/client/index.ts 第 240-282 行 | packages/dsh-perf/tests/list-gate.spec.ts；同一 batch 2 Agent Note |
+| 归因计分板 | packages/dsh-perf/src/client/perf-attribution.ts | packages/dsh-perf/tests/attribution.spec.ts；attribution scoreboard Agent Note |
 | 完整性观察 | packages/dsh-perf/src/client/perf-integrity.ts | packages/dsh-perf/tests/integrity.spec.ts；render shadow Agent Note |
 | Host 观测与 route | packages/dsh-perf/src/host/perf-meter.ts；packages/dsh-perf/src/host/routes.ts；packages/dsh-perf/src/host/loopback.ts | packages/dsh-perf/README.md 的 HUD 与边界说明 |
 | 优化提交边界 | Git 提交 539b77cdc、be326694b、088129962 | 对应 Agent Note 与测试记录 |

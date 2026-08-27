@@ -53,7 +53,7 @@ pnpm add @linxin666/dsh-perf
 ## HUD / 面板
 
 - 服务端：events/s、活跃会话数、事件循环 p99/mean 延迟、RSS/Heap、实际写批延迟（从运行时持久化服务读取）。
-- 浏览器：FPS（近 1s）、Longtask（近 60s）；× 将面板收缩为小标签（点击展开）。
+- 浏览器：FPS（近 1s）、Longtask（近 60s，含最大耗时），以及按插件活动度计分板——按各 `data-dsh-plugin` 根归因的节点新增速率（Top 3 + rest）；不发语义属性的插件在主线程上吃多少就只会落到 `rest=` 里而不是隐身；超出单次回调预算的节点同桶计入；`dsh-perf-debug=1` 暴露 `window.__dshPerfAttribution` 句柄（原始快照、长任务记录、来源 Top）；× 将面板收缩为小标签（点击展开）。
 - host 端点连续 3 次不可达时自动隐藏（host 半缺失时静默降级）。
 - 空闲 agent 在会话行尾显示 `·idle` 徽标（来自 `agent/status` 迁移事件，零上游改动）。
 
