@@ -109,11 +109,17 @@ test('web-ui-all mounts @mlgbnb/dsh-archive-manager as an external row', () => {
   assert.match(lines[idx + 1] ?? '', /^ {6}name: '@mlgbnb\/dsh-archive-manager'$/)
 })
 
-test('web-ui-all expands @morlay/better-session into importable bundle rows', () => {
+test('web-ui-all expands @morlay/better-session into importable but inactive bundle rows', () => {
   const patch = readFileSync(join(ROOT, 'packages/dsh-web-all/cordis.patch.yml'), 'utf8')
+  const lines = patch.split(/\r?\n/)
   assert.doesNotMatch(patch, /web-ui-better-session/, 'bundle-only package must not be emitted as an importable row')
-  for (const id of ['web-ui-session-branch', 'web-ui-session-rdb', 'web-ui-conversation-message-actions']) {
-    assert.match(patch, new RegExp(`^ {4}- id: ${id}$`, 'm'), `external bundle row ${id} is missing`)
+  // The manifest marks the external inactive: every expanded artifact (the
+  // bundle's harness-row patch and the three namespaced insert rows) needs a
+  // trailing `- id: <row> / disabled: true` override so the stock jsonl
+  // persistence stays active until the user opts in.
+  const hasDisabledOverride = (id) => lines.some((line, i) => line === `- id: ${id}` && lines[i + 1] === '  disabled: true')
+  for (const id of ['session-persistence-jsonl', 'web-ui-session-branch', 'web-ui-session-rdb', 'web-ui-conversation-message-actions']) {
+    assert.ok(hasDisabledOverride(id), `row ${id} must ship with a disabled: true override (inactive by default)`)
   }
-  assert.match(patch, /^- id: session-persistence-jsonl\s+disabled: true/m, 'external bundle must keep its harness-row patch')
+  assert.match(patch, /# inactive by default: the rows above ship disabled/, 'inactive rationale comment is missing')
 })

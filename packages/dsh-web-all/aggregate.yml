@@ -69,11 +69,12 @@ rows:
   # dsh.bundle.patch，不可被 loader import），所以生成器把它的 cordis.patch.yml
   # 展开成可导入子包行（web-ui-session-branch / web-ui-session-rdb /
   # web-ui-conversation-message-actions）并保留 bundle 自身的「禁用 jsonl」patch
-  # 行。依赖引用 @morlay/better-session@0.0.11（见 package.json，生成器保留非
-  # workspace 依赖），行排在 patchFrom 之后：其 rewiring 在 jsonl 调优行之后
-  # 应用。编辑/重试入口由其子包 ui-conversation-message-actions 的
-  # conversation.chat.node shadow 提供。
-  - {"id": "better-session", "name": "@morlay/better-session"}
+  # 行。"inactive": true 让生成器在展开产物之后统一追加 disabled 覆盖行：整套
+  # 集成默认关闭，持久层保持官方 jsonl 后端；启用方式（迁移脚本 + profile
+  # 覆盖）见 packages/dsh-web-all README 与 scripts/dsh-better-session.mjs。
+  # 依赖引用 @morlay/better-session@0.0.11（见 package.json，生成器保留非
+  # workspace 依赖），bits 随包安装、随时可启用。
+  - {"id": "better-session", "name": "@morlay/better-session", "inactive": true}
 # 对本聚合自插入行的配置覆写（patches 段）：新安装的全家桶把 dsh-ssh 播种为
 # 默认关闭（使用频率低），已在设置里改过 enabled 的用户不受影响——
 # installSettingsSection 的 settings 值优先于行内 config；独立包分发不变。

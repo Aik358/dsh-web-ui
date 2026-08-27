@@ -406,7 +406,11 @@ function renderPatch(blocks, externalRows, ownPatches, errors, rel, aggregateDir
   // External rows: npm packages outside this repo. Plain plugins mount like
   // any child; external bundles expand their own patch rows here so their
   // importable plugin rows land in the composed tree (bundle-only packages
-  // cannot be imported by the loader themselves).
+  // cannot be imported by the loader themselves). A row may declare
+  // `"inactive": true` (for example better-session, which would otherwise
+  // swap the session persistence backend on upgrade): every emitted artifact
+  // of that external then gets a trailing `disabled: true` override, so the
+  // bits stay installed while nothing mounts until the user opts in.
   for (const row of externalRows) {
     if (typeof row.id !== 'string' || !row.id) {
       errors.push(`${rel}: external row is missing a string "id": ${JSON.stringify(row)}`)
@@ -416,6 +420,11 @@ function renderPatch(blocks, externalRows, ownPatches, errors, rel, aggregateDir
       errors.push(`${rel}: external row "${row.id}" is missing a string "name"`)
       continue
     }
+    if (row.inactive !== undefined && typeof row.inactive !== 'boolean') {
+      errors.push(`${rel}: external row "${row.id}" declares non-boolean "inactive": ${JSON.stringify(row.inactive)}`)
+      continue
+    }
+    const inactiveIds = []
     const expanded = expandExternalRow(row, aggregateDir, errors, rel)
     if (!expanded) continue
     if (expanded.kind === 'row') {
@@ -425,33 +434,44 @@ function renderPatch(blocks, externalRows, ownPatches, errors, rel, aggregateDir
       lines.push('', `# external: ${row.name}`, '- insert:')
       lines.push(`    - id: ${id}`)
       lines.push(`      name: '${row.name}'`)
-      continue
-    }
-    lines.push('', `# external bundle: ${expanded.name}`)
-    for (const patchRow of expanded.rows) {
-      if (patchRow.kind === 'patch') {
-        // The dsh-perf child intentionally patches session-persistence-jsonl,
-        // and better-session's bundle disables that same harness row. Emit
-        // the bundle patch after the child's row so its override wins.
-        if (patchedIds.has(patchRow.id)) {
-          lines.push('', `# from external bundle ${expanded.name} (patch row ${patchRow.id}; overrides earlier source patch)`)
-        } else {
-          lines.push('', `# from external bundle ${expanded.name} (patch row ${patchRow.id})`)
+      if (row.inactive === true) inactiveIds.push(id)
+    } else {
+      lines.push('', `# external bundle: ${expanded.name}`)
+      for (const patchRow of expanded.rows) {
+        if (patchRow.kind === 'patch') {
+          // The dsh-perf child intentionally patches session-persistence-jsonl,
+          // and better-session's bundle disables that same harness row. Emit
+          // the bundle patch after the child's row so its override wins.
+          if (patchedIds.has(patchRow.id)) {
+            lines.push('', `# from external bundle ${expanded.name} (patch row ${patchRow.id}; overrides earlier source patch)`)
+          } else {
+            lines.push('', `# from external bundle ${expanded.name} (patch row ${patchRow.id})`)
+          }
+          patchedIds.add(patchRow.id)
+          lines.push(`- id: ${patchRow.id}`)
+          for (const extra of patchRow.extraLines ?? []) lines.push(extra)
+          pushConfig(lines, patchRow.configLines ?? [], 2)
+          if (row.inactive === true) inactiveIds.push(patchRow.id)
+          continue
         }
-        patchedIds.add(patchRow.id)
-        lines.push(`- id: ${patchRow.id}`)
-        for (const extra of patchRow.extraLines ?? []) lines.push(extra)
-        pushConfig(lines, patchRow.configLines ?? [], 2)
-        continue
+        const id = namespaceId(patchRow.id)
+        if (seen.has(id)) errors.push(`${rel}: duplicate aggregate row id after external bundle expansion: ${id} (${patchRow.name})`)
+        seen.add(id)
+        lines.push('', `# from external bundle ${expanded.name} (insert row ${id})`)
+        lines.push('- insert:')
+        lines.push(`    - id: ${id}`)
+        lines.push(`      name: '${patchRow.name}'`)
+        pushConfig(lines, patchRow.configLines ?? [], 6)
+        if (row.inactive === true) inactiveIds.push(id)
       }
-      const id = namespaceId(patchRow.id)
-      if (seen.has(id)) errors.push(`${rel}: duplicate aggregate row id after external bundle expansion: ${id} (${patchRow.name})`)
-      seen.add(id)
-      lines.push('', `# from external bundle ${expanded.name} (insert row ${id})`)
-      lines.push('- insert:')
-      lines.push(`    - id: ${id}`)
-      lines.push(`      name: '${patchRow.name}'`)
-      pushConfig(lines, patchRow.configLines ?? [], 6)
+    }
+    if (inactiveIds.length > 0) {
+      lines.push('', '# inactive by default: the rows above ship disabled, so the stock persistence',
+        '# backend keeps serving sessions until you opt in. Enable with profile-level',
+        "# `disabled: false` overrides (or run scripts/dsh-better-session.mjs enable).")
+      for (const id of inactiveIds) {
+        lines.push(`- id: ${id}`, '  disabled: true')
+      }
     }
   }
   return lines.join('\n') + '\n'

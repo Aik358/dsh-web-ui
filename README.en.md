@@ -139,7 +139,7 @@ Rescue mode (`dsh-doctor`) is a transactional rescue system for DSH profiles, **
 
 - **Skill center** (`dsh-client-ui-skill-explorer`): browse loaded skills by source; enable, disable, create and delete.
 - **Plugin manager** (`dsh-client-ui-plugin-manager`): install plugins from npm or git through the official host channels; manage enablement and configuration.
-- **Branching session editing** (external plugin [@morlay/better-session](https://github.com/morlay/better-session), bundled in the aggregate): edit past messages in place and regenerate, one-click retry of failed turns, with rewind and fork support.
+- **Branching session editing** (external plugin [@morlay/better-session](https://github.com/morlay/better-session), bundled in the aggregate, inactive by default): edit past messages in place and regenerate, one-click retry of failed turns, with rewind and fork support; enablement and legacy migration live in the dsh-web-all README.
 - **Desktop launcher** (`dsh-desktop-launcher`): a double-click desktop icon starts `dsh web` and opens the Web GUI; a floating power button exits the host process gracefully.
 - **Archive manager** (external plugin [@mlgbnb/dsh-archive-manager](https://github.com/z953218350/dsh-archive-manager), bundled in the aggregate): group sessions by project, search and filter, preview conversations, restore or delete in one click.
 
@@ -235,7 +235,7 @@ Every plugin is published on npm under the `@linxin666/dsh-*` scope and can be v
 | [@linxin666/dsh-client-ui-market](https://www.npmjs.com/package/@linxin666/dsh-client-ui-market) | Workshop card: browse skins / pets / plugins from dsh-market.com and install with one click |
 | [@linxin666/dsh-client-ui-plugin-manager](https://www.npmjs.com/package/@linxin666/dsh-client-ui-plugin-manager) | Plugin manager: install from npm or git, enable, disable and configure |
 | [@linxin666/dsh-client-ui-skill-explorer](https://www.npmjs.com/package/@linxin666/dsh-client-ui-skill-explorer) | Skill center: browse, toggle and manage skills |
-| [@morlay/better-session](https://www.npmjs.com/package/@morlay/better-session) | Branching session editing: in-place edit / retry / rewind / fork |
+| [@morlay/better-session](https://www.npmjs.com/package/@morlay/better-session) | Branching session editing: in-place edit / retry / rewind / fork (inactive in the aggregate by default) |
 | [@linxin666/dsh-desktop-launcher](https://www.npmjs.com/package/@linxin666/dsh-desktop-launcher) | Desktop launcher: one-click start and shutdown for dsh |
 | [@linxin666/dsh-doctor](https://www.npmjs.com/package/@linxin666/dsh-doctor) | Transactional rescue mode: repairs DSH profiles (on by default) |
 | [@linxin666/dsh-client-ui-community-plugins](https://www.npmjs.com/package/@linxin666/dsh-client-ui-community-plugins) | Community plugin data source: the market plugin list is generated from it |
