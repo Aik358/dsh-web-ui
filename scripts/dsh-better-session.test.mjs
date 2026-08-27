@@ -1,5 +1,5 @@
 import { strict as assert } from 'node:assert'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -81,5 +81,29 @@ test('status reports json shape and shipped posture from a temp home', async () 
     assert.equal(payload.storeExists, false)
     // The script derives its own repo root, so the aggregate overrides are visible here.
     assert.ok(['inactive-by-default', 'not-installed'].includes(payload.mountState))
+  })
+})
+
+test('migrate dry-run decodes a synthetic log, binds runImport, and writes nothing', async () => {
+  await withTempHome(async (home) => {
+    // Regression: migrateCommand once called bare `runImport` without the
+    // loadCore() binding — every invocation crashed with a ReferenceError.
+    const core = await import(new URL('../packages/dsh-perf/lib/better-session-import.mjs', import.meta.url))
+    const sessionsDir = join(home, 'sessions-root')
+    const segment = join(sessionsDir, '--Users-demo--', 'session-3f2504e0-4f89-11d3-9a0c-0305e82c3301')
+    mkdirSync(segment, { recursive: true })
+    const header = { type: 'session', version: 0, id: 'session-3f2504e0-4f89-11d3-9a0c-0305e82c3301', createdAt: Date.now(), cwd: '/tmp/demo' }
+    const events = [[
+      { type: 'user/text', seq: 1, time: Date.now(), data: { text: 'hello' } },
+      { type: 'assistant/chunk', seq: 2, time: Date.now(), ignorable: true, data: {} },
+    ]]
+    writeFileSync(join(segment, 'session.jsonl.zstd'), core.encodeSessionLog(header, events))
+
+    const dbPath = join(home, 'sessions', 'sessions.sqlite')
+    const run = await runCapture(['migrate', '--sessions-dir', sessionsDir, '--db', dbPath])
+    assert.equal(run.code, 0)
+    assert.match(run.captured, /scanned 1/)
+    assert.match(run.captured, /dry-run: nothing written/)
+    assert.equal(existsSync(dbPath), false)
   })
 })

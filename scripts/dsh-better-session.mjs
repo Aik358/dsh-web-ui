@@ -143,6 +143,7 @@ async function statusCommand(flags) {
 }
 
 async function migrateCommand(flags) {
+  const { runImport } = await loadCore()
   const applyMode = flags.apply === true
   const dbPath = flags.db ?? defaultDbPath()
 
@@ -156,6 +157,10 @@ async function migrateCommand(flags) {
       } catch { /* absent */ }
     }
   }
+
+  // Back the store aside BEFORE any mutating pass so a mid-import failure
+  // leaves the previous contents recoverable.
+  if (applyMode && existsSync(dbPath)) backupStore(dbPath)
 
   let summary
   try {

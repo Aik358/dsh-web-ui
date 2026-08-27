@@ -34,5 +34,5 @@ Supersession check: [better-session-default-off-and-jsonl-import](../architectur
 ## Testing
 
 - 包内 vitest（54 例）：编码/断尾/header 校验、丢弃/剪枝/dims 镜像、稠密桥接 + head 游标 + 真实目录形态（含裸 UUID 年代）的幂等重跑、托管块替换/移除、分层姿态判定；另有三例 renderToString 规格锁定嵌套 DOM 契约（dsh-perf 属主子节、`bsm.` 前缀文案键、动作集随姿态翻转、确认弹窗标记）。
-- CLI node:test（3 例）：argv 契约、提醒门控下经由真实 `$DSH_HOME` 路径的启用写入、出厂关闭姿态下的 status JSON 形状。
+- CLI node:test（4 例）：argv 契约、提醒门控下经由真实 `$DSH_HOME` 路径的启用写入、出厂关闭姿态下的 status JSON 形状、以及"合成 zstd 日志上的 migrate 干跑不落盘"——最后一例来自一次真实迁移审计：当时 CLI 以裸标识符调用 `runImport`（任何 migrate 调用直接 ReferenceError）且备份发生在写入之后；绑定与"先备份后写入"的时序由此用例钉死。
 - 重生成后的聚合产物（19 行 / 17 依赖）由 `pnpm aggregate:check` 验证；dump-config 下只有三个 better-session insert 行及其 disabled 覆盖，没有单独的卡片条目。
