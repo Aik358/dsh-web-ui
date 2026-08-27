@@ -33,6 +33,12 @@
  *     for npm packages outside this repo (the row's `name` resolves from the
  *     profile root like any child); they are emitted after the patchFrom
  *     blocks, with their id namespaced like every other row.
+ *   - patches entries (single-line JSON flow mappings) are CONFIG-OVERRIDE
+ *     patches for this aggregate's OWN inserted rows (single-object form:
+ *     {"id", "config"}; id must be a namespaced aggregate row id, config is
+ *     written verbatim as inline YAML flow). They emit after all inserts so
+ *     later patches can target earlier rows; use them to seed per-row defaults
+ *     (e.g. enabled:false) without touching the standalone package distribution.
  *
  * Idempotent: safe to rerun at any time. Writes only inside the aggregate
  * packages it owns; never touches other packages or git state.
@@ -105,7 +111,7 @@ function findAggregates() {
  * while the generator can JSON.parse each entry).
  */
 function parseManifest(ymlPath, errors) {
-  const manifest = { patchFrom: [], deps: [], self: null, rows: [] }
+  const manifest = { patchFrom: [], deps: [], self: null, rows: [], patches: [] }
   let section = null
   for (const raw of readFileSync(ymlPath, 'utf8').split(/\r?\n/)) {
     const line = raw.trim()
@@ -113,6 +119,12 @@ function parseManifest(ymlPath, errors) {
     const sectionMatch = line.match(/^[A-Za-z0-9_-]+:\s*$/)
     if (sectionMatch) {
       section = line.slice(0, -1)
+      continue
+    }
+    if (!(section in manifest)) {
+      // Unknown section header (or preamble): drop its entries instead of
+      // letting them fall into whichever known section was parsed last.
+      // Manifest ordering must not matter.
       continue
     }
     const entryMatch = line.match(/^-\s+(.+)$/)
@@ -133,6 +145,19 @@ function parseManifest(ymlPath, errors) {
         continue
       }
       manifest.rows.push(parsed)
+    } else if (section === 'patches') {
+      let parsed
+      try {
+        parsed = JSON.parse(entry)
+      } catch {
+        errors.push(`${ymlPath}: patches entry must be a JSON flow mapping: ${entry}`)
+        continue
+      }
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+        errors.push(`${ymlPath}: patches entry must be an object: ${entry}`)
+        continue
+      }
+      manifest.patches.push(parsed)
     } else if (section === 'self') {
       if (manifest.self !== null && manifest.self !== entry) {
         console.warn(`aggregate.yml defines several self entries (${manifest.self}, ${entry}); keeping the last one`)
@@ -256,8 +281,8 @@ function pushConfig(lines, configLines, keyIndent) {
   for (const configLine of configLines) lines.push(configLine)
 }
 
-/** Render the aggregate cordis.patch.yml: header + per-source insert blocks, plus verbatim harness-row patches. */
-function renderPatch(blocks, externalRows, errors, rel) {
+/** Render the aggregate cordis.patch.yml: header + per-source insert blocks, plus verbatim harness-row patches and own-row config overrides. */
+function renderPatch(blocks, externalRows, ownPatches, errors, rel) {
   const lines = [...PATCH_HEADER]
   const seen = new Set()
   const patchedIds = new Set()
@@ -285,6 +310,28 @@ function renderPatch(blocks, externalRows, errors, rel) {
       lines.push(`  name: '${row.name}'`)
       pushConfig(lines, row.configLines ?? [], 2)
     }
+  }
+  // Own-row config overrides: emitted after every insert so a later patch
+  // targets an earlier inserted row (the boot layer indexes inserts as they
+  // are added). The id must reference one of this aggregate's own rows.
+  for (const patch of ownPatches) {
+    if (typeof patch.id !== 'string' || !patch.id) {
+      errors.push(`${rel}: patches entry is missing a string "id": ${JSON.stringify(patch)}`)
+      continue
+    }
+    if (typeof patch.config !== 'object' || patch.config === null || Array.isArray(patch.config)) {
+      errors.push(`${rel}: patches entry "${patch.id}" needs an object "config"`)
+      continue
+    }
+    const targetId = namespaceId(patch.id)
+    if (!seen.has(targetId)) {
+      errors.push(`${rel}: patches entry "${patch.id}" does not match any row of this aggregate`)
+      continue
+    }
+    if (patchedIds.has(targetId)) errors.push(`${rel}: duplicate own-row patch for ${targetId}`)
+    patchedIds.add(targetId)
+    lines.push('', `# config override for ${targetId} (seed default; settings wins once the user edits it)`, `- id: ${targetId}`)
+    lines.push(`  config: ${JSON.stringify(patch.config)}`)
   }
   // External rows: npm packages outside this repo, mounted like any child.
   for (const row of externalRows) {
@@ -399,7 +446,7 @@ for (const { pkgDir, ymlPath } of aggregates) {
   if (manifest.patchFrom.length === 0 && !manifest.self) {
     console.log(`[aggregate] WARN ${rel}: aggregate.yml has no patchFrom entries (patch would be empty)`)
   }
-  const patch = renderPatch(blocks, manifest.rows, errors, rel)
+  const patch = renderPatch(blocks, manifest.rows, manifest.patches ?? [], errors, rel)
   const resolvedDeps = resolveEntries(pkgDir, manifest.deps, 'deps', errors)
   const pkgJson = renderPackageJson(join(pkgDir, 'package.json'), resolvedDeps)
   results.push({ rel, blocks, patch, resolvedDeps, pkgJson })

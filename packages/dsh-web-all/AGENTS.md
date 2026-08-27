@@ -9,6 +9,9 @@
   dependencies 以 `workspace:*` 拉全部子包。安装单包即全部就位。
 - `aggregate.yml` 是唯一手写清单：`patchFrom` 贡献 insert 行（嵌套聚合递归展开、
   按顺序、带源注释），`deps` 解析各子包 name 写入 dependencies。
+- `patches:` 段（单行 JSON flow mapping）对本聚合自插入行做整对象 config 覆写：
+  用于播种行级默认（如 web-ui-ssh 的 enabled:false），渲染在全部 insert 之后；
+  id 必须是本聚合已存在的行，settings 一经用户改动即优先于播种值。
 
 ## 新增 / 改动插件
 
