@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  LEGACY_DUAL_PUBLISH_WINDOW_OPEN,
   legacyDualPublishedCount,
   rewriteLegacyClient,
   rewriteLegacyPackageJson,
@@ -38,4 +39,19 @@ test('dual-publish skips after the two-release transition window', () => {
   assert.equal(legacyDualPublishedCount({ view: () => JSON.stringify(migrated(1)) }), 1)
   assert.equal(legacyDualPublishedCount({ view: () => JSON.stringify(migrated(2)) }), 2)
   assert.throws(() => legacyDualPublishedCount({ view: () => 'not json' }), /cannot read/)
+})
+
+test('the legacy dual-publish window stays closed by release policy', () => {
+  // Reopening requires a deliberate change here plus a repaired registry-
+  // shape handling in legacyDualPublishedCount; see the constant's doc.
+  assert.equal(LEGACY_DUAL_PUBLISH_WINDOW_OPEN, false)
+})
+
+test('abbreviated registry documents are rejected instead of counted as zero', () => {
+  const abbreviated = JSON.stringify({ distTags: {}, versions: ['0.3.3', '0.3.4', '0.3.5'] })
+  assert.throws(() => legacyDualPublishedCount({ view: () => abbreviated }), /abbreviated/)
+  const stringEntries = JSON.stringify({ versions: Object.fromEntries([
+    ['0.3.5', 'not-an-object'],
+  ]) })
+  assert.throws(() => legacyDualPublishedCount({ view: () => stringEntries }), /abbreviated/)
 })

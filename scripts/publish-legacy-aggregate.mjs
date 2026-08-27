@@ -25,6 +25,18 @@ const AGGREGATE_DIR = join(REPO_ROOT, 'packages', 'dsh-web-all')
 export const LEGACY_NAME = '@linxin666/dsh-web-ui-all'
 export const CURRENT_NAME = '@linxin666/dsh-web-all'
 const LEGACY_VERSION_PREFIX = 'v'
+/**
+ * Whether new legacy dual-publishes are still accepted.
+ *
+ * The v0.3.6 release exposed that the release-count heuristic below can
+ * never fire under current npm: npm view name --json abbreviates
+ * multi-version documents into an array of version strings, so the counted
+ * migration metadata silently read zero and legacy 0.3.6 got published
+ * after the declared v0.3.5 window end. The window is therefore hard-closed;
+ * flip this constant back only through a new release-policy note that also
+ * repairs the registry-shape handling in legacyDualPublishedCount.
+ */
+export const LEGACY_DUAL_PUBLISH_WINDOW_OPEN = false
 const DUAL_PUBLISH_RELEASES = 2
 
 /** Rewrite the package manifest for the legacy npm identity. */
@@ -60,7 +72,11 @@ export function legacyDualPublishedCount({ view = (name) => execFileSync('npm', 
   try {
     const packageData = JSON.parse(view(LEGACY_NAME))
     const versions = packageData.versions ?? {}
-    return Object.values(versions).filter(versionData =>
+    const entries = Object.values(versions)
+    if (entries.some(entry => typeof entry !== 'object' || entry === null || Array.isArray(entry))) {
+      throw new Error(`legacy-aggregate-publish: registry returned an abbreviated document for ${LEGACY_NAME}; per-version dsh.migrate metadata is not readable`)
+    }
+    return entries.filter(versionData =>
       versionData?.dsh?.migrate?.to === CURRENT_NAME
     ).length
   } catch (error) {
@@ -95,7 +111,7 @@ function main() {
   if (manifest.name !== CURRENT_NAME || manifest.version !== version) {
     throw new Error(`legacy-aggregate-publish: ${AGGREGATE_DIR} package ${manifest.name}@${manifest.version} does not match ${CURRENT_NAME}@${version}`)
   }
-  if (legacyDualPublishedCount() >= DUAL_PUBLISH_RELEASES) {
+  if (!LEGACY_DUAL_PUBLISH_WINDOW_OPEN || legacyDualPublishedCount() >= DUAL_PUBLISH_RELEASES) {
     console.log(`[legacy-aggregate-publish] skip ${LEGACY_NAME} dual-publish: transition window complete`)
     return
   }
