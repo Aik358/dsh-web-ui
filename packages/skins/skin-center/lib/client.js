@@ -3780,7 +3780,7 @@ window.__ModuleLoader__.load({
 			const scopes = ACTIVE_VISUAL_SELECTOR.split(", ");
 			const scoped = (selector) => scopes.map((scope) => `${scope} ${selector}`).join(",\n");
 			return `
-    /* Viewport and root lock: prevent outer page scrollbar and viewport
+    /* Viewport lock: prevent outer page scrollbar and viewport
        displacement during element focus/scrollIntoView. */
     ${ACTIVE_VISUAL_SELECTOR},
     ${scoped("body")} {
@@ -3789,13 +3789,6 @@ window.__ModuleLoader__.load({
       overflow: hidden !important;
       margin: 0 !important;
       padding: 0 !important;
-    }
-    ${scoped("[id=\"root\"]")} {
-      box-sizing: border-box !important;
-      height: 100% !important;
-      max-height: 100% !important;
-      max-width: 100% !important;
-      overflow: hidden !important;
     }
     ${scoped("[data-slot=\"sidebar.workspaces\"] [class*=\"_fade\"]")} {
       background: none !important;

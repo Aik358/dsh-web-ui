@@ -53,6 +53,20 @@ async function flush(): Promise<void> {
   await act(async () => { await Promise.resolve() })
 }
 
+describe('SkillPanel header', () => {
+  afterEach(() => { document.body.innerHTML = '' })
+
+  it('renders clean modal title without showing misleading cwd path (#1215)', async () => {
+    const api = fakeApi([async () => payload(['demo-skill'])])
+    const mount_ = mount(api, () => {})
+    await flush()
+    const head = mount_.container.querySelector('header')
+    expect(head?.textContent).toContain('技能中心')
+    expect(head?.textContent).not.toContain('cwd:')
+    mount_.dispose()
+  })
+})
+
 describe('SkillPanel escape handling', () => {
   afterEach(() => { document.body.innerHTML = '' })
 

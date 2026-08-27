@@ -94,14 +94,6 @@
   margin: 0;
   font-size: 15px;
   font-weight: 600;
-}
-
-.headCwd {
-  font-size: 11px;
-  color: var(--dsw-alias-label-secondary, #8a8f9c);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   flex: 1;
 }
 

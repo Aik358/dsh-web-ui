@@ -258,7 +258,6 @@ export function SkillPanel({ api, onClose }: SkillPanelProps): React.JSX.Element
       <div className={css.card} data-dsh-part="card">
         <header className={css.head} data-dsh-part="head">
           <h2 className={css.headTitle}>{tt('panel.title')}</h2>
-          {cwd !== undefined && <span className={css.headCwd}>{tt('cwd', { cwd })}</span>}
           <button type="button" className={css.headButton} onClick={() => { setRefreshTick((tick) => tick + 1) }}>
             {tt('refresh')}
           </button>

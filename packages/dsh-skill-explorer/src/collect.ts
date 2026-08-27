@@ -21,13 +21,13 @@ export interface SourceGroup {
 
 /** Source levels produced by filesystem scanning (registry sources map to the same set). */
 export const SOURCE_GROUPS: SourceGroup[] = [
-  { key: 'bundled', title: 'System bundled', hint: 'Skills shipped with DSH and its plugins' },
-  { key: 'project-dsh', title: 'Project skills (.dsh/skills)', hint: 'Current project only' },
-  { key: 'project-agents', title: 'Project skills (.agents/skills)', hint: 'Current project only' },
+  { key: 'bundled', title: 'System bundled', hint: 'Global skills shipped with DSH and its plugins' },
+  { key: 'project-dsh', title: 'Project skills (.dsh/skills)', hint: 'Located in the project directory, scoped to its workspace' },
+  { key: 'project-agents', title: 'Project skills (.agents/skills)', hint: 'Located in the project directory, scoped to its workspace' },
   { key: 'custom', title: 'Custom directories', hint: 'customSkillDirs config' },
-  { key: 'user-dsh', title: 'User skills (~/.dsh/skills)', hint: 'All projects on this machine' },
-  { key: 'user-agents', title: 'User skills (~/.agents/skills)', hint: 'All projects on this machine' },
-  { key: 'runtime', title: 'Runtime registered', hint: 'Registered in plugin code' },
+  { key: 'user-dsh', title: 'User skills (~/.dsh/skills)', hint: 'Global skills shared by all projects on this machine' },
+  { key: 'user-agents', title: 'User skills (~/.agents/skills)', hint: 'Global skills shared by all projects on this machine' },
+  { key: 'runtime', title: 'Runtime registered', hint: 'Skills registered at runtime by plugins' },
 ]
 
 /** Registry source -> display level mapping (unlisted sources fall into "other"). */
