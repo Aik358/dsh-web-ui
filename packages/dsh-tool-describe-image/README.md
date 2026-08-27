@@ -86,6 +86,9 @@ actually configures it and per-call otherwise.)
 | `model` | — (required) | Vision model id, optionally with a thinking suffix (`:off` / `:low` / `:medium` / `:high`). The suffix is stripped before the id reaches the endpoint: `:off` maps to `thinking.type: disabled` (`chat-completions`) or `reasoning.effort: none` (`responses`); every other level maps to `enabled` or is forwarded as the `reasoning.effort` value. No suffix means no thinking control field. The `anthropic-messages` style sends no thinking field and keeps the endpoint's own default |
 | `apiKey` | — | Inline key for local debugging; prefer `!!js process.env.VISION_API_KEY` over a hardcoded secret |
 | `apiKeyEnv` | `VISION_API_KEY` | Credential reference (environment-variable name); empty string disables reference resolution |
+| `endpoints` | — | Multi-endpoint / model candidate list; each entry supports `baseURL`, `model`, `apiKey`, `apiKeyEnv`, `apiStyle`, `maxOutputTokens`, `enabled` (default `true`), and `name` (issue #1234) |
+| `rotationMode` | `round-robin` | Scheduling strategy across endpoints: `round-robin` (cycles through available models on successive calls to distribute rate limits) or `failover` (uses the primary endpoint and falls back on failure) |
+| `retryNextOnFailure` | `true` | Whether to automatically try the next candidate endpoint if the current one fails (e.g. 429 rate limit or service error) |
 | `defaultPrompt` | see source | The instruction used when a call omits its `prompt` — tune it to your workload (OCR, UI review, translation…) |
 | `maxBytes` | `10485760` | Image byte bound (local files and downloads alike) |
 | `maxOutputTokens` | `1024` | Output-token cap: `max_tokens` under `chat-completions` and `anthropic-messages`, `max_output_tokens` under `responses` |
@@ -102,6 +105,25 @@ Configured mount example (profile `cordis.patch.yml` / composition file):
     baseURL: https://dashscope.aliyuncs.com/compatible-mode/v1
     model: qwen-vl-max
     apiKey: !!js process.env.VISION_API_KEY
+```
+
+Multi-model rotation and failover (Zhipu + DashScope Qwen-VL round-robin):
+
+```yaml
+- id: describe-image
+  name: '@linxin666/dsh-tool-describe-image'
+  config:
+    rotationMode: round-robin
+    retryNextOnFailure: true
+    endpoints:
+      - name: Zhipu GLM-4V
+        baseURL: https://open.bigmodel.cn/api/paas/v4
+        model: glm-4v
+        apiKey: !!js process.env.ZHIPU_API_KEY
+      - name: DashScope Qwen-VL
+        baseURL: https://dashscope.aliyuncs.com/compatible-mode/v1
+        model: qwen-vl-max:off
+        apiKey: !!js process.env.QWEN_API_KEY
 ```
 
 Endpoints exposing only the Responses API set `apiStyle: responses`:

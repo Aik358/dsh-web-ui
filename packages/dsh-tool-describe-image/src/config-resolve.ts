@@ -30,6 +30,13 @@ export const API_STYLES = ['chat-completions', 'responses', 'anthropic-messages'
 export type ApiStyle = typeof API_STYLES[number]
 /** Protocol style used unless the configuration overrides it. */
 export const DEFAULT_API_STYLE: ApiStyle = 'chat-completions'
+/** Rotation modes between configured vision endpoints. */
+export const ROTATION_MODES = ['round-robin', 'failover'] as const
+export type RotationMode = typeof ROTATION_MODES[number]
+/** Rotation mode used unless the configuration overrides it. */
+export const DEFAULT_ROTATION_MODE: RotationMode = 'round-robin'
+/** Whether to automatically try the next candidate endpoint on failure. */
+export const DEFAULT_RETRY_NEXT_ON_FAILURE = true
 /** Whether conversation image references upgrade into inline thumbnails unless configured otherwise. */
 export const DEFAULT_RENDER_IMAGE_PREVIEW = true
 /** Whether image-bearing sends are rewritten into describe-image references at submit (issue #301). */
@@ -53,10 +60,55 @@ export function splitModelSuffix(model: string): { model: string; thinking: Thin
   return { model: trimmed.slice(0, -match[0].length), thinking: match[1] as ThinkingMode }
 }
 
+/** Configuration for a single vision endpoint in a multi-endpoint setup. */
+export interface VisionEndpointConfig {
+  /** Optional human-readable name or label for this endpoint. */
+  name?: string
+  /** Endpoint root URL. */
+  baseURL: string
+  /** Vision model id, optionally with a trailing thinking suffix. */
+  model: string
+  /** Inline API key for this endpoint; prefer apiKeyEnv with credential references. */
+  apiKey?: string
+  /** Credential reference (environment variable name) for this endpoint. */
+  apiKeyEnv?: string
+  /** Protocol style of this endpoint. */
+  apiStyle?: ApiStyle
+  /** Output-token cap sent to this endpoint. */
+  maxOutputTokens?: number
+  /** Whether this endpoint is enabled in the rotation list. Defaults to true. */
+  enabled?: boolean
+}
+
+/** Schemastery schema for a single vision endpoint. */
+export const VisionEndpointConfig: z<VisionEndpointConfig> = z.object({
+  name: z.string(),
+  baseURL: z.string(),
+  model: z.string(),
+  apiKey: z.string().role('secret'),
+  apiKeyEnv: z.string().role('credential-ref'),
+  apiStyle: z.union(API_STYLES),
+  maxOutputTokens: z.number().step(1).min(1),
+  enabled: z.boolean().default(true),
+})
+
+/** One validated, resolved vision endpoint ready for invocation. */
+export interface ResolvedEndpoint {
+  name: string | undefined
+  baseURL: string
+  model: string
+  apiKey: string | undefined
+  apiKeyEnv: CredentialRef | undefined
+  apiStyle: ApiStyle
+  thinking: ThinkingMode | undefined
+  maxOutputTokens: number
+  enabled: boolean
+}
+
 /**
  * Deployment configuration for the describe-image tool. The interface keeps every field optional so
  * programmatic construction is re-judged by {@link resolveConfig}; the schema requires `baseURL` and
- * `model` for composition entries.
+ * `model` for single-endpoint composition entries.
  */
 export interface Config {
   /** Endpoint root; Anthropic style also accepts a `/v1` root or complete `/v1/messages` endpoint. Trailing slashes are stripped. */
@@ -71,6 +123,12 @@ export interface Config {
   apiKey?: string
   /** Credential reference (environment-variable name) for the API key; defaults to `VISION_API_KEY`. */
   apiKeyEnv?: string
+  /** List of candidate vision endpoints for rotation and fallback (Issue #1234). */
+  endpoints?: VisionEndpointConfig[]
+  /** Rotation mode between configured vision endpoints: `round-robin` (default) or `failover`. */
+  rotationMode?: RotationMode
+  /** Whether to automatically try the next candidate endpoint on failure. Defaults to true. */
+  retryNextOnFailure?: boolean
   /** Instruction used when a call omits its `prompt`; defaults to a concise factual description. */
   defaultPrompt?: string
   /** Image byte bound; defaults to {@link DEFAULT_MAX_BYTES}. */
@@ -104,6 +162,9 @@ export const Config: z<Config> = z.object({
   model: z.string(),
   apiKey: z.string().role('secret'),
   apiKeyEnv: z.string().role('credential-ref').default(DEFAULT_API_KEY_ENV),
+  endpoints: z.array(VisionEndpointConfig),
+  rotationMode: z.union(ROTATION_MODES).default(DEFAULT_ROTATION_MODE),
+  retryNextOnFailure: z.boolean().default(DEFAULT_RETRY_NEXT_ON_FAILURE),
   defaultPrompt: z.string().default(DEFAULT_PROMPT),
   maxBytes: z.number().step(1).min(1).default(DEFAULT_MAX_BYTES),
   maxOutputTokens: z.number().step(1).min(1).default(DEFAULT_MAX_OUTPUT_TOKENS),
@@ -130,6 +191,67 @@ export interface ResolvedConfig {
   thinking: ThinkingMode | undefined
   renderImagePreview: boolean
   interceptImageSend: boolean
+  endpoints: ResolvedEndpoint[]
+  rotationMode: RotationMode
+  retryNextOnFailure: boolean
+}
+
+/**
+ * Validate and resolve a single endpoint configuration.
+ */
+function resolveEndpoint(
+  ep: VisionEndpointConfig,
+  defaults: {
+    apiKeyEnv: CredentialRef | undefined
+    apiStyle: ApiStyle
+    maxOutputTokens: number
+  },
+): ResolvedEndpoint {
+  const baseURL = (ep.baseURL ?? '').trim().replace(/\/+$/, '')
+  if (!/^https?:\/\//.test(baseURL)) {
+    throw new Error(`describe-image: endpoint baseURL must be an absolute http(s) URL (received ${JSON.stringify(ep.baseURL)})`)
+  }
+  const { model, thinking } = splitModelSuffix(ep.model ?? '')
+  if (model.length === 0) {
+    throw new Error('describe-image: endpoint model must be a non-empty model id before any :off/:low/:medium/:high suffix')
+  }
+  const apiKey = ep.apiKey
+  if (apiKey !== undefined && apiKey.length === 0) {
+    throw new Error('describe-image: endpoint apiKey must be non-empty when set')
+  }
+  let apiKeyEnv = defaults.apiKeyEnv
+  if (ep.apiKeyEnv !== undefined) {
+    const rawEnv = ep.apiKeyEnv.trim()
+    if (rawEnv.length > 0) {
+      try {
+        apiKeyEnv = credentialRef(rawEnv)
+      } catch {
+        throw new Error(`describe-image: endpoint apiKeyEnv ${JSON.stringify(rawEnv)} is not a valid environment-variable name`)
+      }
+    } else {
+      apiKeyEnv = undefined
+    }
+  }
+  const apiStyle = ep.apiStyle ?? defaults.apiStyle
+  if (!API_STYLES.includes(apiStyle)) {
+    throw new Error(`describe-image: endpoint apiStyle must be one of ${API_STYLES.map(style => JSON.stringify(style)).join(', ')}`)
+  }
+  const maxOutputTokens = ep.maxOutputTokens ?? defaults.maxOutputTokens
+  if (!Number.isSafeInteger(maxOutputTokens) || maxOutputTokens <= 0) {
+    throw new Error('describe-image: endpoint maxOutputTokens must be a positive safe integer')
+  }
+  const enabled = ep.enabled !== false
+  return {
+    name: ep.name?.trim() || undefined,
+    baseURL,
+    model,
+    apiKey,
+    apiKeyEnv,
+    apiStyle,
+    thinking,
+    maxOutputTokens,
+    enabled,
+  }
 }
 
 /**
@@ -141,29 +263,13 @@ export interface ResolvedConfig {
  * @returns validated facts.
  */
 export function resolveConfig(config: Config): ResolvedConfig {
-  const baseURL = (config.baseURL ?? '').trim().replace(/\/+$/, '')
-  if (!/^https?:\/\//.test(baseURL)) {
-    throw new Error('describe-image: baseURL must be an absolute http(s) URL')
-  }
-  const { model, thinking } = splitModelSuffix(config.model ?? '')
-  if (model.length === 0) throw new Error('describe-image: model must be a non-empty model id before any :off/:low/:medium/:high suffix')
-  const apiKey = config.apiKey
-  if (apiKey !== undefined && apiKey.length === 0) {
-    throw new Error('describe-image: apiKey must be non-empty when set')
-  }
-  let apiKeyEnv: CredentialRef | undefined
-  const rawEnv = config.apiKeyEnv ?? DEFAULT_API_KEY_ENV
-  if (rawEnv.length > 0) {
-    try {
-      apiKeyEnv = credentialRef(rawEnv)
-    } catch {
-      throw new Error(`describe-image: apiKeyEnv ${JSON.stringify(rawEnv)} is not a valid environment-variable name`)
-    }
-  }
   const maxBytes = config.maxBytes ?? DEFAULT_MAX_BYTES
   const maxOutputTokens = config.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS
   const timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS
   const apiStyle = config.apiStyle ?? DEFAULT_API_STYLE
+  const rotationMode = config.rotationMode ?? DEFAULT_ROTATION_MODE
+  const retryNextOnFailure = config.retryNextOnFailure ?? DEFAULT_RETRY_NEXT_ON_FAILURE
+
   for (const [field, value] of [['maxBytes', maxBytes], ['maxOutputTokens', maxOutputTokens], ['timeoutMs', timeoutMs]] as const) {
     if (!Number.isSafeInteger(value) || value <= 0) {
       throw new Error(`describe-image: ${field} must be a positive safe integer`)
@@ -172,31 +278,136 @@ export function resolveConfig(config: Config): ResolvedConfig {
   if (!API_STYLES.includes(apiStyle)) {
     throw new Error(`describe-image: apiStyle must be one of ${API_STYLES.map(style => JSON.stringify(style)).join(', ')}`)
   }
-  return { baseURL, model, apiKey, apiKeyEnv, defaultPrompt: config.defaultPrompt ?? DEFAULT_PROMPT, maxBytes, maxOutputTokens, timeoutMs, apiStyle, thinking, renderImagePreview: config.renderImagePreview ?? DEFAULT_RENDER_IMAGE_PREVIEW, interceptImageSend: config.interceptImageSend ?? DEFAULT_INTERCEPT_IMAGE_SEND }
+  if (!ROTATION_MODES.includes(rotationMode)) {
+    throw new Error(`describe-image: rotationMode must be one of ${ROTATION_MODES.map(mode => JSON.stringify(mode)).join(', ')}`)
+  }
+
+  let topApiKeyEnv: CredentialRef | undefined
+  const rawEnv = config.apiKeyEnv ?? DEFAULT_API_KEY_ENV
+  if (rawEnv.length > 0) {
+    try {
+      topApiKeyEnv = credentialRef(rawEnv)
+    } catch {
+      throw new Error(`describe-image: apiKeyEnv ${JSON.stringify(rawEnv)} is not a valid environment-variable name`)
+    }
+  }
+
+  const endpointDefaults = {
+    apiKeyEnv: topApiKeyEnv,
+    apiStyle,
+    maxOutputTokens,
+  }
+
+  const endpoints: ResolvedEndpoint[] = []
+  if (Array.isArray(config.endpoints) && config.endpoints.length > 0) {
+    for (const ep of config.endpoints) {
+      endpoints.push(resolveEndpoint(ep, endpointDefaults))
+    }
+    const enabledEndpoints = endpoints.filter(ep => ep.enabled)
+    if (enabledEndpoints.length === 0) {
+      throw new Error('describe-image: at least one endpoint in endpoints must be enabled')
+    }
+  }
+
+  const rawBaseURL = (config.baseURL ?? '').trim().replace(/\/+$/, '')
+  const rawModel = (config.model ?? '').trim()
+
+  // If endpoints are provided, top-level baseURL/model are optional and fall back to the first enabled endpoint.
+  let baseURL = rawBaseURL
+  let model = ''
+  let thinking: ThinkingMode | undefined
+  let apiKey = config.apiKey
+
+  if (endpoints.length > 0) {
+    const firstEnabled = endpoints.find(ep => ep.enabled)!
+    if (baseURL.length === 0) {
+      baseURL = firstEnabled.baseURL
+    } else if (!/^https?:\/\//.test(baseURL)) {
+      throw new Error('describe-image: baseURL must be an absolute http(s) URL')
+    }
+    if (rawModel.length === 0) {
+      model = firstEnabled.model
+      thinking = firstEnabled.thinking
+    } else {
+      const parsed = splitModelSuffix(rawModel)
+      model = parsed.model
+      thinking = parsed.thinking
+    }
+    if (apiKey !== undefined && apiKey.length === 0) {
+      throw new Error('describe-image: apiKey must be non-empty when set')
+    }
+  } else {
+    // Single-endpoint fallback mode (exact backward compatibility)
+    if (!/^https?:\/\//.test(baseURL)) {
+      throw new Error('describe-image: baseURL must be an absolute http(s) URL')
+    }
+    const parsed = splitModelSuffix(rawModel)
+    model = parsed.model
+    thinking = parsed.thinking
+    if (model.length === 0) {
+      throw new Error('describe-image: model must be a non-empty model id before any :off/:low/:medium/:high suffix')
+    }
+    if (apiKey !== undefined && apiKey.length === 0) {
+      throw new Error('describe-image: apiKey must be non-empty when set')
+    }
+    endpoints.push({
+      name: undefined,
+      baseURL,
+      model,
+      apiKey,
+      apiKeyEnv: topApiKeyEnv,
+      apiStyle,
+      thinking,
+      maxOutputTokens,
+      enabled: true,
+    })
+  }
+
+  return {
+    baseURL,
+    model,
+    apiKey,
+    apiKeyEnv: topApiKeyEnv,
+    defaultPrompt: config.defaultPrompt ?? DEFAULT_PROMPT,
+    maxBytes,
+    maxOutputTokens,
+    timeoutMs,
+    apiStyle,
+    thinking,
+    renderImagePreview: config.renderImagePreview ?? DEFAULT_RENDER_IMAGE_PREVIEW,
+    interceptImageSend: config.interceptImageSend ?? DEFAULT_INTERCEPT_IMAGE_SEND,
+    endpoints,
+    rotationMode,
+    retryNextOnFailure,
+  }
 }
 
 /**
- * Resolve the API key for one call: an explicit inline key wins; otherwise the credential seam (which owns
- * environment and managed-store layers) resolves the reference; without the seam the launch environment is
- * the whole credential plane.
+ * Resolve the API key for one call or endpoint: an explicit inline key wins; otherwise the credential seam
+ * (which owns environment and managed-store layers) resolves the reference; without the seam the launch environment
+ * is the whole credential plane.
  * @param ctx - registrant context.
- * @param spec - validated configuration.
+ * @param target - validated configuration or specific endpoint.
  * @returns the resolved key.
  */
-export async function resolveApiKey(ctx: Context, spec: ResolvedConfig): Promise<string> {
-  if (spec.apiKey !== undefined) return spec.apiKey
-  if (spec.apiKeyEnv !== undefined) {
+export async function resolveApiKey(
+  ctx: Context,
+  target: Pick<ResolvedConfig | ResolvedEndpoint, 'apiKey' | 'apiKeyEnv'>,
+): Promise<string> {
+  if (target.apiKey !== undefined) return target.apiKey
+  if (target.apiKeyEnv !== undefined) {
     const credentials = ctx.get('credentials')
     if (credentials !== undefined) {
-      const hit = await credentials.resolve(spec.apiKeyEnv)
+      const hit = await credentials.resolve(target.apiKeyEnv)
       if (hit !== undefined) return hit.value
     } else {
-      const ambient = launchEnvironmentOf(ctx).get(spec.apiKeyEnv)
+      const ambient = launchEnvironmentOf(ctx).get(target.apiKeyEnv)
       if (ambient !== undefined && ambient.value.length > 0) return ambient.value
     }
   }
   throw new Error(
-    `describe-image: no API key; set apiKey, store ${spec.apiKeyEnv ?? DEFAULT_API_KEY_ENV} through the credentials service,`
+    `describe-image: no API key; set apiKey, store ${target.apiKeyEnv ?? DEFAULT_API_KEY_ENV} through the credentials service,`
     + ' or export it in the launching environment',
   )
 }
+

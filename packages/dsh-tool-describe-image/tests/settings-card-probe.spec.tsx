@@ -78,6 +78,8 @@ function baseState(overrides: Partial<DescribeImageSettingsCardState> = {}): Des
     apiStyle: field,
     renderImagePreview: field,
     interceptImageSend: field,
+    rotationMode: field,
+    retryNextOnFailure: field,
     probe: { status: 'idle', models: [] },
     ...overrides,
   }

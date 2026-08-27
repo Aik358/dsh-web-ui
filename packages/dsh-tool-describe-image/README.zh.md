@@ -77,6 +77,9 @@ dsh plugin --profile web add @linxin666/dsh-tool-describe-image@latest
 | `model` | —（必填） | 视觉模型 id，可带思考后缀（`:off` / `:low` / `:medium` / `:high`）。后缀在发往端点前剥除：`:off` 映射为 `thinking.type=disabled`（`chat-completions`）或 `reasoning.effort=none`（`responses`）；其余档位映射为 `enabled`，或原样作为 `reasoning.effort` 的值。不带后缀则不发送任何思考控制字段；`anthropic-messages` 协议不发送思考字段，保持端点自身默认 |
 | `apiKey` | — | 内联密钥；本地调试用。建议用 `!!js process.env.VISION_API_KEY` 从环境注入，勿写死明文 |
 | `apiKeyEnv` | `VISION_API_KEY` | 凭证引用（环境变量名）；空字符串禁用引用解析 |
+| `endpoints` | — | 多端点/模型候选列表，支持为每个端点单独配置 `baseURL`、`model`、`apiKey`、`apiKeyEnv`、`apiStyle`、`maxOutputTokens`、`enabled`（默认 `true`）与 `name`（issue #1234） |
+| `rotationMode` | `round-robin` | 多端点调度策略：`round-robin`（多次调用在各可用模型间依次循环轮询，平摊限流）或 `failover`（优先使用首选主端点，仅在失败时顺延备用端点） |
+| `retryNextOnFailure` | `true` | 当前端点请求失败（如 429 限流或服务故障）时，是否自动顺延尝试候选列表中的下一个端点 |
 | `defaultPrompt` | 见源码 | 调用未带 `prompt` 时的指令——按你的场景调优（OCR、UI 评审、翻译…） |
 | `maxBytes` | `10485760` | 图片字节上限（本地文件与下载一致） |
 | `maxOutputTokens` | `1024` | 输出 token 上限：`chat-completions` 与 `anthropic-messages` 发 `max_tokens`，`responses` 发 `max_output_tokens` |
@@ -93,6 +96,25 @@ dsh plugin --profile web add @linxin666/dsh-tool-describe-image@latest
     baseURL: https://dashscope.aliyuncs.com/compatible-mode/v1
     model: qwen-vl-max
     apiKey: !!js process.env.VISION_API_KEY
+```
+
+多模型循环与故障转移配置（智谱 + 阿里百炼自动轮询）：
+
+```yaml
+- id: describe-image
+  name: '@linxin666/dsh-tool-describe-image'
+  config:
+    rotationMode: round-robin
+    retryNextOnFailure: true
+    endpoints:
+      - name: 智谱 GLM-4V
+        baseURL: https://open.bigmodel.cn/api/paas/v4
+        model: glm-4v
+        apiKey: !!js process.env.ZHIPU_API_KEY
+      - name: 阿里百炼 Qwen-VL
+        baseURL: https://dashscope.aliyuncs.com/compatible-mode/v1
+        model: qwen-vl-max:off
+        apiKey: !!js process.env.QWEN_API_KEY
 ```
 
 只开放 Responses API 的端点设置 `apiStyle: responses`：
