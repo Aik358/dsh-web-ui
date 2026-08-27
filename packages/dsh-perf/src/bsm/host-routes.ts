@@ -6,9 +6,9 @@
  */
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
-import { buildStatus, performDisable, performEnable, resolvePaths } from './index.ts'
+import { buildStatus, performDisable, performEnable, resolvePaths } from './service.ts'
 
-export const API_PREFIX = '/api/better-session-manager'
+export const API_PREFIX = '/api/dsh-perf/better-session'
 
 function writeJson(res: ServerResponse, status: number, payload: unknown): void {
   const body = JSON.stringify(payload)

@@ -1,6 +1,7 @@
+// @vitest-environment node
 import { strict as assert } from 'node:assert'
 import { describe, it } from 'vitest'
-import { decodeZstdLog, encodeSessionLog, parseSessionLog } from '../src/core/legacy-log.ts'
+import { decodeZstdLog, encodeSessionLog, parseSessionLog } from '../src/bsm/legacy-log.ts'
 
 const batch = (n: number) => [
   { type: 'turn/start', seq: n * 10, time: n * 1000 + 1, data: {} },

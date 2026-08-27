@@ -29,7 +29,7 @@ export interface BetterSessionStatus {
 }
 
 async function post(action: 'enable' | 'disable', body: Record<string, unknown>): Promise<Record<string, unknown>> {
-  const response = await fetch(`/api/better-session-manager/${action}`, {
+  const response = await fetch(`/api/dsh-perf/better-session/${action}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
@@ -71,7 +71,7 @@ export function useCardModel(): {
   const refresh = (): void => {
     void (async () => {
       try {
-        const response = await fetch('/api/better-session-manager/status', { cache: 'no-store' })
+        const response = await fetch('/api/dsh-perf/better-session/status', { cache: 'no-store' })
         const payload = await response.json() as BetterSessionStatus & Record<string, unknown>
         patch({ posture: payload.mountState, status: payload as BetterSessionStatus, statusError: undefined })
       } catch (error) {
@@ -113,7 +113,7 @@ export function useCardModel(): {
 
 export interface BetterSessionCardProps
   extends PropsRuntime<'web-ui.plugin.item'>,
-  PropsLocale<'better-session-manager'> {
+  PropsLocale<'dsh-perf-bs'> {
   /** State override for unit tests; production wires the hook above. */
   wired?: ReturnType<typeof useCardModel>
 }

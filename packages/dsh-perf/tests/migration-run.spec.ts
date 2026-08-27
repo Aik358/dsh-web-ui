@@ -1,12 +1,13 @@
+// @vitest-environment node
 import { strict as assert } from 'node:assert'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'vitest'
-import { discoverLegacySessions } from '../src/core/migration-run.ts'
-import { encodeSessionLog } from '../src/core/legacy-log.ts'
-import { runImport } from '../src/core/migration-run.ts'
-import { openStore } from '../src/core/migration-core.ts'
+import { discoverLegacySessions } from '../src/bsm/migration-run.ts'
+import { encodeSessionLog } from '../src/bsm/legacy-log.ts'
+import { runImport } from '../src/bsm/migration-run.ts'
+import { openStore } from '../src/bsm/migration-core.ts'
 
 const event = (type: string, seq: number, time: number, data: unknown, extra: Record<string, unknown> = {}) => ({ type, seq, time, data, ...extra })
 

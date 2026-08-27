@@ -10,9 +10,9 @@ Supersession check: [better-session-default-off-and-jsonl-import](../architectur
 
 ## Decision
 
-新增公开家族包 `@linxin666/dsh-client-ui-better-session-manager`（聚合内行名 `web-ui-better-session-manager`），把开关放进决策发生的现场：
+开关直接内置于 `@linxin666/dsh-perf`——启用 better-session 本身就属于会话性能治理，其管理面顺理成章落在 perf 包，而不是新增家族成员——把决策放进现场：
 
-- **卡片**位于 设置 → Web 插件（"Better Session"，order 145）：卡面上声明第三方来源（[morlay/better-session](https://github.com/morlay/better-session)，MIT），实时展示两个存储的计数与当前状态；启用/停用都包在确认弹窗里，弹窗文案逐条列出 README 承诺过的代价。
+- **卡片**位于 设置 → Web 插件（"Better Session"，order 145，槽位 id `better-session`）：卡面上声明第三方来源（[morlay/better-session](https://github.com/morlay/better-session)，MIT），实时展示两个存储的计数与当前状态；启用/停用都包在确认弹窗里，弹窗文案逐条列出 README 承诺过的代价。
 - **启用流程**：确认 → 子进程导入全部旧 jsonl 日志到 `sessions.sqlite`（现有库自动备份；库不存在则按镜像 DDL 引导创建）→ 向 profile patch 写托管覆盖块。导入失败时 profile 保持原样。profile 层在长生命周期宿主上热重载，因此启用即时生效；已打开页面刷新一次即可。
 - **核心共享**：解码/投影/入库代码原样迁入本包（`src/core/*`，并经 tsdown companions 编译为独立产物 `lib/better-session-import.mjs`）。host 半区以子进程执行它，解码不再阻塞服务事件循环；`scripts/dsh-better-session.mjs` 改为导入同一产物的薄壳——语义自此只存在一份。
 
@@ -28,7 +28,7 @@ Supersession check: [better-session-default-off-and-jsonl-import](../architectur
 ## Consequences
 
 - opt-in 不再依赖仓库 checkout：声明、警告、迁移、切换随聚合包一体发布。
-- 版本化队列新增一员（publish-prep 清单 18 → 19），release 校验需与其余家族包一同构建。
+- 不新增家族成员；同日早些的草案曾把该面板做成独立包，随后收敛进 dsh-perf。
 - 卡片的状态读数依赖能读到聚合清单文本：npm profile 场景通过 `DSH_WEB_AGGREGATE_PATCH` 或 cwd 上溯解析；都不可达时报「状态未知」而不是猜。
 
 ## Testing

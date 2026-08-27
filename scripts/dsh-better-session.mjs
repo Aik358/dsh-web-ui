@@ -23,7 +23,7 @@ import { fileURLToPath } from 'node:url'
 // The runner lives next to the node half of the manager package and is
 // produced by its tsdown companion config; scripts load the built artifact
 // directly so resolution never depends on how pnpm arranged root symlinks.
-const RUNNER_URL = new URL('../packages/better-session-manager/lib/better-session-import.mjs', import.meta.url)
+const RUNNER_URL = new URL('../packages/dsh-perf/lib/better-session-import.mjs', import.meta.url)
 let cachedCore
 async function loadCore() {
   cachedCore ??= await import(RUNNER_URL.href)

@@ -1,9 +1,10 @@
+// @vitest-environment node
 import { strict as assert } from 'node:assert'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'vitest'
-import { eventDimensions, insertSession, openStore, projectPersistedEvents } from '../src/core/migration-core.ts'
+import { eventDimensions, insertSession, openStore, projectPersistedEvents } from '../src/bsm/migration-core.ts'
 
 const event = (type: string, seq: number, time: number, data: unknown, extra: Record<string, unknown> = {}) => ({ type, seq, time, data, ...extra })
 

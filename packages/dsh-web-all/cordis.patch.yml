@@ -109,11 +109,6 @@
     - id: web-ui-skin-center
       name: '@linxin666/dsh-client-ui-skin-center'
 
-# from ../better-session-manager
-- insert:
-    - id: web-ui-better-session-manager
-      name: '@linxin666/dsh-client-ui-better-session-manager'
-
 # config override for web-ui-ssh (seed default; settings wins once the user edits it)
 - id: web-ui-ssh
   config: {"enabled":false}

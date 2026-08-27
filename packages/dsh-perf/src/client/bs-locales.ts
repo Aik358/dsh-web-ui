@@ -62,4 +62,11 @@ const en: Record<BetterSessionKey, string> = {
 }
 
 export const dictionaries = { zh, en } as const
-export const NS = 'better-session-manager'
+/** Locale namespace for the Better Session card (separate from dsh-perf's own surface). */
+export const NS_BSM = 'dsh-perf-bs'
+
+declare module '@deepseek-ai/dsh-client-ui-slots' {
+  interface LocaleNamespaceMap {
+    'dsh-perf-bs': BetterSessionKey
+  }
+}

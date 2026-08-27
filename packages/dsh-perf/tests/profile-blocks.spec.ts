@@ -1,6 +1,7 @@
+// @vitest-environment node
 import { strict as assert } from 'node:assert'
 import { describe, it } from 'vitest'
-import { applyManagedBlock, deriveMountState, OVERRIDE_TARGET_IDS } from '../src/core/profile-blocks.ts'
+import { applyManagedBlock, deriveMountState, OVERRIDE_TARGET_IDS } from '../src/bsm/profile-blocks.ts'
 
 const base = '# existing row\n- id: web-ui-remote-web-ui\n  config:\n    autoTunnel: true\n'
 

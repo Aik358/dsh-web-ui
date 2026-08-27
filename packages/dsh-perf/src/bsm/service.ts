@@ -13,9 +13,9 @@ import {
   applyManagedBlock,
   deriveMountState,
   type MountState,
-} from '../core/profile-blocks.ts'
-import { backupStore, discoverLegacySessions, runImport } from '../core/migration-run.ts'
-import { openStore } from '../core/migration-core.ts'
+} from './profile-blocks.ts'
+import { backupStore, discoverLegacySessions, runImport } from './migration-run.ts'
+import { openStore } from './migration-core.ts'
 
 export interface ResolvedPaths {
   dshHome: string
@@ -132,7 +132,7 @@ export async function runMigration(options: { sessionsDir?: string; dbPath?: str
   const paths = resolvePaths()
   const effective = { sessionsDir: options.sessionsDir ?? paths.sessionsDir, dbPath: options.dbPath ?? paths.dbPath }
   const startedAt = Date.now()
-  const moduleUrl = new URL('../../lib/better-session-import.mjs', import.meta.url)
+  const moduleUrl = new URL('./better-session-import.mjs', import.meta.url)
   if (!existsSync(moduleUrl)) {
     const summary = runImport({ ...effective, apply: true, createStore: true })
     return { summaryJson: JSON.stringify(summary), durationMs: Date.now() - startedAt }
