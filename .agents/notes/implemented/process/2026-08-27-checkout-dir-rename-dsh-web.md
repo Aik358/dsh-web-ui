@@ -10,7 +10,7 @@ A bare `mv` is not enough: references reach outside the repository. DSH profiles
 
 ## Decision
 
-- The checkout now lives at `/Users/zcl/code/dsh-web`; a compatibility symlink `/Users/zcl/code/dsh-web-ui -> dsh-web` keeps every pre-existing consumer resolving until a later cleanup re-points DSH profile dependencies to the new root.
+- The checkout lives at `/Users/zcl/code/dsh-web`. A temporary compatibility symlink kept consumers resolving through the move; the follow-up cleanup re-pointed every DSH profile dependency (profile manifests with their pnpm-lock files, pnpm `.package-map.json` copies, and all 79 profile package links) to the new root and removed the symlink, so `/Users/zcl/code/dsh-web-ui` no longer exists.
 - The external worktree `/Users/zcl/remote-e2e/pr-970` had its `.git` pointer rewritten to the new location, so it no longer depends on the compatibility symlink. The leftover temporary push worktree under `/private/tmp` was pruned from the registry.
 - Tracked texts were updated in the same change: the release skill runbook path and its `cd`, the dsh-pet install example comment, and the plugin-manager legacy-migration fixtures representing this machine's checkout path.
 - Frozen runtime identifiers stay untouched: `@linxin666/dsh-web-ui-all` npm names and telemetry/product strings follow the [product rename](../architecture/2026-08-24-product-rename-dsh-web.md) boundary and are not swept up by this relocation.
@@ -19,7 +19,7 @@ A bare `mv` is not enough: references reach outside the repository. DSH profiles
 ## Testing
 
 - Immediately after the move: `git status` clean on `dev`, both stashes intact, the worktree list healthy, and an HTTP probe of the live GUI on port 3080 returned 200.
-- Package paths resolve through the compatibility symlink (`packages/dsh-perf`, `packages/dsh-web-all` reachable via the old path).
+- After the cleanup: no reference to the old path remains in active profile configs; every previously-valid profile symlink still resolves (a 2821-link validity baseline showed no regressions after symlink removal); live dependencies (`dsh-perf`, `dsh-web-all`, `dsh-liangshen`) resolve directly from the new root.
 - `vitest run tests/gateway-jobs.spec.ts tests/update-route.spec.ts` passes for `@linxin666/dsh-client-ui-plugin-manager`.
 
 ## Alternatives considered
@@ -31,5 +31,5 @@ Leaving the directory named `dsh-web-ui` indefinitely: rejected — the mismatch
 ## Consequences
 
 - Git history, branches, tags, and stashes are unaffected by the move; no commit was rewritten.
-- The compatibility symlink is now a fact future cleanup must honor: re-point all DSH profile dependencies to `/Users/zcl/code/dsh-web`, reinstall those profiles, then remove the symlink in that same change. Everything this repository tracks already points at the new root.
+- The compat-symlink escape hatch has been fully consumed: profiles point straight at `/Users/zcl/code/dsh-web`, so future work needs no legacy-path awareness. Inert leftovers deliberately stay untouched: historical task-board prompts, `.bak*` snapshots, session storages keyed by the old cwd, a baked-in build comment inside an installed `dsh-tool-describe-image` copy, and skin links that already dangled before the relocation.
 - New sessions should bind to `/Users/zcl/code/dsh-web`; session storages keyed by the old cwd are historical records and need no migration.

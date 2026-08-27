@@ -10,7 +10,7 @@ Status: implemented
 
 ## Decision
 
-- 检出现在位于 `/Users/zcl/code/dsh-web`；保留兼容软链接 `/Users/zcl/code/dsh-web-ui -> dsh-web`，在后续清理把 DSH profile 依赖重指向新根之前，所有既有消费方都能继续解析。
+- 检出现在位于 `/Users/zcl/code/dsh-web`。临时兼容软链接保障了搬迁期间的解析连续性；后续清理已把所有 DSH profile 依赖（profile 清单及其 pnpm-lock、pnpm `.package-map.json` 副本、全部 79 条 profile 包链接）重指向新根并摘除软链接，`/Users/zcl/code/dsh-web-ui` 不复存在。
 - 外部 worktree `/Users/zcl/remote-e2e/pr-970` 的 `.git` 指针已改写到新位置，不再依赖兼容软链接；`/private/tmp` 下遗留的临时推送 worktree 已从注册表清理。
 - 同一变更内更新受跟踪文本：发版技能运行手册的路径与其 `cd`、dsh-pet 安装示例注释、以及代表本机检出路径的 plugin-manager 迁移夹具。
 - 冻结的运行时标识符保持不动：`@linxin666/dsh-web-ui-all` npm 包名与遥测/产品字符串仍按[产品更名](../architecture/2026-08-24-product-rename-dsh-web.zh.md)划定的边界处理，不被本次搬迁波及。
@@ -19,7 +19,7 @@ Status: implemented
 ## Testing
 
 - 搬迁完成后立即验证：`git status` 在 `dev` 上干净、两个 stash 完好、worktree 列表健康、3080 端口运行中的 GUI HTTP 探测返回 200。
-- 包路径可穿过兼容软链接解析（经旧路径可达 `packages/dsh-perf`、`packages/dsh-web-all`）。
+- 清理完成后：活跃 profile 配置中不再有任何旧路径引用；此前全部有效链接仍然解析成功（2821 条链接有效性基线，摘链前后零回归）；运行依赖（`dsh-perf`、`dsh-web-all`、`dsh-liangshen`）直接从新根解析。
 - `@linxin666/dsh-client-ui-plugin-manager` 的 `vitest run tests/gateway-jobs.spec.ts tests/update-route.spec.ts` 通过。
 
 ## Alternatives considered
@@ -31,5 +31,5 @@ Status: implemented
 ## Consequences
 
 - 搬迁不影响 Git 历史、分支、tag 与 stash；没有提交被改写。
-- 兼容软链接成为后续清理必须记住的事实：把所有 DSH profile 依赖重指到 `/Users/zcl/code/dsh-web`、重装这些 profile，然后在同一变更中摘除软链接。本仓库受跟踪的内容已经全部指向新根。
+- 兼容软链接的过渡使命已完成：各 profile 直接指向 `/Users/zcl/code/dsh-web`，后续工作无需再感知旧路径。以下惰性残留刻意保持不动：任务板历史 prompt、`.bak*` 快照、按旧 cwd 记录的会话存储、某份已安装 `dsh-tool-describe-image` 副本内的构建期注释，以及搬迁前就已悬空的旧皮肤链接。
 - 新会话应绑定到 `/Users/zcl/code/dsh-web`；按旧 cwd 记录的会话存储是历史数据，无需迁移。
