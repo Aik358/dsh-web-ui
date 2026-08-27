@@ -1189,21 +1189,17 @@ export default function defineSkinHooks() {
             sequenceIndex = 0
           }
           const current = statusFrame(status, sequenceIndex)
-          if (character !== null) {
-            if (character.getAttribute('data-orca-link-status') !== status) character.setAttribute('data-orca-link-status', status)
-            if (character.getAttribute('data-orca-link-frame') !== String(current.frame)) {
-              character.setAttribute('data-orca-link-frame', String(current.frame))
-            }
-            character.style.setProperty('--orca-status-column', String(current.frame))
-            character.style.setProperty('--orca-status-row', String(current.row))
-            character.style.setProperty('--orca-status-x', (current.frame / 7) * 100 + '%')
-            character.style.setProperty('--orca-status-y', (current.row / 9) * 100 + '%')
+          if (character !== null && character.getAttribute('data-orca-link-status') !== status) {
+            character.setAttribute('data-orca-link-status', status)
           }
+          // 性能契约 R3: 每个 setProperty 都是一次样式重算面。样式表消费的只有
+          // sprite 的 x/y(background-position); column/row 与容器级副本没有任何消费
+          // 者(全仓审计), data-orca-link-frame 同样无读者 —— 这些面一律不写。
+          const nextX = (current.frame / 7) * 100 + '%'
+          const nextY = (current.row / 9) * 100 + '%'
           if (sprite !== null) {
-            sprite.style.setProperty('--orca-status-column', String(current.frame))
-            sprite.style.setProperty('--orca-status-row', String(current.row))
-            sprite.style.setProperty('--orca-status-x', (current.frame / 7) * 100 + '%')
-            sprite.style.setProperty('--orca-status-y', (current.row / 9) * 100 + '%')
+            if (sprite.style.getPropertyValue('--orca-status-x') !== nextX) sprite.style.setProperty('--orca-status-x', nextX)
+            if (sprite.style.getPropertyValue('--orca-status-y') !== nextY) sprite.style.setProperty('--orca-status-y', nextY)
             const alignment = STATUS_FRAME_ALIGNMENT[status]?.[current.frame]
             if (alignment !== undefined) {
               sprite.style.transform = 'translate(' + (alignment[0] / STATUS_ATLAS_CELL) * 100 + '%, ' + (alignment[1] / STATUS_ATLAS_CELL) * 100 + '%)'
