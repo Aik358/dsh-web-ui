@@ -1,8 +1,8 @@
-# Agent Note: better-session 的启用入口以设置卡形式发布并自动迁移
+# Agent Note: better-session 的启用入口以性能设置卡内嵌子节发布并自动迁移
 
 Status: implemented
 
-Supersession check: [better-session-default-off-and-jsonl-import](../architecture/2026-08-27-better-session-default-off-and-jsonl-import.md) 持有默认关闭的上线策略与迁移语义，均不受影响。本文件为其补充面向用户的操作面——卡片——并把导入核心下沉进包，使卡片与 CLI 共享同一实现。
+Supersession check: [better-session-default-off-and-jsonl-import](../architecture/2026-08-27-better-session-default-off-and-jsonl-import.md) 持有默认关闭的上线策略与迁移语义，均不受影响。本文件为其补充面向用户的操作面——启用子节——并把导入核心下沉进包，使该操作面与 CLI 共享同一实现。
 
 ## Problem
 
@@ -12,9 +12,9 @@ Supersession check: [better-session-default-off-and-jsonl-import](../architectur
 
 开关直接内置于 `@linxin666/dsh-perf`——启用 better-session 本身就属于会话性能治理，其管理面顺理成章落在 perf 包，而不是新增家族成员——把决策放进现场：
 
-- **卡片**位于 设置 → Web 插件（"Better Session"，order 145，槽位 id `better-session`）：卡面上声明第三方来源（[morlay/better-session](https://github.com/morlay/better-session)，MIT），实时展示两个存储的计数与当前状态；启用/停用都包在确认弹窗里，弹窗文案逐条列出 README 承诺过的代价。
+- **子节而非平级卡片**：管理面渲染在 设置 → Web 插件 的**性能引擎卡片内部**（perf 自己的 `web-ui.plugin.item` 条目），在表单字段之下以分隔线隔开。同日早些的草案曾注册第二个组条目（槽位 id `better-session`、order 145）；GUI 实测显示它落成了与 dsh-perf 平级的无样式条目，不符合要求的二级形态，因此移除了独立注册，改由 `PerfSettingsCard` 直接挂载 `BetterSessionCard`。卡面保留第三方来源声明（[morlay/better-session](https://github.com/morlay/better-session)，MIT），实时展示两个存储的计数与当前状态；启用/停用都包在确认弹窗里，弹窗文案逐条列出 README 承诺过的代价。文案注册进共享的 `dsh-perf` 词典（`bsm.` 前缀键，不设独立命名空间），样式为自包含的内联 CSS。
 - **启用流程**：确认 → 子进程导入全部旧 jsonl 日志到 `sessions.sqlite`（现有库自动备份；库不存在则按镜像 DDL 引导创建）→ 向 profile patch 写托管覆盖块。导入失败时 profile 保持原样。profile 层在长生命周期宿主上热重载，因此启用即时生效；已打开页面刷新一次即可。
-- **核心共享**：解码/投影/入库代码原样迁入本包（`src/core/*`，并经 tsdown companions 编译为独立产物 `lib/better-session-import.mjs`）。host 半区以子进程执行它，解码不再阻塞服务事件循环；`scripts/dsh-better-session.mjs` 改为导入同一产物的薄壳——语义自此只存在一份。
+- **核心共享**：解码/投影/入库代码原样迁入本包（`src/bsm/*`，并经 tsdown companions 编译为独立产物 `lib/better-session-import.mjs`）。host 半区以子进程执行它，解码不再阻塞服务事件循环；`scripts/dsh-better-session.mjs` 改为导入同一产物的薄壳——语义自此只存在一份。
 
 不设 settings 命名空间：本卡没有可保存的偏好，真正驱动行为的状态是 profile 文件里的补丁行，两个入口都把它当作唯一真源。
 
@@ -28,11 +28,11 @@ Supersession check: [better-session-default-off-and-jsonl-import](../architectur
 ## Consequences
 
 - opt-in 不再依赖仓库 checkout：声明、警告、迁移、切换随聚合包一体发布。
-- 不新增家族成员；同日早些的草案曾把该面板做成独立包，随后收敛进 dsh-perf。
-- 卡片的状态读数依赖能读到聚合清单文本：npm profile 场景通过 `DSH_WEB_AGGREGATE_PATCH` 或 cwd 上溯解析；都不可达时报「状态未知」而不是猜。
+- 不新增家族成员，也不新增 Web 插件组条目：管理面位于性能卡内部，随 perf 一起出现/消失，并继承其折叠卡外壳。
+- 子节的状态读数依赖能读到聚合清单文本：npm profile 场景通过 `DSH_WEB_AGGREGATE_PATCH` 或 cwd 上溯解析；都不可达时报「状态未知」而不是猜。
 
 ## Testing
 
-- 包内 vitest（11 例）：编码/断尾/header 校验、丢弃/剪枝/dims 镜像、稠密桥接 + head 游标 + 真实目录形态（含裸 UUID 年代）的幂等重跑、托管块替换/移除、分层姿态判定。
+- 包内 vitest（54 例）：编码/断尾/header 校验、丢弃/剪枝/dims 镜像、稠密桥接 + head 游标 + 真实目录形态（含裸 UUID 年代）的幂等重跑、托管块替换/移除、分层姿态判定；另有三例 renderToString 规格锁定嵌套 DOM 契约（dsh-perf 属主子节、`bsm.` 前缀文案键、动作集随姿态翻转、确认弹窗标记）。
 - CLI node:test（3 例）：argv 契约、提醒门控下经由真实 `$DSH_HOME` 路径的启用写入、出厂关闭姿态下的 status JSON 形状。
-- 重生成后的聚合产物（20 行 / 18 依赖）由 `pnpm aggregate:check` 验证；dump-config 下四个 better-session 相关产物保持不变（卡片行激活、集成行禁用）。
+- 重生成后的聚合产物（19 行 / 17 依赖）由 `pnpm aggregate:check` 验证；dump-config 下只有三个 better-session insert 行及其 disabled 覆盖，没有单独的卡片条目。

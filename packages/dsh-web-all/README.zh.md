@@ -75,7 +75,7 @@ dsh plugin --profile web add link:$(pwd)/packages/dsh-web-all
 - 切换是单向的：启用后新建的会话只存在于 SQLite（jsonl 不再有新写入）。请在启用前先跑导入。
 - 只要保持启用，官方 jsonl 持久化行就一直被禁用；两个宿主进程不能同时写同一个 store。
 
-推荐路径是 设置 → Web 插件 里的 **Better Session** 卡片（由 `@linxin666/dsh-perf` 提供——启用 better-session 本身就是会话性能治理的一部分）：同一界面展示两个存储、确认后自动带备份迁移并即时切换托管块——除刷新页面外无需重启宿主。仓库 checkout 的命令行等价方式：
+推荐路径是 设置 → Web 插件 里 **性能引擎（dsh-perf）卡片内的 Better Session 子节**（启用 better-session 本身就是会话性能治理的一部分，所以管理面直接嵌在性能卡里）：同一界面展示两个存储、确认后自动带备份迁移并即时切换托管块——除刷新页面外无需重启宿主。仓库 checkout 的命令行等价方式：
 
 在仓库 checkout 下执行启用三步（先停 `dsh web`）：
 

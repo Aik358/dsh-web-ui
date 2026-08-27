@@ -20,8 +20,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 
 import type { ComponentType } from 'react'
 import { zh, en, type PerfKey } from './perf-locales.ts'
-import { NS_BSM, dictionaries as bsmDictionaries } from './bs-locales.ts'
-import { BetterSessionCard } from './better-session-card.tsx'
+import { dictionaries as bsmDictionaries, type BetterSessionKey } from './bs-locales.ts'
 import { PerfSettingsCard, PerfSettingsCardController, type PerfSettings, type PerfSettingsCardFace } from './perf-settings-card.tsx'
 import { makePerfAssistantShadow, type ShadowOwner } from './perf-assistant-shadow.tsx'
 import { startIntegrityObserver } from './perf-integrity.ts'
@@ -39,7 +38,7 @@ export const NS = 'dsh-perf'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
-    'dsh-perf': PerfKey
+    'dsh-perf': PerfKey | BetterSessionKey
   }
   interface SlotMap {
     'web-ui.plugin.item': { kind: 'list'; scope: 'root'; owner: { children?: never } }
@@ -154,33 +153,11 @@ export function apply(ctx: ClientContext): void {
     } catch { return true }
   }
   try { refreshClientSwitches(); perfScope?.subscribe(refreshClientSwitches) } catch { /* noop */ }
-  // 词典: 设置卡文案。
+  // 词典: 设置卡文案 + Better Session 子节文案(bsm.* 前缀, 同一命名空间,
+  // 因为 Better Session 管理面嵌在 perf 设置卡内部渲染)。
   try {
-    ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-perf: dictionaries')
+    ctx.effect(() => ctx.locale.register(NS, { zh: { ...zh, ...bsmDictionaries.zh }, en: { ...en, ...bsmDictionaries.en } }), 'dsh-perf: dictionaries')
   } catch { /* noop */ }
-  // Better Session 卡: 第三方外部集成（@morlay/better-session）的启用/迁移
-  // 管理面。词典与卡片文案使用独立命名空间，注册失败只降级日志。
-  try {
-    ctx.effect(() => ctx.locale.register(NS_BSM, bsmDictionaries), 'dsh-perf: better-session dictionaries')
-  } catch { /* noop */ }
-  try {
-    ctx.slots.inject('web-ui.plugin.item', () => {
-      try {
-        const unregister = ctx.slots.register({
-          name: 'web-ui.plugin.item',
-          id: 'better-session',
-          order: 145,
-          locale: NS_BSM,
-        }, BetterSessionCard)
-        return unregister
-      } catch (error) {
-        console.debug('[dsh-perf] better-session card degraded:', error)
-        return () => {}
-      }
-    })
-  } catch (error) {
-    console.debug('[dsh-perf] better-session slot degraded:', error)
-  }
   // 设置卡: 贡献到 "Web 插件" 组, 绑定 dsh-perf 命名空间。
   try {
     const binder = ctx.get('webUiSettings') ?? ctx.settingsScope

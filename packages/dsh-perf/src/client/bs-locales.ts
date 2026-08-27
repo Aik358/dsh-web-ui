@@ -1,13 +1,16 @@
 /**
- * Locale strings for the Better Session card (zh source of truth, en mirror).
+ * Locale strings for the Better Session section (zh source of truth, en
+ * mirror). The section renders inside the dsh-perf settings card, so its
+ * copy registers into the same dsh-perf dictionary under "bsm."-prefixed
+ * keys instead of owning a locale namespace.
  * Copy declares the external origin and carries the storage-switch warnings;
  * see packages/dsh-web-all README for the long-form pros/cons.
- * @module better-session-manager/client/locales
+ * @module @linxin666/dsh-perf/client/bs-locales
  */
 
 const zh = {
   'settings.title': 'Better Session（分支式会话编辑）',
-  'settings.description': '第三方外部插件 @morlay/better-session：就地编辑历史消息并重新生成、失败回合一键重试，支持回退与 fork。本卡负责它的启用开关与旧会话迁移。',
+  'settings.description': '第三方外部插件 @morlay/better-session：就地编辑历史消息并重新生成、失败回合一键重试，支持回退与 fork。本节负责它的启用开关与旧会话迁移。',
   'settings.sourcePrefix': '本功能由外部第三方插件',
   'settings.sourceSuffix': '提供，非本仓库出品；许可证为 MIT。',
   'state.inactive': '未启用（官方 jsonl 存储）',
@@ -32,11 +35,14 @@ const zh = {
   'dialog.cancel': '取消',
 } as const
 
-export type BetterSessionKey = keyof typeof zh
+export type BsmRawKey = keyof typeof zh
 
-const en: Record<BetterSessionKey, string> = {
+/** Runtime keys carry the "bsm." prefix inside the shared dsh-perf dictionary. */
+export type BetterSessionKey = `bsm.${BsmRawKey & string}`
+
+const en: Record<BsmRawKey, string> = {
   'settings.title': 'Better Session (branching session editing)',
-  'settings.description': 'Third-party external plugin @morlay/better-session: edit past messages in place, retry failed turns, rewind and fork. This card owns its enable switch and the legacy session migration.',
+  'settings.description': 'Third-party external plugin @morlay/better-session: edit past messages in place, retry failed turns, rewind and fork. This section owns its enable switch and the legacy session migration.',
   'settings.sourcePrefix': 'Provided by the external third-party plugin ',
   'settings.sourceSuffix': ' — not authored in this repository; MIT licensed.',
   'state.inactive': 'Inactive (stock jsonl storage)',
@@ -61,12 +67,10 @@ const en: Record<BetterSessionKey, string> = {
   'dialog.cancel': 'Cancel',
 }
 
-export const dictionaries = { zh, en } as const
-/** Locale namespace for the Better Session card (separate from dsh-perf's own surface). */
-export const NS_BSM = 'dsh-perf-bs'
+const prefixDict = (dict: Record<BsmRawKey, string>): Record<BetterSessionKey, string> =>
+  Object.fromEntries(Object.entries(dict).map(([key, value]) => [`bsm.${key}`, value])) as Record<BetterSessionKey, string>
 
-declare module '@deepseek-ai/dsh-client-ui-slots' {
-  interface LocaleNamespaceMap {
-    'dsh-perf-bs': BetterSessionKey
-  }
+export const dictionaries: Record<'zh' | 'en', Record<BetterSessionKey, string>> = {
+  zh: prefixDict(zh),
+  en: prefixDict(en),
 }

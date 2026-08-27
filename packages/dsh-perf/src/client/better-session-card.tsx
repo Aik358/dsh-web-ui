@@ -1,16 +1,19 @@
 /**
- * The Better Session card: declares the third-party origin, shows the live
- * posture and store counts, and drives enable (with automatic migration) /
- * disable through the plugin's loopback-fenced /api routes. Interactive on
- * purpose — unlike the family's form cards nothing here saves into a settings
- * namespace; the profile patch layer is the state that actually moves rows.
+ * The Better Session section, rendered inside the dsh-perf settings card
+ * (better-session is session-performance governance, so its management
+ * surface nests under the perf card instead of owning a sibling group item).
+ * Declares the third-party origin, shows the live posture and store counts,
+ * and drives enable (with automatic migration) / disable through the plugin's
+ * loopback-fenced /api routes. Interactive on purpose — nothing here saves
+ * into a settings namespace; the profile patch layer is the state that
+ * actually moves rows.
  *
- * Styling is intentionally minimal inline structure with stable class names;
- * semantic attributes follow contracts/semantic-attrs-v1.md.
- * @module better-session-manager/client/better-session-card
+ * Styling is self-contained inline CSS (no module to keep in sync); semantic
+ * attributes follow contracts/semantic-attrs-v1.md.
+ * @module @linxin666/dsh-perf/client/better-session-card
  */
-import { useEffect, useState } from 'react'
-import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import { useEffect, useState, type CSSProperties } from 'react'
+import type { BsmRawKey, BetterSessionKey } from './bs-locales.ts'
 
 /** Upstream project the integration comes from. */
 export const UPSTREAM_URL = 'https://github.com/morlay/better-session'
@@ -48,7 +51,7 @@ export interface CardViewModel {
   status: BetterSessionStatus | undefined
 }
 
-/** All card state and the actions mutating it; exported for tests and DI. */
+/** All section state and the actions mutating it; exported for tests and DI. */
 export function useCardModel(): {
   model: CardViewModel
   refresh: () => void
@@ -111,14 +114,14 @@ export function useCardModel(): {
   }
 }
 
-export interface BetterSessionCardProps
-  extends PropsRuntime<'web-ui.plugin.item'>,
-  PropsLocale<'dsh-perf-bs'> {
+export interface BetterSessionCardProps {
+  /** Translate from the shared dsh-perf namespace; reads bsm.* keys. */
+  t: (key: BetterSessionKey, params?: Record<string, string | number>) => string
   /** State override for unit tests; production wires the hook above. */
   wired?: ReturnType<typeof useCardModel>
 }
 
-type LocaleT = (key: string, params?: Record<string, string | number>) => string
+type LocaleT = (key: BsmRawKey, params?: Record<string, string | number>) => string
 
 function interpolate(template: string, params: Record<string, string | number>): string {
   let out = template
@@ -126,44 +129,76 @@ function interpolate(template: string, params: Record<string, string | number>):
   return out
 }
 
-/** The card body rendered inside the Web Plugins group list slot. */
+/** Self-contained styles: theme-aware via system colors for the dialog surface. */
+const css: Record<string, CSSProperties> = {
+  section: { borderTop: '1px solid rgba(127,127,127,0.28)', marginTop: 18, paddingTop: 14 },
+  title: { margin: '0 0 6px', fontSize: '0.95em', fontWeight: 600 },
+  para: { margin: '4px 0', fontSize: '0.88em', opacity: 0.75, lineHeight: 1.55 },
+  link: { color: 'inherit' },
+  state: { margin: '10px 0 2px', fontSize: '0.88em', cursor: 'pointer', width: 'fit-content' },
+  metrics: { margin: '4px 0 10px', paddingLeft: 18, fontSize: '0.85em', opacity: 0.75, lineHeight: 1.7 },
+  notice: { margin: '6px 0', fontSize: '0.85em', opacity: 0.85 },
+  error: { margin: '6px 0', fontSize: '0.85em', color: '#d4544c' },
+  actions: { display: 'flex', gap: 8, margin: '10px 0 4px' },
+  button: {
+    padding: '5px 14px', borderRadius: 6, fontSize: '0.88em', cursor: 'pointer',
+    border: '1px solid rgba(127,127,127,0.4)', background: 'transparent', color: 'inherit',
+  },
+  primary: { background: '#3b6ef6', borderColor: '#3b6ef6', color: '#fff' },
+  danger: { color: '#d4544c', borderColor: 'rgba(212,84,76,0.55)' },
+  progress: { margin: '6px 0', fontSize: '0.85em', opacity: 0.75 },
+  overlay: {
+    position: 'fixed', inset: 0, zIndex: 2147483000, background: 'rgba(0,0,0,0.42)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  },
+  dialog: {
+    background: 'Canvas', color: 'CanvasText', borderRadius: 10, padding: '16px 18px',
+    maxWidth: 480, width: '92%', boxShadow: '0 8px 30px rgba(0,0,0,0.25)', fontSize: '0.92em',
+  },
+  dialogTitle: { margin: '0 0 8px', fontSize: '1em' },
+  dialogBody: { margin: 0, lineHeight: 1.6 },
+  dialogActions: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 },
+}
+
+/** The Better Session section rendered inside the dsh-perf card body. */
 export function BetterSessionCard(props: BetterSessionCardProps): JSX.Element {
   const wired = props.wired ?? useCardModel()
   const { model } = wired
-  const t = props.t as LocaleT
+  const t: LocaleT = (key, params) => props.t(`bsm.${key}`, params)
 
-  // One status fetch on mount; manual refresh stays available via the state row click.
+  // One status fetch on mount (the perf card mounts this section when expanded);
+  // manual refresh stays available via the state row click.
   useEffect(() => { wired.refresh() }, [])
 
   if (model.statusError !== undefined) {
     return (
-      <section className="dsh-bsm-card" data-dsh-plugin="better-session-manager" data-dsh-part="card">
-        <h3>{t('settings.title')}</h3>
-        <p className="dsh-bsm-error" role="alert">{t('notice.failed', { error: model.statusError })}</p>
+      <section style={css.section} data-dsh-plugin="dsh-perf" data-dsh-part="better-session">
+        <h3 style={css.title}>{t('settings.title')}</h3>
+        <p style={css.error} role="alert">{t('notice.failed', { error: model.statusError })}</p>
       </section>
     )
   }
 
   const enabled = model.posture === 'enabled-via-profile' || model.posture === 'enabled-via-bundle'
-  const stateKey = model.posture === 'enabled-via-profile' ? 'state.enabled'
+  const stateKey: BsmRawKey = model.posture === 'enabled-via-profile' ? 'state.enabled'
     : model.posture === 'enabled-via-bundle' ? 'state.enabledBundle'
       : model.posture === undefined ? 'state.unknown' : 'state.inactive'
 
   return (
-    <section className="dsh-bsm-card" data-dsh-plugin="better-session-manager" data-dsh-part="card">
-      <h3>{t('settings.title')}</h3>
-      <p className="dsh-bsm-description">{t('settings.description')}</p>
-      <p className="dsh-bsm-source">
+    <section style={css.section} data-dsh-plugin="dsh-perf" data-dsh-part="better-session">
+      <h3 style={css.title}>{t('settings.title')}</h3>
+      <p style={css.para}>{t('settings.description')}</p>
+      <p style={css.para}>
         {t('settings.sourcePrefix')}{' '}
-        <a href={UPSTREAM_URL} target="_blank" rel="noreferrer">{UPSTREAM_LABEL}</a>
+        <a href={UPSTREAM_URL} target="_blank" rel="noreferrer" style={css.link}>{UPSTREAM_LABEL}</a>
         {t('settings.sourceSuffix')}
       </p>
       <p
-        className={`dsh-bsm-state dsh-bsm-state-${String(model.posture ?? 'unknown')}`}
+        style={css.state}
         data-dsh-part="state"
         onClick={() => wired.refresh()}
       >{t(stateKey)}</p>
-      <ul className="dsh-bsm-metrics">
+      <ul style={css.metrics}>
         <li>{interpolate(t('label.legacyCount'), { total: model.status?.legacyTotalSessions ?? 0, projects: model.status?.legacyProjects?.length ?? 0 })}</li>
         {(model.status?.storeSessions !== undefined) && (
           <li>{interpolate(t('label.storeCount'), { sessions: model.status.storeSessions ?? 0, events: model.status.storeEvents ?? 0 })}</li>
@@ -171,38 +206,38 @@ export function BetterSessionCard(props: BetterSessionCardProps): JSX.Element {
       </ul>
 
       {model.notice !== null && model.notice.kind === 'done' && (
-        <p className="dsh-bsm-notice" data-dsh-part="notice">
+        <p style={css.notice} data-dsh-part="notice">
           {interpolate(t('notice.done'), { imported: model.notice.imported, failed: model.notice.failed })}
         </p>
       )}
       {model.notice !== null && model.notice.kind === 'disabled' && (
-        <p className="dsh-bsm-notice" data-dsh-part="notice">{t('notice.disabled')}</p>
+        <p style={css.notice} data-dsh-part="notice">{t('notice.disabled')}</p>
       )}
       {model.notice !== null && model.notice.kind === 'failed' && (
-        <p className="dsh-bsm-error" role="alert">{t('notice.failed', { error: model.notice.error })}</p>
+        <p style={css.error} role="alert">{t('notice.failed', { error: model.notice.error })}</p>
       )}
 
-      <div className="dsh-bsm-actions">
+      <div style={css.actions}>
         {enabled ? (
-          <button type="button" className="dsh-bsm-btn-danger" disabled={model.busy !== null}
+          <button type="button" style={{ ...css.button, ...css.danger }} disabled={model.busy !== null}
             onClick={() => wired.requestDisable()}>{model.busy === 'disable' ? t('action.working') : t('action.disable')}</button>
         ) : (
-          <button type="button" className="dsh-bsm-btn-primary" disabled={model.busy !== null}
+          <button type="button" style={{ ...css.button, ...css.primary }} disabled={model.busy !== null}
             onClick={() => wired.requestEnable()}>{model.busy === 'enable' ? t('action.working') : t('action.enable')}</button>
         )}
       </div>
 
-      {model.busy === 'enable' && <p className="dsh-bsm-progress" data-dsh-part="progress">{t('label.migrating')}</p>}
+      {model.busy === 'enable' && <p style={css.progress} data-dsh-part="progress">{t('label.migrating')}</p>}
 
       {model.confirmKind !== null && (
-        <div className="dsh-bsm-confirm" role="dialog" aria-modal="true" data-dsh-part="confirm">
-          <div className="dsh-bsm-confirm-box">
-            <h4>{t(model.confirmKind === 'enable' ? 'warn.enableTitle' : 'warn.disableTitle')}</h4>
-            <p>{t(model.confirmKind === 'enable' ? 'warn.enableBody' : 'warn.disableBody')}</p>
-            <div className="dsh-bsm-confirm-actions">
-              <button type="button" onClick={() => wired.cancelConfirm()}>{t('dialog.cancel')}</button>
+        <div style={css.overlay} role="dialog" aria-modal="true" data-dsh-part="confirm">
+          <div style={css.dialog}>
+            <h4 style={css.dialogTitle}>{t(model.confirmKind === 'enable' ? 'warn.enableTitle' : 'warn.disableTitle')}</h4>
+            <p style={css.dialogBody}>{t(model.confirmKind === 'enable' ? 'warn.enableBody' : 'warn.disableBody')}</p>
+            <div style={css.dialogActions}>
+              <button type="button" style={css.button} onClick={() => wired.cancelConfirm()}>{t('dialog.cancel')}</button>
               <button type="button"
-                className={model.confirmKind === 'enable' ? 'dsh-bsm-btn-primary' : 'dsh-bsm-btn-danger'}
+                style={model.confirmKind === 'enable' ? { ...css.button, ...css.primary } : { ...css.button, ...css.danger }}
                 onClick={() => { void (model.confirmKind === 'enable' ? wired.confirmEnable() : wired.confirmDisable()) }}>
                 {t('dialog.confirm')}
               </button>
