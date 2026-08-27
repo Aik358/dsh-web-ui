@@ -129,10 +129,6 @@
 
 # external bundle: @morlay/better-session
 
-# from external bundle @morlay/better-session (patch row session-persistence-jsonl; overrides earlier source patch)
-- id: session-persistence-jsonl
-  disabled: true
-
 # from external bundle @morlay/better-session (insert row web-ui-session-branch)
 - insert:
     - id: web-ui-session-branch
@@ -154,8 +150,6 @@
 # inactive by default: the rows above ship disabled, so the stock persistence
 # backend keeps serving sessions until you opt in. Enable with profile-level
 # `disabled: false` overrides (or run scripts/dsh-better-session.mjs enable).
-- id: session-persistence-jsonl
-  disabled: true
 - id: web-ui-session-branch
   disabled: true
 - id: web-ui-session-rdb

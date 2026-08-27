@@ -408,9 +408,10 @@ function renderPatch(blocks, externalRows, ownPatches, errors, rel, aggregateDir
   // importable plugin rows land in the composed tree (bundle-only packages
   // cannot be imported by the loader themselves). A row may declare
   // `"inactive": true` (for example better-session, which would otherwise
-  // swap the session persistence backend on upgrade): every emitted artifact
-  // of that external then gets a trailing `disabled: true` override, so the
-  // bits stay installed while nothing mounts until the user opts in.
+  // swap the session persistence backend on upgrade): bundle patch rows are
+  // omitted entirely and every emitted insert row gets a trailing
+  // `disabled: true` override, so the bits stay installed while nothing
+  // mounts until the user opts in.
   for (const row of externalRows) {
     if (typeof row.id !== 'string' || !row.id) {
       errors.push(`${rel}: external row is missing a string "id": ${JSON.stringify(row)}`)
@@ -439,6 +440,13 @@ function renderPatch(blocks, externalRows, ownPatches, errors, rel, aggregateDir
       lines.push('', `# external bundle: ${expanded.name}`)
       for (const patchRow of expanded.rows) {
         if (patchRow.kind === 'patch') {
+          // An inactive external contributes NO patch rows: they retune other
+          // entries (for example better-session's own "disable stock jsonl"
+          // harness row), and re-patching those ids with `disabled: true`
+          // would flip the TARGET off too — bare rows merge into the entry
+          // they name, they are not self-inert. Skipping leaves the upstream
+          // row exactly as other sources tuned it.
+          if (row.inactive === true) continue
           // The dsh-perf child intentionally patches session-persistence-jsonl,
           // and better-session's bundle disables that same harness row. Emit
           // the bundle patch after the child's row so its override wins.
@@ -451,7 +459,6 @@ function renderPatch(blocks, externalRows, ownPatches, errors, rel, aggregateDir
           lines.push(`- id: ${patchRow.id}`)
           for (const extra of patchRow.extraLines ?? []) lines.push(extra)
           pushConfig(lines, patchRow.configLines ?? [], 2)
-          if (row.inactive === true) inactiveIds.push(patchRow.id)
           continue
         }
         const id = namespaceId(patchRow.id)
