@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with git hash-object.
+2026-08-27-better-session-replaces-chat-recovery.md: 1d80242e4513f282b9e7c00c2bb2b03a3db9dcc5
+2026-08-27-better-session-replaces-chat-recovery.zh.md: 259c16e30d808ffae358a2922f414d67ad6e645b

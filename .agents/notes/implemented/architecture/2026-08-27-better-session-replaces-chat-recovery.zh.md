@@ -15,8 +15,9 @@ dsh-chat-recovery 与上游 [morlay/better-session](https://github.com/morlay/be
 
 ## Decision
 
-- 接入遵循 `dsh-better-sidebar` 与 `@mlgbnb/dsh-archive-manager` 的既有外部集成模式：消费上游 **npm 包**（`@morlay/better-session@0.0.10`，registry 可读，SDK 版本批次与 rc.2 兼容），在 `packages/dsh-web-all/package.json` 固定版本；源码不入库。
-- 聚合清单（`aggregate.yml）新增外部行 `{"id": "better-session", "name": "@morlay/better-session"}`，渲染在全部 patchFrom 块之后——插件的持久化 rewiring 在 jsonl 调优行之后应用；重新生成产物并提交。MIT 许可在双语版权节登记。
+- 接入遵循 `dsh-better-sidebar` 与 `@mlgbnb/dsh-archive-manager` 的既有外部集成模式：消费上游 **npm 包**（`@morlay/better-session@0.0.11`，registry 可读，SDK 版本批次与 rc.2 兼容），在 `packages/dsh-web-all/package.json` 固定版本；源码不入库。
+- 聚合清单（`aggregate.yml`）新增外部行 `{"id": "better-session", "name": "@morlay/better-session"}`，渲染在全部 patchFrom 块之后——插件的持久化 rewiring 在 jsonl 调优行之后应用；重新生成产物并提交。MIT 许可在双语版权节登记。
+- 由于 `@morlay/better-session` 以 profile bundle 形态发布（其 `dsh.bundle.patch` 插入可导入子插件），聚合生成器展开 bundle 行：`dsh-better-sidebar`、`@mlgbnb/dsh-archive-manager`、`@morlay/better-session` 的 patch 行都汇入 `cordis.patch.yml`，插入行 id 保持 `web-ui-*` 命名空间，bundle 自身的 harness-row patch（如禁用 `session-persistence-jsonl`）原样保留。`link-profile.mjs` 同时把 bundle 子包链接进 profile 层，让聚合行能从 profile 顶层解析它们。
 - `packages/dsh-chat-recovery/` 整体删除，含聚合清单条目、telemetry 同步目标与 publish-prep 行（家族包数 19 -> 18）。
 - 提及 chat-recovery 的历史记录（release notes、archive 快照、过往修复 Note）保持冻结；社区索引从未登记过它。
 

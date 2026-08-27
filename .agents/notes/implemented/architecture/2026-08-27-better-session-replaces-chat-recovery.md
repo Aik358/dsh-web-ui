@@ -15,8 +15,9 @@ With maintainer approval obtained from the upstream author (morlay) on 2026-08-2
 
 ## Decision
 
-- Ingestion follows the established external-integration pattern used for `dsh-better-sidebar` and `@mlgbnb/dsh-archive-manager`: consume the upstream **npm package** (`@morlay/better-session@0.0.10`, registry-readable, SDK cohort rc.2-compatible), pinned in `packages/dsh-web-all/package.json`; no source is vendored into this repository.
+- Ingestion follows the established external-integration pattern used for `dsh-better-sidebar` and `@mlgbnb/dsh-archive-manager`: consume the upstream **npm package** (`@morlay/better-session@0.0.11`, registry-readable, SDK cohort rc.2-compatible), pinned in `packages/dsh-web-all/package.json`; no source is vendored into this repository.
 - Aggregate manifest (`aggregate.yml`) gains an external row `{"id": "better-session", "name": "@morlay/better-session"}` rendered after the patchFrom blocks, so the plugin's rewiring applies after the jsonl tuning row; regenerated artifacts committed. MIT license recorded in the root licensing sections (both languages).
+- Because `@morlay/better-session` ships as a profile bundle (its `dsh.bundle.patch` inserts the importable child plugins), the aggregate generator expands bundle rows: `dsh-better-sidebar`, `@mlgbnb/dsh-archive-manager`, and `@morlay/better-session` all contribute their patch rows to `cordis.patch.yml`, the insert ids stay namespaced (`web-ui-*`), and the bundle's own harness-row patches (such as disabling `session-persistence-jsonl`) are preserved. `link-profile.mjs` also links bundle child packages into the profile layer so aggregate rows resolve them from the profile root.
 - `packages/dsh-chat-recovery/` is deleted outright, including its aggregate manifest entries, telemetry sync target, and publish-prep row (family package count 19 -> 18).
 - Historical records that mention chat-recovery (release notes, archive snapshots, past fix Notes) stay frozen; the community index never registered it.
 

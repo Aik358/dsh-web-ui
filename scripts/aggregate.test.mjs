@@ -108,3 +108,12 @@ test('web-ui-all mounts @mlgbnb/dsh-archive-manager as an external row', () => {
   // The paired name line resolves the scoped npm package from the profile root.
   assert.match(lines[idx + 1] ?? '', /^ {6}name: '@mlgbnb\/dsh-archive-manager'$/)
 })
+
+test('web-ui-all expands @morlay/better-session into importable bundle rows', () => {
+  const patch = readFileSync(join(ROOT, 'packages/dsh-web-all/cordis.patch.yml'), 'utf8')
+  assert.doesNotMatch(patch, /web-ui-better-session/, 'bundle-only package must not be emitted as an importable row')
+  for (const id of ['web-ui-session-branch', 'web-ui-session-rdb', 'web-ui-conversation-message-actions']) {
+    assert.match(patch, new RegExp(`^ {4}- id: ${id}$`, 'm'), `external bundle row ${id} is missing`)
+  }
+  assert.match(patch, /^- id: session-persistence-jsonl\s+disabled: true/m, 'external bundle must keep its harness-row patch')
+})

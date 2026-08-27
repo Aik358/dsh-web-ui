@@ -2,12 +2,12 @@
 
 [English](README.md) | 中文
 
-DSH Web UI 全家桶聚合插件：一键安装全部功能插件（task-board / git-graph / pet / remote-web-ui / web-ui-settings / skin-center / community-plugins / aionui-panel），外加外部插件 `dsh-better-sidebar`（右侧面板）与 `@mlgbnb/dsh-archive-manager`（设置页归档管理）以及皮肤全家桶（`dsh-skins`，皮肤资产内置）。compat 桥接层已并入本包（`src/client`），因此无需独立的 compat npm 包。
+DSH Web UI 全家桶聚合插件：一键安装全部功能插件（task-board / git-graph / pet / remote-web-ui / web-ui-settings / skin-center / community-plugins / aionui-panel），外加外部插件 `dsh-better-sidebar`（右侧面板）、`@mlgbnb/dsh-archive-manager`（设置页归档管理）、`@morlay/better-session`（分支式会话编辑）以及皮肤全家桶（`dsh-skins`，皮肤资产内置）。compat 桥接层已并入本包（`src/client`），因此无需独立的 compat npm 包。
 
 ## 是什么
 
-- **一次安装、全部到位**：其 dependencies 引入全部子插件包（dsh-client-ui-aionui-panel / dsh-client-ui-task-board / dsh-client-ui-git-graph / dsh-pet / dsh-remote-web-ui / dsh-ssh / dsh-client-ui-web-ui-settings / dsh-client-ui-skin-center / dsh-client-ui-community-plugins / dsh-skins），外加外部 npm 插件 `dsh-better-sidebar`（默认右侧面板：文件资源管理器 / 编辑器 / 终端 / Git / 浏览器）与 `@mlgbnb/dsh-archive-manager`（默认设置页归档管理：按项目分组、搜索筛选、预览对话、一键恢复与删除）。
-- **聚合载具**：`cordis.patch.yml` 汇总各子插件的 `insert` 行与外部 `dsh-better-sidebar`、`@mlgbnb/dsh-archive-manager` 行，经 dsh 插件 profile 机制挂载。
+- **一次安装、全部到位**：其 dependencies 引入全部子插件包（dsh-client-ui-aionui-panel / dsh-client-ui-task-board / dsh-client-ui-git-graph / dsh-pet / dsh-remote-web-ui / dsh-ssh / dsh-client-ui-web-ui-settings / dsh-client-ui-skin-center / dsh-client-ui-community-plugins / dsh-skins），外加外部 npm 插件 `dsh-better-sidebar`（默认右侧面板：文件资源管理器 / 编辑器 / 终端 / Git / 浏览器）、`@mlgbnb/dsh-archive-manager`（默认设置页归档管理：按项目分组、搜索筛选、预览对话、一键恢复与删除）与 `@morlay/better-session`（分支式会话编辑：就地 edit / retry / rewind / fork，RDB 持久化）。
+- **聚合载具**：`cordis.patch.yml` 汇总各子插件的 `insert` 行与外部插件行，经 dsh 插件 profile 机制挂载。`@morlay/better-session` 这类外部 profile bundle 由生成器展开：其 patch 行变成可导入的聚合行，bundle 自身的 harness-row patch 原样保留。
 - **选择性默认**：聚合行可携带与独立包默认值不同的播种配置。`@linxin666/dsh-ssh` 在本全家桶中默认关闭（多数用户使用频率低）：在 设置 → Web 插件 → SSH 中打开一次即可，开关像普通设置修改一样持久；独立包安装不受影响。
 - **右侧面板**：右侧面板固定为 `dsh-better-sidebar`（aionui-panel 已不可启用）。设置 → Web 插件 → 侧边卡片 声明右侧面板来自 [dsh-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) 并内嵌其常用设置。
 
@@ -64,5 +64,5 @@ dsh plugin --profile web add link:$(pwd)/packages/dsh-web-all
 
 - 各子插件随本包一起激活；若只需要其中一部分，请直接安装对应子插件包。
 - 聚合行 id 统一带 `web-ui-` 命名空间，本包可与同名独立插件包共存：loader 不再拒绝重复 id，host 半区只注册一次（第二个来源为空操作），浏览器半区按包名去重。两个来源并存没有额外收益，建议只保留一个。插件来自本包时，profile 里按 id 写的配置行要改用 `web-ui-` 前缀（如 remote-web-ui 的 `autoTunnel` 配置行写成 `web-ui-remote-web-ui`）；独立安装时仍用插件原 id。
-- `dsh-better-sidebar` 与 `@mlgbnb/dsh-archive-manager` 是外部 npm 依赖（均非本仓库出品），本包发版前必须先发布它们（发布顺序见 `docs/publish-prep.md`）。
+- `dsh-better-sidebar`、`@mlgbnb/dsh-archive-manager` 与 `@morlay/better-session` 是外部 npm 依赖（均非本仓库出品），本包发版前必须先发布它们（发布顺序见 `docs/publish-prep.md`）。
 - 依赖的 `@deepseek-ai/*` SDK 版本已锁定，兼容性跟随本仓库的发版节奏。
