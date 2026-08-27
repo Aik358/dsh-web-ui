@@ -106,7 +106,7 @@ describe('gateway update route', () => {
   })
 
   it('rewrites a local repository link for the legacy migration route', async () => {
-    const { facts, dir } = profile('link:/Users/zcl/code/dsh-web-ui/packages/dsh-web-ui-all', '@linxin666/dsh-web-ui-all', '0.3.2')
+    const { facts, dir } = profile('link:/Users/zcl/code/dsh-web/packages/dsh-web-ui-all', '@linxin666/dsh-web-ui-all', '0.3.2')
     tempDirs.push(dir)
     const { handler, migrate } = updateHandler(
       facts,
@@ -120,7 +120,7 @@ describe('gateway update route', () => {
       '@linxin666/dsh-web-ui-all',
       '@linxin666/dsh-web-all',
       '0.3.3',
-      'link:/Users/zcl/code/dsh-web-ui/packages/dsh-web-all',
+      'link:/Users/zcl/code/dsh-web/packages/dsh-web-all',
     )
   })
 

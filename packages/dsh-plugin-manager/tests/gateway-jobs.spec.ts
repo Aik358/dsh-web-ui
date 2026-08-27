@@ -271,7 +271,7 @@ describe('CliGateway legacy aggregate migration', () => {
     const current = '@linxin666/dsh-web-all'
     const { facts, dir } = makeProfile({ [legacy]: { version: '0.3.2', bundle: true } }, { bundles: [legacy, '@omdsh-dev/dsh-annotation'] })
     tempDirs.push(dir)
-    const targetSpec = 'link:/Users/zcl/code/dsh-web-ui/packages/dsh-web-all'
+    const targetSpec = 'link:/Users/zcl/code/dsh-web/packages/dsh-web-all'
     const calls: string[][] = []
     const gateway = gatewayFor(facts, (args) => {
       if (args[0] !== 'plugin') return { code: 0 }

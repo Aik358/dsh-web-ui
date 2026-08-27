@@ -11,7 +11,7 @@ GitHub Actions 发布管线（构建/测试/npm 发布/GitHub Release）→ 发�
 
 ## 仓库事实（先读，决定每一步怎么做）
 
-- 仓库：zhu1090093659/dsh-web（**PUBLIC**），本机路径 /Users/zcl/code/dsh-web-ui。
+- 仓库：zhu1090093659/dsh-web（**PUBLIC**），本机路径 /Users/zcl/code/dsh-web。
 - 全家桶由 `scripts/lib/family-packages.mjs` 非递归遍历 `packages/` 与 `packages/skins/` 得到；当前工作树为 19 个家族包（`packages/*` 18 个 + `packages/skins/skin-center` 1 个），`@linxin666/dsh-client-ui-skin-center` 也是独立发布包。版本与包数量以 `node scripts/verify-version.mjs X.Y.Z` 的输出为准，不在技能中手抄固定数量。
   全部发布到 npm scope `@linxin666`，registry 固定 registry.npmjs.org。
 - **版本策略：全仓统一版本**（tag vX.Y.Z = 每个 package.json 的 version，由管线强制校验）。
@@ -86,7 +86,7 @@ pnpm runtime-deps:check
 兼容性修复完成后必须同步更新行为测试、对应 Agent Note 和双语 release notes；不要通过改成 major 版本、跳过自动升级检查或先发布后观察来绕过阻断条件。
 
 ```sh
-cd /Users/zcl/code/dsh-web-ui
+cd /Users/zcl/code/dsh-web
 git checkout dev                   # 本地工作分支以 dev 为基线（远端默认分支）
 git fetch origin && git rebase origin/dev   # 先同步上游最新 dev
 git status --short                 # 明确本次要提交的内容，无意外文件
