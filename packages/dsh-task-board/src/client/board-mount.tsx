@@ -44,7 +44,13 @@ export function mountBoard(controller: BoardController): () => void {
   let container: HTMLDivElement | undefined
 
   const ensure = (): void => {
-    if (container !== undefined) return
+    if (container !== undefined) {
+      if (container.isConnected) return
+      root?.unmount()
+      root = undefined
+      container.remove()
+      container = undefined
+    }
     const column = conversationColumn()
     if (column === undefined) return
     container = document.createElement('div')

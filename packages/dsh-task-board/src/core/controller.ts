@@ -200,17 +200,11 @@ export class BoardController {
 
   openBoard(): void {
     if (this.boardOpen) return
-    // The board stays open until the user explicitly closes it: by clicking
-    // the sidebar entry again, a sidebar session/workspace row, or a board
-    // action (openSession / close). Session-list churn (background
-    // navigation, the Host runner selecting a fresh execution session,
-    // settlement, other plugins) never evicts the board.
     this.boardOpen = true
     this.notify()
   }
 
   closeBoard(): void {
-    if (!this.boardOpen) return
     this.boardOpen = false
     this.notify()
   }
@@ -396,6 +390,7 @@ export class BoardController {
    * @param sessionId - the execution session to open.
    */
   openSession(sessionId: string): void {
+    this.closeBoard()
     this.deps.sessions.open(sessionId)
   }
 

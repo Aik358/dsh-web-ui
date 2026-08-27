@@ -224,7 +224,7 @@ describe('TaskBoard card drag-and-drop status changes (#1195)', () => {
   })
 })
 
-describe('mountBoard L2 semantic attributes (#506)', () => {
+describe('mountBoard lifecycle & interaction (#506, #1233)', () => {
   it('tags the injected board container with data-dsh-plugin', async () => {
     const column = document.createElement('div')
     column.setAttribute('data-pane', 'conversation')
@@ -235,5 +235,45 @@ describe('mountBoard L2 semantic attributes (#506)', () => {
     const view = column.querySelector('[data-dsh-taskboard-view]')
     expect(view).not.toBeNull()
     expect(view!.getAttribute('data-dsh-plugin')).toBe('task-board')
+  })
+
+  it('clicking the back button calls controller.closeBoard() (#1233)', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    roots.push(root)
+
+    let closed = 0
+    const controller = fakeController({}, {
+      closeBoard: () => { closed += 1 },
+    })
+    await act(async () => { root.render(<TaskBoard controller={controller} />) })
+
+    const backButton = container.querySelector('button[data-dsh-center-view-back]') as HTMLButtonElement
+    expect(backButton).not.toBeNull()
+    await act(async () => { backButton.click() })
+    expect(closed).toBe(1)
+  })
+
+  it('self-heals and remounts when the conversation column is replaced (#1233)', async () => {
+    let column = document.createElement('div')
+    column.setAttribute('data-pane', 'conversation')
+    document.body.appendChild(column)
+
+    const controller = fakeController({ boardOpen: true })
+    await act(async () => { disposeMount = mountBoard(controller) })
+    expect(column.querySelector('[data-dsh-taskboard-view]')).not.toBeNull()
+
+    // Replace the column element in DOM (e.g. React re-render of AppFrame)
+    column.remove()
+    column = document.createElement('div')
+    column.setAttribute('data-pane', 'conversation')
+    document.body.appendChild(column)
+
+    await act(async () => {
+      // Trigger MutationObserver callback
+      document.body.appendChild(document.createElement('span'))
+    })
+    expect(column.querySelector('[data-dsh-taskboard-view]')).not.toBeNull()
   })
 })
