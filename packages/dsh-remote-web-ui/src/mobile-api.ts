@@ -211,10 +211,41 @@ export function makeMobileApiRoutes(deps: MobileApiDeps): WebRoute[] {
       } else if (method === MOBILE_RESPOND_METHOD) {
         const payload = parsed.payload as any
         try {
+          let respondRpcId = payload?.rpcId
+          let respondValue = payload?.response
+          if (payload?.type === 'approval') {
+            const pending = deps.pendingTracker.pending(payload.sessionId)
+            const match = pending.approvals.find((item) => item.approvalId === payload.approvalId)
+            if (match === undefined) {
+              writeJson(res, 200, {
+                type: 'server-response',
+                rpcId,
+                result: { ok: true, value: { accepted: false, reason: 'not-pending' } },
+              })
+              return
+            }
+            respondRpcId = match.rpcId
+            respondValue = { sessionId: payload.sessionId, approvalId: payload.approvalId, outcome: payload.outcome }
+          } else if (payload?.type === 'question') {
+            const pending = deps.pendingTracker.pending(payload.sessionId)
+            const match = pending.questions.find((group) =>
+              group.questions.some((q) => (payload.answers ?? []).some((a: any) => a.id === q.id)),
+            )
+            if (match === undefined) {
+              writeJson(res, 200, {
+                type: 'server-response',
+                rpcId,
+                result: { ok: true, value: { accepted: false, reason: 'not-pending' } },
+              })
+              return
+            }
+            respondRpcId = match.rpcId
+            respondValue = { sessionId: payload.sessionId, answer: { answers: payload.answers } }
+          }
           const receipt = await apiProxy.respond({
             type: 'client-response',
-            rpcId: RpcId(payload.rpcId),
-            result: { ok: true, value: payload.response },
+            rpcId: RpcId(respondRpcId),
+            result: { ok: true, value: respondValue },
           })
           writeJson(res, 200, {
             type: 'server-response',

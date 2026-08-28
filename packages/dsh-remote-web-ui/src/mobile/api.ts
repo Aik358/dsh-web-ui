@@ -147,7 +147,7 @@ export interface PendingApproval {
   reason?: string
 }
 
-/** One pending question group awaiting the user's answer. */
+/** One pending question item awaiting the user's answer. */
 export interface PendingQuestionItem {
   id: string
   question: string
@@ -157,10 +157,16 @@ export interface PendingQuestionItem {
   multiSelect?: boolean
 }
 
+/** One pending question group envelope returned by the host. */
+export interface PendingQuestionGroup {
+  rpcId: string
+  questions: PendingQuestionItem[]
+}
+
 /** The pending state for one session. */
 export interface PendingState {
   approvals: PendingApproval[]
-  questions: PendingQuestionItem[]
+  questions: PendingQuestionGroup[]
 }
 
 /** Fetch pending approvals and questions for one session (polling fallback data source). */

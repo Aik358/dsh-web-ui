@@ -9,6 +9,8 @@ import { describe, expect, it, vi } from 'vitest'
 import type { AddressInfo } from 'node:net'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import type { ApiProxy } from '@deepseek-ai/dsh-host-apiproxy'
+import { RpcId } from '@deepseek-ai/dsh-host-apiproxy/api/rpc'
+import { PendingTracker } from '../src/mobile-pending.ts'
 import { makeMobileApiRoutes } from '../src/mobile-api.ts'
 
 interface TestServer {
@@ -418,6 +420,138 @@ describe('mobile api body failure contract (shared readBoundedJson)', () => {
       )
       expect(oversize.error).toBeNull()
       expect(oversize.status).toBe(400)
+    } finally {
+      await server.close()
+    }
+  })
+})
+
+describe('mobile.respond endpoint', () => {
+  async function callWithPayload(port: number, method: string, payload: unknown): Promise<{ status: number; body: string }> {
+    return await new Promise((resolve, reject) => {
+      const body = JSON.stringify({ type: 'client-request', rpcId: 'probe-1', method, payload })
+      const req = httpRequest({
+        host: '127.0.0.1', port, path: `/m/api/${method}`, method: 'POST',
+        headers: { 'content-type': 'application/json', cookie: `${cookieName}=device-1`, 'content-length': Buffer.byteLength(body) },
+      }, (response) => {
+        const chunks: Buffer[] = []
+        response.on('data', (chunk) => { chunks.push(chunk as Buffer) })
+        response.on('end', () => {
+          resolve({ status: response.statusCode ?? 0, body: Buffer.concat(chunks).toString('utf8') })
+        })
+      })
+      req.on('error', reject)
+      req.end(body)
+    })
+  }
+
+  it('translates mobile approval payload to client-response envelope', async () => {
+    let captured: any
+    const proxy = {
+      ...apiProxy,
+      respond: async (arg: any) => {
+        captured = arg
+        return { accepted: true }
+      },
+    } as unknown as ApiProxy
+    const pendingTracker = new PendingTracker()
+    pendingTracker.onFrame({
+      rpcId: RpcId('rpc-app-1'),
+      payload: {
+        type: 'approval/requested',
+        sessionId: 'sess-1' as any,
+        approvalId: 'app-1' as any,
+        toolName: 'test-tool',
+      },
+    })
+    const server = await serve(makeMobileApiRoutes({ service, apiProxy: proxy, pendingTracker, mobileEnterToSend }))
+    try {
+      const res = await callWithPayload(server.port, 'mobile.respond', {
+        sessionId: 'sess-1',
+        type: 'approval',
+        approvalId: 'app-1',
+        outcome: 'allowed-once',
+      })
+      expect(res.status).toBe(200)
+      expect(JSON.parse(res.body)).toEqual({
+        type: 'server-response',
+        rpcId: 'probe-1',
+        result: { ok: true, value: { accepted: true } },
+      })
+      expect(captured).toEqual({
+        type: 'client-response',
+        rpcId: 'rpc-app-1',
+        result: {
+          ok: true,
+          value: { sessionId: 'sess-1', approvalId: 'app-1', outcome: 'allowed-once' },
+        },
+      })
+    } finally {
+      await server.close()
+    }
+  })
+
+  it('translates mobile question payload to client-response envelope', async () => {
+    let captured: any
+    const proxy = {
+      ...apiProxy,
+      respond: async (arg: any) => {
+        captured = arg
+        return { accepted: true }
+      },
+    } as unknown as ApiProxy
+    const pendingTracker = new PendingTracker()
+    pendingTracker.onFrame({
+      rpcId: RpcId('rpc-q-1'),
+      payload: {
+        type: 'question/requested',
+        sessionId: 'sess-1' as any,
+        questions: [{ id: 'q-1', question: 'Confirm?' }] as any,
+      },
+    })
+    const server = await serve(makeMobileApiRoutes({ service, apiProxy: proxy, pendingTracker, mobileEnterToSend }))
+    try {
+      const res = await callWithPayload(server.port, 'mobile.respond', {
+        sessionId: 'sess-1',
+        type: 'question',
+        answers: [{ id: 'q-1', selected: ['Yes'] }],
+      })
+      expect(res.status).toBe(200)
+      expect(JSON.parse(res.body)).toEqual({
+        type: 'server-response',
+        rpcId: 'probe-1',
+        result: { ok: true, value: { accepted: true } },
+      })
+      expect(captured).toEqual({
+        type: 'client-response',
+        rpcId: 'rpc-q-1',
+        result: {
+          ok: true,
+          value: { sessionId: 'sess-1', answer: { answers: [{ id: 'q-1', selected: ['Yes'] }] } },
+        },
+      })
+    } finally {
+      await server.close()
+    }
+  })
+
+  it('returns not-pending when approval or question is missing', async () => {
+    const proxy = { ...apiProxy, respond: async () => ({ accepted: true }) } as unknown as ApiProxy
+    const pendingTracker = new PendingTracker()
+    const server = await serve(makeMobileApiRoutes({ service, apiProxy: proxy, pendingTracker, mobileEnterToSend }))
+    try {
+      const res = await callWithPayload(server.port, 'mobile.respond', {
+        sessionId: 'sess-1',
+        type: 'approval',
+        approvalId: 'unknown',
+        outcome: 'allowed-once',
+      })
+      expect(res.status).toBe(200)
+      expect(JSON.parse(res.body)).toEqual({
+        type: 'server-response',
+        rpcId: 'probe-1',
+        result: { ok: true, value: { accepted: false, reason: 'not-pending' } },
+      })
     } finally {
       await server.close()
     }
