@@ -32,5 +32,6 @@
     "playwright": "^1.62.1",
     "tsdown": "^0.22.2"
   },
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "packageManager": "pnpm@11.24.0"
 }
