@@ -208,9 +208,12 @@ export function apply(ctx: ClientContext): void {
           // a registration failure rolls the worktree back (no half-made env).
           try {
             const workspace = await scope.workspaces.create({ path: created.value.path })
-            // 0.1.2 cohort: workspace-side session launch moved to the sessions face
-            // (ISessions.create adopts the target workspace and opens its blank session).
-            await scope.sessions.create({ workspaceId: workspace.workspaceId })
+            // 0.1.2 cohort: workspace-side session launch moved to the sessions
+            // face. ISessions.create only adopts the target workspace and
+            // resolves the new SessionId; open() is the separate navigation
+            // step that selects it (matching the old startSession behavior).
+            const createdSessionId = await scope.sessions.create({ workspaceId: workspace.workspaceId })
+            scope.sessions.open(createdSessionId)
           } catch (error: unknown) {
             await git.removeWorktree(resolved.path, created.value.path, { force: true })
             return { ok: false, error: { code: 'internal', message: `workspace registration failed: ${String(error)}` } }
