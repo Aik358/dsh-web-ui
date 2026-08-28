@@ -18,7 +18,7 @@ import { en } from '../src/client/locales.ts'
 // The family settings-form slice value-imports the browser runtime bundle,
 // which is a window.__ModuleLoader__ closure; provide a node-safe stand-in so
 // the card spec only exercises the staged-form and console wiring.
-vi.mock('@deepseek-ai/dsh-client-runtime/client', () => ({
+vi.mock('@deepseek-ai/dsh-client-store', () => ({
   createSnapshotStore: () => ({
     subscribe: () => () => undefined,
     getSnapshot: () => undefined,

@@ -10,7 +10,7 @@
  */
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { SessionId } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionId } from '@deepseek-ai/dsh-api-remotes/client'
 import type { BranchesView, GraphView, RepoStatus, SwitchResult, WorktreeListView } from '../src/core/types.ts'
 import type { GitGraphInjected } from '../src/client/index.ts'
 import type { BranchChipProps } from '../src/client/chips/BranchChip.tsx'

@@ -7,7 +7,7 @@ window.__ModuleLoader__.load({
 		let react = require("react");
 		let _deepseek_ai_dsh_client_ui_primitives = require("@deepseek-ai/dsh-client-ui-primitives");
 		let react_jsx_runtime = require("react/jsx-runtime");
-		let _deepseek_ai_dsh_client_runtime_client = require("@deepseek-ai/dsh-client-runtime/client");
+		let _deepseek_ai_dsh_client_store = require("@deepseek-ai/dsh-client-store");
 		//#region src/client/turnstile.ts
 		/** Turnstile token relay hosted on the market origin. */
 		const MARKET_ORIGIN$1 = "https://dsh-market.com";
@@ -547,7 +547,7 @@ window.__ModuleLoader__.load({
 			}
 			/** Publish a projection of this form, rebuilt whenever the scope or a draft changes. */
 			bind(project) {
-				const store = (0, _deepseek_ai_dsh_client_runtime_client.createSnapshotStore)(project());
+				const store = (0, _deepseek_ai_dsh_client_store.createSnapshotStore)(project());
 				this.listeners.add(() => {
 					store.set(project());
 				});
@@ -626,30 +626,33 @@ window.__ModuleLoader__.load({
 				const plan = this.plan();
 				const valid = plan.filter((item) => item.run !== void 0);
 				if (plan.length === 0 || this.saving || valid.length !== plan.length) return;
-				const plannedWrites = valid.map((item) => item.op);
+				valid.map((item) => item.op);
 				const pending = /* @__PURE__ */ new Map();
 				for (const item of plan) pending.set(item.field, this.staged.get(item.field));
 				this.saving = true;
 				this.failed = false;
 				this.failedReason = void 0;
 				this.publish();
-				const landed = /* @__PURE__ */ new Set();
-				const batch = this.batchedScope();
-				if (batch !== void 0) {
-					const result = await batch.mutate(plannedWrites);
-					if (result.ok) {
-						for (const field of result.fields) if (field.landed) landed.add(field.field);
-					} else this.failedReason = result.message;
-				} else for (const item of valid) if (await item.run()) landed.add(item.field);
-				for (const [field, before] of pending) if (landed.has(field) && this.staged.get(field) === before) this.staged.delete(field);
+				const ops = valid.map((item) => item.op.op === "set" ? {
+					op: "set",
+					path: [item.field],
+					value: item.op.value
+				} : {
+					op: "unset",
+					path: [item.field]
+				});
+				let failedReason;
+				try {
+					await this.scope.mutate(ops);
+				} catch (error) {
+					failedReason = error instanceof Error ? error.message : String(error);
+				}
+				const landedAll = failedReason === void 0;
+				for (const [field, before] of pending) if (landedAll && this.staged.get(field) === before) this.staged.delete(field);
 				this.saving = false;
-				this.failed = landed.size !== pending.size;
+				this.failed = !landedAll;
+				this.failedReason = failedReason;
 				this.publish();
-			}
-			/** The scope's batch surface when it supports one; undefined conservatively otherwise. */
-			batchedScope() {
-				const candidate = this.scope;
-				return typeof candidate?.mutate === "function" ? candidate : void 0;
 			}
 			/**
 			* Every staged edit a save would write. An entry whose draft is not a value
@@ -1800,6 +1803,7 @@ window.__ModuleLoader__.load({
 						onClose: () => {
 							setConflict(null);
 						},
+						closeLabel: t("cancel"),
 						children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: t("conflict.text", { dest: conflict?.dest ?? "" }) }), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 							className: market_module_css_default.modalActions,
 							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
