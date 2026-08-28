@@ -354,15 +354,6 @@ importers:
       '@deepseek-ai/cordis':
         specifier: ^4.0.1
         version: 4.0.1(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
-      '@deepseek-ai/dsh-api-remotes':
-        specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-api-remotes-0.1.2-alpha.1.tgz
-        version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-api-remotes-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
-      '@deepseek-ai/dsh-api-session-controller':
-        specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-api-session-controller-0.1.2-alpha.1.tgz
-        version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-api-session-controller-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
-      '@deepseek-ai/dsh-api-workspace-controller':
-        specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-api-workspace-controller-0.1.2-alpha.1.tgz
-        version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-api-workspace-controller-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
       '@deepseek-ai/dsh-client-connection':
         specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-client-connection-0.1.2-alpha.1.tgz
         version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-client-connection-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
@@ -722,15 +713,9 @@ importers:
       '@deepseek-ai/cordis':
         specifier: ^4.0.1
         version: 4.0.1(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
-      '@deepseek-ai/dsh-api-remotes':
-        specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-api-remotes-0.1.2-alpha.1.tgz
-        version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-api-remotes-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
       '@deepseek-ai/dsh-api-session-controller':
         specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-api-session-controller-0.1.2-alpha.1.tgz
         version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-api-session-controller-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
-      '@deepseek-ai/dsh-api-workspace-controller':
-        specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-api-workspace-controller-0.1.2-alpha.1.tgz
-        version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-api-workspace-controller-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
       '@deepseek-ai/dsh-client-connection':
         specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-client-connection-0.1.2-alpha.1.tgz
         version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-client-connection-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
@@ -740,12 +725,6 @@ importers:
       '@deepseek-ai/dsh-client-store':
         specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-client-store-0.1.2-alpha.1.tgz
         version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-client-store-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2(@deepseek-ai/cordis@4.0.1))(@types/react@18.3.31)(react@18.3.1)
-      '@deepseek-ai/dsh-client-ui-conversation':
-        specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-client-ui-conversation-0.1.2-alpha.1.tgz
-        version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-client-ui-conversation-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)(react@18.3.1)(typescript@6.0.3)
-      '@deepseek-ai/dsh-client-ui-primitives':
-        specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-client-ui-primitives-0.1.2-alpha.1.tgz
-        version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-client-ui-primitives-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
       '@deepseek-ai/dsh-client-ui-renderer':
         specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-client-ui-renderer-0.1.2-alpha.1.tgz
         version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-client-ui-renderer-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)(react@18.3.1)
@@ -1118,21 +1097,9 @@ importers:
       '@deepseek-ai/cordis':
         specifier: ^4.0.1
         version: 4.0.1(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
-      '@deepseek-ai/dsh-api-remotes':
-        specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-api-remotes-0.1.2-alpha.1.tgz
-        version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-api-remotes-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
-      '@deepseek-ai/dsh-api-session-controller':
-        specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-api-session-controller-0.1.2-alpha.1.tgz
-        version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-api-session-controller-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
-      '@deepseek-ai/dsh-api-workspace-controller':
-        specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-api-workspace-controller-0.1.2-alpha.1.tgz
-        version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-api-workspace-controller-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
       '@deepseek-ai/dsh-client-locale':
         specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-client-locale-0.1.2-alpha.1.tgz
         version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-client-locale-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)(react@18.3.1)
-      '@deepseek-ai/dsh-client-store':
-        specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-client-store-0.1.2-alpha.1.tgz
-        version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-client-store-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2(@deepseek-ai/cordis@4.0.1))(@types/react@18.3.31)(react@18.3.1)
       '@deepseek-ai/dsh-client-ui-renderer':
         specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-client-ui-renderer-0.1.2-alpha.1.tgz
         version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-client-ui-renderer-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)(react@18.3.1)
@@ -1191,24 +1158,12 @@ importers:
       '@deepseek-ai/cordis':
         specifier: ^4.0.1
         version: 4.0.1(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
-      '@deepseek-ai/dsh-api-remotes':
-        specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-api-remotes-0.1.2-alpha.1.tgz
-        version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-api-remotes-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
-      '@deepseek-ai/dsh-api-session-controller':
-        specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-api-session-controller-0.1.2-alpha.1.tgz
-        version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-api-session-controller-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
-      '@deepseek-ai/dsh-api-workspace-controller':
-        specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-api-workspace-controller-0.1.2-alpha.1.tgz
-        version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-api-workspace-controller-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
       '@deepseek-ai/dsh-client-connection':
         specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-client-connection-0.1.2-alpha.1.tgz
         version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-client-connection-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
       '@deepseek-ai/dsh-client-locale':
         specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-client-locale-0.1.2-alpha.1.tgz
         version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-client-locale-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)(react@18.3.1)
-      '@deepseek-ai/dsh-client-store':
-        specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-client-store-0.1.2-alpha.1.tgz
-        version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-client-store-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2(@deepseek-ai/cordis@4.0.1))(@types/react@18.3.31)(react@18.3.1)
       '@deepseek-ai/dsh-client-ui-renderer':
         specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-client-ui-renderer-0.1.2-alpha.1.tgz
         version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-client-ui-renderer-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)(react@18.3.1)
@@ -1288,6 +1243,12 @@ importers:
       '@deepseek-ai/dsh-agent':
         specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-agent-0.1.2-alpha.1.tgz
         version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-agent-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
+      '@deepseek-ai/dsh-agent-presets':
+        specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-agent-presets-0.1.2-alpha.1.tgz
+        version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-agent-presets-0.1.2-alpha.1.tgz
+      '@deepseek-ai/dsh-api-gateway':
+        specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-api-gateway-0.1.2-alpha.1.tgz
+        version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-api-gateway-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
       '@deepseek-ai/dsh-api-remotes':
         specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-api-remotes-0.1.2-alpha.1.tgz
         version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-api-remotes-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
@@ -1327,6 +1288,9 @@ importers:
       '@deepseek-ai/dsh-system-prompt':
         specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-system-prompt-0.1.2-alpha.1.tgz
         version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-system-prompt-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
+      '@deepseek-ai/dsh-workspace':
+        specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-workspace-0.1.2-alpha.1.tgz
+        version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-workspace-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
       '@types/node':
         specifier: ^22.20.0
         version: 22.20.1
@@ -1528,12 +1492,6 @@ importers:
       '@deepseek-ai/dsh-api-remotes':
         specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-api-remotes-0.1.2-alpha.1.tgz
         version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-api-remotes-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
-      '@deepseek-ai/dsh-api-session-controller':
-        specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-api-session-controller-0.1.2-alpha.1.tgz
-        version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-api-session-controller-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
-      '@deepseek-ai/dsh-api-workspace-controller':
-        specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-api-workspace-controller-0.1.2-alpha.1.tgz
-        version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-api-workspace-controller-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
       '@deepseek-ai/dsh-client-connection':
         specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-client-connection-0.1.2-alpha.1.tgz
         version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-client-connection-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
@@ -1604,9 +1562,18 @@ importers:
       '@deepseek-ai/cordis':
         specifier: ^4.0.1
         version: 4.0.1(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
+      '@deepseek-ai/dsh-api-remotes':
+        specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-api-remotes-0.1.2-alpha.1.tgz
+        version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-api-remotes-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
+      '@deepseek-ai/dsh-api-workspace-controller':
+        specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-api-workspace-controller-0.1.2-alpha.1.tgz
+        version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-api-workspace-controller-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
       '@deepseek-ai/dsh-client-locale':
         specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-client-locale-0.1.2-alpha.1.tgz
         version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-client-locale-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)(react@18.3.1)
+      '@deepseek-ai/dsh-client-ui-renderer':
+        specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-client-ui-renderer-0.1.2-alpha.1.tgz
+        version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-client-ui-renderer-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)(react@18.3.1)
       '@deepseek-ai/dsh-client-ui-settings':
         specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-client-ui-settings-0.1.2-alpha.1.tgz
         version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-client-ui-settings-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
@@ -1655,6 +1622,9 @@ importers:
 
   shared:
     devDependencies:
+      '@deepseek-ai/dsh-client-store':
+        specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-client-store-0.1.2-alpha.1.tgz
+        version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-client-store-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2(@deepseek-ai/cordis@4.0.1))(@types/react@18.3.31)(react@18.3.1)
       '@deepseek-ai/dsh-client-ui-settings':
         specifier: file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-client-ui-settings-0.1.2-alpha.1.tgz
         version: file:../../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-client-ui-settings-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
