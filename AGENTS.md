@@ -17,6 +17,7 @@ Before changing `packages/`, read [packages/AGENTS.md](packages/AGENTS.md). Befo
 ```sh
 pnpm install
 pnpm build
+pnpm dev:watch   # watch-rebuild browser bundles; the dsh web host reloads the GUI itself
 pnpm test
 pnpm typecheck
 pnpm test:scripts
