@@ -17,6 +17,7 @@
  */
 
 import { spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
@@ -185,6 +186,36 @@ function normalizePackedManifests(storeDir) {
   }
 }
 
+/**
+ * Refresh the lockfile's recorded integrity for the cohort tarballs so the
+ * frozen install verifies against the store that actually sits on this
+ * machine. pnpm records a sha512 for file: tarballs, and a rebuilt store is
+ * never byte-identical to the original (client faces embed the building
+ * checkout's absolute path), so each environment anchors the integrity to its
+ * own verified store. Hash matches leave the lockfile untouched; the rewrite
+ * never enters git.
+ */
+function refreshLockfileIntegrity(storeDir, versionDir) {
+  const lockPath = join(REPO_ROOT, 'pnpm-lock.yaml')
+  const marker = `.dsh-cohorts/${versionDir}/`
+  let updated = 0
+  const lines = readFileSync(lockPath, 'utf8').split('\n').map(line => {
+    const trimmed = line.trim()
+    if (!trimmed.startsWith('resolution:') || !trimmed.includes(marker)) return line
+    const name = trimmed.split(marker)[1]?.replace(/\.tgz.*/, '.tgz')
+    const tarball = name !== undefined ? join(storeDir, name) : undefined
+    if (!tarball || !existsSync(tarball)) return line
+    const hash = `sha512-${createHash('sha512').update(readFileSync(tarball)).digest('base64')}`
+    const next = line.replace(/integrity: sha512-[^,}]*/, `integrity: ${hash}`)
+    if (next !== line) updated += 1
+    return next
+  })
+  if (updated > 0) {
+    writeFileSync(lockPath, lines.join('\n'))
+    console.log(`build-cohort-tarballs: refreshed ${updated} lockfile integrity entr${updated === 1 ? 'y' : 'ies'}`)
+  }
+}
+
 /** Every expected tarball must exist and be non-empty. */
 function verifyStore(expected) {
   const missing = []
@@ -220,6 +251,7 @@ async function main() {
 
   const missingBefore = [...expected.values()].filter(path => !existsSync(path) || statSync(path).size === 0).length
   if (missingBefore === 0) {
+    refreshLockfileIntegrity(storeDir, versionDir)
     console.log(`build-cohort-tarballs: store complete at ${storeDir} (${expected.size} tarballs); nothing to do`)
     return
   }
@@ -244,6 +276,7 @@ async function main() {
   packMissing(harnessDir, expected, storeDir, scratchDir)
   normalizePackedManifests(storeDir)
   verifyStore(expected)
+  refreshLockfileIntegrity(storeDir, versionDir)
   console.log(`build-cohort-tarballs: store ready at ${storeDir} (${expected.size} tarballs)`)
 }
 
