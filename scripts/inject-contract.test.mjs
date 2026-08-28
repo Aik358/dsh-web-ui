@@ -23,6 +23,7 @@ const APPROVED_INJECT_MODULES = [
   '@deepseek-ai/dsh-api-workspace-controller',
   '@deepseek-ai/dsh-client-connection',
   '@deepseek-ai/dsh-client-locale',
+  '@deepseek-ai/dsh-client-store',
   '@deepseek-ai/dsh-client-ui-conversation',
   '@deepseek-ai/dsh-client-ui-renderer',
   '@deepseek-ai/dsh-client-ui-settings',
