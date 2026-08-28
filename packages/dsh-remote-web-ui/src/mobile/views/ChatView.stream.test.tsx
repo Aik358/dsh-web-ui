@@ -11,7 +11,7 @@ import { act, cleanup, render, screen } from '@testing-library/react'
 import { ChatView, STREAM_RENDER_INTERVAL_MS, LONG_TEXT_LIMIT, FOLD_FLUSH_MS } from './ChatView.tsx'
 import { type SessionView } from './App.tsx'
 import { renderMarkdown } from '../markdown.ts'
-import type { SessionModels } from '@deepseek-ai/dsh-host-apiproxy/api/sessions'
+import type { SessionModels } from '../api.ts'
 import type { HistoryPage } from '../api.ts'
 import type { WireEvent } from '../messages.ts'
 

@@ -68,7 +68,7 @@ declare module '@deepseek-ai/cordis' {
 export const name = 'remote-web-ui'
 
 /** Services required before the pairing surfaces can mount. */
-export const inject = ['webServer', 'apiProxy', 'commands', 'agents']
+export const inject = ['webServer', 'typertGateway', 'workspaceRegistry', 'commands', 'agents']
 
 /**
  * Settings namespace of the remote-control capability — the section the web
@@ -293,10 +293,12 @@ function applyImpl(ctx: Context, config?: Config): void {
   let disposeRoutes: (() => void) | undefined
   let disposeSweep: (() => void) | undefined
   // The phone's data channel: pairing routes + the /m page + the /m/api
-  // proxy (which needs the host ApiProxy service; the plugin injects it).
-  const apiProxy = ctx.get('apiProxy')
-  if (apiProxy === undefined) {
-    console.warn('remote-web-ui: apiProxy service unavailable — the mobile data channel is disabled')
+  // gateway proxy (which needs the typertGateway and workspaceRegistry host
+  // services; the plugin injects both).
+  const gateway = ctx.get('typertGateway') as import('./host-gateway.ts').TypertGatewayFace | undefined
+  const workspaceRegistry = ctx.get('workspaceRegistry') as import('./host-gateway.ts').WorkspaceRegistryFace | undefined
+  if (gateway === undefined || workspaceRegistry === undefined) {
+    console.warn('remote-web-ui: typertGateway/workspaceRegistry service unavailable — the mobile data channel is disabled')
   }
   // ── remote update ────────────────────────────────────────────────────────
   // The dsh-web self-update surface: probe the npm registry for family
@@ -375,10 +377,11 @@ function applyImpl(ctx: Context, config?: Config): void {
   const routes = [
     ...makeRoutes({ service, lanAddresses, requirePairingForLan: () => resolve().requirePairingForLan }),
     ...makeMobileRoutes(),
-    ...(apiProxy !== undefined
+    ...(gateway !== undefined && workspaceRegistry !== undefined
       ? makeMobileApiRoutes({
           service,
-          apiProxy,
+          gateway,
+          workspaceRegistry,
           pendingTracker: new PendingTracker(),
           mobileEnterToSend: () => resolve().mobileEnterToSend,
           commandDispatcher: ctx.commands !== undefined && ctx.agents !== undefined
@@ -394,7 +397,7 @@ function applyImpl(ctx: Context, config?: Config): void {
             : undefined,
         })
       : []),
-    ...(apiProxy !== undefined ? makePairedModelCatalogRoutes({ service, apiProxy, lanAddresses }) : []),
+    ...(gateway !== undefined ? makePairedModelCatalogRoutes({ service, gateway, lanAddresses }) : []),
     // The remote desktop channel: policy-gated `/remote` prefix that
     // re-issues fenced paths to loopback (see remote-api.ts). The live
     // requirePairingForLan is re-read per request, same as the gate listener

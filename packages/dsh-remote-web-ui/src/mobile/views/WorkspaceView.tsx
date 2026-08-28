@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useState } from 'react'
-import type { WorkspaceView as WorkspaceRow } from '@deepseek-ai/dsh-host-apiproxy/api/workspace'
+import type { WorkspaceView as WorkspaceRow } from '../api.ts'
 import { listWorkspaces, listDirectory, createWorkspace, type DirectoryListing, type DirectoryEntry } from '../api.ts'
 import { errorText } from './App.tsx'
 import { ThemeToggle } from '../theme-toggle.tsx'

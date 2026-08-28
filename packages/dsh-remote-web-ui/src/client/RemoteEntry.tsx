@@ -9,7 +9,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { PairingPhase } from '../pairing.ts'
 import { RemotePanel, type PanelState } from './RemotePanel.tsx'
 import { copyText, issuePair, revokePair, stopPair, type DeviceFrame, type IssueResponse, type PairStateFrame, type TunnelStatusFrame } from './pair-api.ts'
@@ -17,8 +17,17 @@ import { PhoneIcon } from './PhoneIcon.tsx'
 import { UpdateEntry } from './UpdateEntry.tsx'
 import css from './remote.module.css'
 
-/** Entry props: the sidebar column state + the standard locale seat. */
-export type RemoteEntryProps = PropsRuntime<'sidebar.remote'> & PropsLocale<'remote'>
+/** Entry props: the sidebar column state, the deep-link workspace source, and the standard locale seat. */
+export type RemoteEntryProps = PropsLocale<'remote'> & {
+  /** Whether the sidebar renders wide content (false = 56px rail). */
+  wide: boolean
+  /**
+   * Read the workspace the pairing QR deep-links: the head row of the
+   * workspaces projection (host order). Undefined when the projection has no
+   * rows or no source was provided; pairing without a target is supported.
+   */
+  getTargetWorkspaceId?: () => string | undefined
+}
 
 /**
  * Apply one status frame onto the current state: the ready state mirrors
@@ -49,7 +58,7 @@ function mergeFrame(state: PanelState, frame: PairStateFrame): PanelState {
  * @param props - composed slot props (contract in this package).
  * @returns the entry element tree.
  */
-export function RemoteEntry({ wide, useWorkspaces, t }: RemoteEntryProps) {
+export function RemoteEntry({ wide, getTargetWorkspaceId, t }: RemoteEntryProps) {
   const [open, setOpen] = useState(false)
   const [state, setState] = useState<PanelState>({ kind: 'lan-required' })
   // Latest-state mirror for the EventSource callback: transition detection
@@ -66,7 +75,9 @@ export function RemoteEntry({ wide, useWorkspaces, t }: RemoteEntryProps) {
 
   // The current workspace (the recent-workspace projection the shell's New
   // Session flow targets) — the deep-link target for the phone.
-  const workspaceId = useWorkspaces(s => s.recentWorkspaceId)
+  // 0.1.2 cohort: the sidebar props no longer carry the workspaces hook; the
+  // registrant supplies the projection head through getTargetWorkspaceId.
+  const workspaceId = getTargetWorkspaceId?.()
 
   const closeEventSource = useCallback(() => {
     eventSource.current?.close()

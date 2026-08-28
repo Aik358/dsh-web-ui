@@ -11,7 +11,7 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
-import type { WorkspaceId } from '@deepseek-ai/dsh-client-runtime/client'
+import type { WorkspaceId } from '@deepseek-ai/dsh-api-remotes/client'
 import { acceptPair, readPairParams } from './pair-api.ts'
 
 /** sessionStorage key for the failed-pair notice. */
@@ -117,16 +117,22 @@ async function runDeepLink(ctx: Context, workspaceId: string, page: PageSurface)
   const target = workspaceId as WorkspaceId
   const deadline = Date.now() + SERVICE_WAIT_MS
   while (Date.now() < deadline) {
-    const workspaces = ctx.get('workspaces')
-    const sessions = ctx.get('sessions') as { open(id: string): void } | undefined
+    const workspaces = ctx.get('workspaces') as {
+      list: { getSnapshot(): { items: ReadonlyArray<{ workspaceId: string }> } }
+    } | undefined
+    const sessions = ctx.get('sessions') as {
+      open(id: string): void
+      create(opts: { workspaceId: string }): Promise<string>
+    } | undefined
     if (workspaces !== undefined && sessions !== undefined) {
       const items = workspaces.list.getSnapshot().items
       if (items.some(item => item.workspaceId === target)) {
         try {
           // Open unconditionally: a host-side "current" session may already
           // exist (multi-client mirroring), but the QR's workspace target is
-          // explicit user intent and must win.
-          const sessionId = await workspaces.connectWorkspace(target)
+          // explicit user intent and must win. 0.1.2 cohort: workspace-side
+          // connect moved to the sessions face (create adopts the workspace).
+          const sessionId = await sessions.create({ workspaceId: target })
           sessions.open(sessionId)
         } catch {
           // Unknown workspace or a failed connect: fall through to the

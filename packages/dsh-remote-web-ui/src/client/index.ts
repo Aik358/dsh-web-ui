@@ -8,14 +8,17 @@
  */
 import { createElement } from 'react'
 import { createRoot } from 'react-dom/client'
-import type { ClientContext, SettingsScope, SettingsScopeSpec } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
+import type { SettingsScope, SettingsScopeSpec } from '@deepseek-ai/dsh-client-ui-settings/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale) and the
-// ui-sidebar SlotMap merge (the 'sidebar.remote' hole).
+// ui-sidebar SlotMap merge (the 'sidebar.footer.action' hole).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 // Type-only: pulls the settings-surface SlotMap merge (the 'settings.section'
 // entry) and the ctx.settingsScope Context merge.
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
+// Type-only: pulls the ctx.slots merge (the renderer owns the slot registry since 0.1.2).
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import { FooterRemoteEntry } from './FooterRemoteEntry.tsx'
 import { RemoteEntry } from './RemoteEntry.tsx'
@@ -55,7 +58,6 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * sidebar shell on deployments that carry the feature seat; the shell
      * passes only its column display state.
      */
-    'sidebar.remote': { kind: 'single'; scope: 'root'; owner: SidebarRemoteOwnerProps }
     /**
      * The child slot the Web UI plugin group declares; this card registers
      * into the group instead of the top-level `settings.plugin.item` list.
@@ -132,40 +134,23 @@ export function apply(ctx: ClientContext): void {
   // Sidebar foot entry: the shell declares 'sidebar.remote' in unconstrained
   // order, so registration is declaration-aware — slots.inject waits on the
   // declaration, removes the contribution when it collapses, and re-runs
-  // after a redeclaration. The entry follows the plugin's enabled setting:
-  // toggling it off removes the trigger, toggling it back on re-registers it.
-  ctx.slots.inject('sidebar.remote', () => {
-    let disposeEntry: (() => void) | undefined
-    const syncEntry = (): void => {
-      if (enabled() && disposeEntry === undefined) {
-        try {
-          disposeEntry = ctx.slots.register({ name: 'sidebar.remote', locale: NS }, RemoteEntry)
-        } catch {
-          // ignore registration collision
-        }
-      } else if (!enabled() && disposeEntry !== undefined) {
-        disposeEntry()
-        disposeEntry = undefined
-      }
-    }
-    const unsubscribe = settingsScope.subscribe(syncEntry)
-    syncEntry()
-    return () => {
-      unsubscribe()
-      disposeEntry?.()
-    }
-  })
-
-  // Current shells declare `sidebar.footer.action` instead of the legacy
-  // `sidebar.remote` seat; this fallback registers the same entry there when
-  // the legacy seat never arrives (declaration-aware: only one of the two
-  // injects ever fires, so the trigger can never render twice).
+  // The sidebar foot seat is `sidebar.footer.action` in the 0.1.2 shell
+  // composition (the legacy `sidebar.remote` seat is gone upstream). The
+  // deep-link workspace source is the head row of the workspaces projection
+  // (host order), read through the injected controller.
+  const workspacesSource = ctx.get('workspaces') as {
+    list: { getSnapshot(): { items: ReadonlyArray<{ workspaceId: unknown }> } }
+  } | undefined
+  const getTargetWorkspaceId = (): string | undefined => {
+    const head = workspacesSource?.list.getSnapshot().items[0]
+    return head === undefined ? undefined : String(head.workspaceId)
+  }
   ctx.slots.inject('sidebar.footer.action', () => {
     let disposeEntry: (() => void) | undefined
     const syncEntry = (): void => {
       if (enabled() && disposeEntry === undefined) {
         try {
-          disposeEntry = ctx.slots.register({ name: 'sidebar.footer.action', id: 'remote-web-ui', locale: NS }, FooterRemoteEntry)
+          disposeEntry = ctx.slots.register({ name: 'sidebar.footer.action', id: 'remote-web-ui', locale: NS, inject: () => ({ getTargetWorkspaceId }) }, FooterRemoteEntry)
         } catch {
           // ignore registration collision
         }

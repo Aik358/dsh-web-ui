@@ -1,6 +1,7 @@
 /** Paired-only model discovery and adoption routes; generic privileged RPCs stay loopback-only. */
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import type { ApiProxy, ModelProviderGroup, RpcId, RpcResponse, SettingsNamespaceView, SettingsPathOpView } from '@deepseek-ai/dsh-host-apiproxy/api'
+import type { TypertGatewayFace } from './host-gateway.ts'
+import { invokeGateway, isConflictOutcome, isRejectedOutcome } from './host-gateway.ts'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import { z } from 'zod'
 import type { PairingService } from './pairing.ts'
@@ -29,8 +30,16 @@ const modelSchema = z.object({
 const upsertSchema = z.object({ provider: stringField(MAX_IDENTIFIER_LENGTH), model: modelSchema }).strict()
 
 interface ModelProfile { id: string, name?: string, contextWindow?: number, maxTokens?: number, reasoningEfforts?: ReasoningEffort[] }
+/** One configured-provider row as llm/listConfigurableProviders serves it. */
+interface ProviderRoute { provider: string, displayName: string, settingsNs: string, settingsPath: string[], declared?: unknown }
+/** One settings namespace view as settings/describe serves it (mobile-owned subset). */
+interface SettingsNamespaceView { ns: string, value: unknown, revision: number, writable?: boolean }
+/** One model group as session/modelCatalog serves it. */
+interface ModelProviderGroup { id: string, name?: string, models: Array<{ id: string, name?: string, description?: string, reasoning?: unknown }> }
 interface EligibleProvider { provider: string, displayName: string, namespace: SettingsNamespaceView, profile: Record<string, unknown> }
 interface CatalogValue { groups: ModelProviderGroup[], failures: Array<{ id: string, name: string, message: string }> }
+/** One settings path operation (the phone-owned mutation plan shape). */
+interface SettingsPathOpView { op: string, path: string[], value?: unknown }
 
 export const PAIRED_MODEL_CATALOG_PATHS = {
   catalog: '/api/pair/model-catalog',
@@ -40,19 +49,12 @@ export const PAIRED_MODEL_CATALOG_PATHS = {
 
 export interface PairedModelCatalogDeps {
   service: PairingService
-  apiProxy: ApiProxy
+  gateway: TypertGatewayFace
   /** The LAN IP literals the host fence accepts, mirroring the /api/pair fence. */
   lanAddresses: readonly string[]
 }
 
-let rpcSequence = 0
-function request<T>(payload: T): { rpcId: RpcId, payload: T } {
-  rpcSequence += 1
-  return { rpcId: `paired-model-catalog-${Date.now().toString(36)}-${rpcSequence.toString(36)}` as RpcId, payload }
-}
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value) }
-function valueOf<T>(response: RpcResponse<T>): T | undefined { return response.result.ok ? response.result.value : undefined }
-function errorCode(response: RpcResponse<unknown>): string | undefined { return response.result.ok ? undefined : response.result.error.code }
 function reject(res: ServerResponse, status: number, error: string): void { writeJson(res, status, { error }) }
 function publicProviderId(value: string): string {
   const normalized = value.replace(/[\r\n\0]/g, ' ').trim().slice(0, MAX_IDENTIFIER_LENGTH)
@@ -94,31 +96,42 @@ function groupFor(catalog: CatalogValue, provider: string): ModelProviderGroup |
   if (catalog.failures.some(failure => failure.id === provider)) return undefined
   return catalog.groups.find(group => group.id === provider)
 }
-async function readCatalog(apiProxy: ApiProxy): Promise<CatalogValue | undefined> {
-  try { return valueOf(await apiProxy.llm.models(request({}))) } catch { return undefined }
+/** The host model catalog (groups + failures) via session/modelCatalog. */
+async function readCatalog(gateway: TypertGatewayFace): Promise<CatalogValue | undefined> {
+  const outcome = await invokeGateway(gateway, 'session', 'modelCatalog')
+  if (!outcome.ok || !isRecord(outcome.value)) return undefined
+  const value = outcome.value as { groups?: unknown; failures?: unknown }
+  if (!Array.isArray(value.groups) || !Array.isArray(value.failures)) return undefined
+  return value as unknown as CatalogValue
 }
 
-/** Resolve one exact active llm-pi-ai provider address, never an input-supplied path. */
-async function eligibleProvider(apiProxy: ApiProxy, requested: string): Promise<{ provider?: EligibleProvider, status?: number, error?: string }> {
-  let providersResponse: Awaited<ReturnType<ApiProxy['llm']['providers']>>
-  let settingsResponse: Awaited<ReturnType<ApiProxy['settings']['describe']>>
-  try {
-    providersResponse = await apiProxy.llm.providers(request({}))
-    settingsResponse = await apiProxy.settings.describe(request({}))
-  } catch { return { status: 502, error: 'model catalog capability is unavailable' } }
-  const providers = valueOf(providersResponse)
-  const settings = valueOf(settingsResponse)
-  if (providers === undefined || settings === undefined) return { status: 502, error: 'model catalog capability is unavailable' }
-  const route = providers.providers.find(candidate => candidate.provider === requested)
+/**
+ * Resolve one exact llm-pi-ai provider address, never an input-supplied path.
+ * The 0.1.2 llm/listConfigurableProviders row has no `active` flag; the
+ * settings document itself (the provider profile being present) is the
+ * eligibility source, and the settingsNs/settingsPath checks stay exact.
+ */
+async function eligibleProvider(gateway: TypertGatewayFace, requested: string): Promise<{ provider?: EligibleProvider, status?: number, error?: string }> {
+  const providersOutcome = await invokeGateway(gateway, 'llm', 'listConfigurableProviders')
+  const settingsOutcome = await invokeGateway(gateway, 'settings', 'describe')
+  if (!providersOutcome.ok || !settingsOutcome.ok || !Array.isArray(providersOutcome.value) || !isRecord(settingsOutcome.value)) {
+    return { status: 502, error: 'model catalog capability is unavailable' }
+  }
+  const routes = providersOutcome.value as ProviderRoute[]
+  const settings = settingsOutcome.value as { writable?: unknown; namespaces?: unknown }
+  if (settings.writable !== true || !Array.isArray(settings.namespaces)) {
+    return { status: 502, error: 'model catalog capability is unavailable' }
+  }
+  const route = routes.find(candidate => isRecord(candidate) && candidate.provider === requested)
   if (route === undefined) return { status: 404, error: `unknown provider ${requested}` }
-  if (!settings.writable || !route.active || route.settingsNs !== 'llm-pi-ai' || route.settingsPath.length !== 2
+  if (route.settingsNs !== 'llm-pi-ai' || !Array.isArray(route.settingsPath) || route.settingsPath.length !== 2
     || route.settingsPath[0] !== 'providers' || route.settingsPath[1] !== requested) return { status: 403, error: `provider ${requested} is not eligible for the paired model catalog` }
-  const namespace = settings.namespaces.find(candidate => candidate.ns === 'llm-pi-ai')
+  const namespace = (settings.namespaces as SettingsNamespaceView[]).find(candidate => isRecord(candidate) && candidate.ns === 'llm-pi-ai')
   const root = namespace !== undefined && isRecord(namespace.value) ? namespace.value : undefined
   const providersValue = root !== undefined && isRecord(root.providers) ? root.providers : undefined
   const profile = providersValue !== undefined && isRecord(providersValue[requested]) ? providersValue[requested] : undefined
   if (namespace === undefined || profile === undefined) return { status: 403, error: `provider ${requested} is not eligible for the paired model catalog` }
-  return { provider: { provider: requested, displayName: route.displayName, namespace, profile } }
+  return { provider: { provider: requested, displayName: typeof route.displayName === 'string' ? route.displayName : requested, namespace, profile } }
 }
 function validIdentifier(value: unknown): value is string {
   const parsed = stringField(MAX_IDENTIFIER_LENGTH).safeParse(value)
@@ -195,7 +208,7 @@ async function bodyOf<T>(req: IncomingMessage, schema: z.ZodType<T>): Promise<T 
 
 /** Build the narrow paired-device model catalog routes. */
 export function makePairedModelCatalogRoutes(deps: PairedModelCatalogDeps): WebRoute[] {
-  const { service, apiProxy, lanAddresses } = deps
+  const { service, gateway, lanAddresses } = deps
   /** Same fence as the /api/pair family: loopback, the advertised LAN literals, or the configured public host. */
   const fence = (req: IncomingMessage): boolean => {
     const publicHost = publicHostOf(service.publicBaseUrl)
@@ -217,17 +230,22 @@ export function makePairedModelCatalogRoutes(deps: PairedModelCatalogDeps): WebR
   const catalog = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     if (!gate(req, res)) return
     if (req.method !== 'GET') return reject(res, 405, 'method not allowed')
-    let providersResponse: Awaited<ReturnType<ApiProxy['llm']['providers']>>
-    let settingsResponse: Awaited<ReturnType<ApiProxy['settings']['describe']>>
-    try { providersResponse = await apiProxy.llm.providers(request({})); settingsResponse = await apiProxy.settings.describe(request({})) } catch { return reject(res, 502, 'model catalog capability is unavailable') }
-    const providers = valueOf(providersResponse)
-    const settings = valueOf(settingsResponse)
-    if (providers === undefined || settings === undefined) return reject(res, 502, 'model catalog capability is unavailable')
-    const namespace = settings.namespaces.find(candidate => candidate.ns === 'llm-pi-ai')
+    const providersOutcome = await invokeGateway(gateway, 'llm', 'listConfigurableProviders')
+    const settingsOutcome = await invokeGateway(gateway, 'settings', 'describe')
+    if (!providersOutcome.ok || !settingsOutcome.ok || !Array.isArray(providersOutcome.value) || !isRecord(settingsOutcome.value)) {
+      return reject(res, 502, 'model catalog capability is unavailable')
+    }
+    const routes = providersOutcome.value as ProviderRoute[]
+    const settings = settingsOutcome.value as { writable?: unknown; namespaces?: unknown }
+    const namespace = Array.isArray(settings.namespaces)
+      ? (settings.namespaces as SettingsNamespaceView[]).find(candidate => isRecord(candidate) && candidate.ns === 'llm-pi-ai')
+      : undefined
     const providerMap = namespace !== undefined && isRecord(namespace.value) && isRecord(namespace.value.providers) ? namespace.value.providers : undefined
-    const eligible = settings.writable && providerMap !== undefined ? providers.providers.filter(candidate => candidate.active && candidate.settingsNs === 'llm-pi-ai'
-      && candidate.settingsPath.length === 2 && candidate.settingsPath[0] === 'providers' && candidate.settingsPath[1] === candidate.provider && isRecord(providerMap[candidate.provider]))
-      .map(candidate => ({ provider: candidate.provider, displayName: candidate.displayName })) : []
+    const eligible = settings.writable === true && providerMap !== undefined ? routes
+      .filter(candidate => isRecord(candidate) && candidate.settingsNs === 'llm-pi-ai'
+        && Array.isArray(candidate.settingsPath) && candidate.settingsPath.length === 2 && candidate.settingsPath[0] === 'providers'
+        && candidate.settingsPath[1] === candidate.provider && isRecord(providerMap[candidate.provider]))
+      .map(candidate => ({ provider: candidate.provider, displayName: typeof candidate.displayName === 'string' ? candidate.displayName : candidate.provider })) : []
     writeJson(res, 200, { capability: 'paired-model-catalog', providers: eligible })
   }
   const discover = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
@@ -235,32 +253,34 @@ export function makePairedModelCatalogRoutes(deps: PairedModelCatalogDeps): WebR
     if (req.method !== 'POST') return reject(res, 405, 'method not allowed')
     const body = await bodyOf(req, providerSchema)
     if (body === undefined) return reject(res, 400, 'invalid model catalog request')
-    const eligible = await eligibleProvider(apiProxy, body.provider)
+    const eligible = await eligibleProvider(gateway, body.provider)
     if (eligible.provider === undefined) return reject(res, eligible.status ?? 502, eligible.error ?? 'model catalog capability is unavailable')
-    try {
-      const result = valueOf(await apiProxy.llm.discoverModels(request({ settingsNs: 'llm-pi-ai', provider: eligible.provider.provider })))
-      if (result === undefined) return reject(res, 502, `model discovery failed for provider ${eligible.provider.provider}`)
-      writeJson(res, 200, { models: publicCandidates(result.models) })
-    } catch { reject(res, 502, `model discovery failed for provider ${eligible.provider.provider}`) }
+    const outcome = await invokeGateway(gateway, 'llm', 'discoverModels', { settingsNs: 'llm-pi-ai', request: { provider: eligible.provider.provider } })
+    if (!outcome.ok || !Array.isArray(outcome.value)) return reject(res, 502, `model discovery failed for provider ${eligible.provider.provider}`)
+    writeJson(res, 200, { models: publicCandidates(outcome.value as Array<{ id: string, name?: string, contextWindow?: number, maxTokens?: number }>) })
   }
   const upsert = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     if (!gate(req, res)) return
     if (req.method !== 'POST') return reject(res, 405, 'method not allowed')
     const body = await bodyOf(req, upsertSchema)
     if (body === undefined) return reject(res, 400, 'invalid model catalog request')
-    const eligible = await eligibleProvider(apiProxy, body.provider)
+    const eligible = await eligibleProvider(gateway, body.provider)
     if (eligible.provider === undefined) return reject(res, eligible.status ?? 502, eligible.error ?? 'model catalog capability is unavailable')
-    const before = await readCatalog(apiProxy)
+    const before = await readCatalog(gateway)
     if (before === undefined) return reject(res, 502, `model catalog is unavailable for provider ${body.provider}`)
     const plan = mutationPlan(eligible.provider.profile, body.provider, body.model, before)
     if (plan === undefined) return reject(res, 502, `model catalog is unavailable for provider ${body.provider}`)
-    let mutation: Awaited<ReturnType<ApiProxy['settings']['mutate']>>
-    try { mutation = await apiProxy.settings.mutate(request({ ns: 'llm-pi-ai', expectedRevision: eligible.provider.namespace.revision, ops: plan.ops })) } catch { return reject(res, 502, `model update failed for provider ${body.provider}`) }
-    const code = errorCode(mutation)
-    if (code === 'settings-conflict') return reject(res, 409, `model update conflicted for provider ${body.provider}`)
-    if (code === 'settings-rejected') return reject(res, 422, `model update was rejected for provider ${body.provider}`)
-    if (code !== undefined) return reject(res, 502, `model update failed for provider ${body.provider}`)
-    const after = await readCatalog(apiProxy)
+    // The gateway mutate takes (ns, ops, expectedRevision) flat and throws on
+    // conflicts; message content maps the historical 409/422 distinctions.
+    const mutation = await invokeGateway(gateway, 'settings', 'mutate', {
+      ns: 'llm-pi-ai',
+      ops: plan.ops,
+      expectedRevision: eligible.provider.namespace.revision,
+    })
+    if (isConflictOutcome(mutation)) return reject(res, 409, `model update conflicted for provider ${body.provider}`)
+    if (isRejectedOutcome(mutation)) return reject(res, 422, `model update was rejected for provider ${body.provider}`)
+    if (!mutation.ok) return reject(res, 502, `model update failed for provider ${body.provider}`)
+    const after = await readCatalog(gateway)
     if (after === undefined) return reject(res, 502, `model catalog is unavailable for provider ${body.provider}`)
     writeJson(res, 200, publicCatalog(after))
   }

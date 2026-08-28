@@ -87,8 +87,7 @@ function mount(issue: MockIssue | MockIssue[] = { ok: true, url: 'http://192.168
   const view = render(
     <RemoteEntry
       wide={true}
-      useSessions={neverHook}
-      useWorkspaces={(selector: (s: { recentWorkspaceId: string }) => unknown) => selector({ recentWorkspaceId: 'ws-1' })}
+      getTargetWorkspaceId={() => 'ws-1'}
       t={t}
     />,
   )
@@ -341,7 +340,7 @@ describe('apply registration', () => {
       },
     }
     apply(ctx as never)
-    expect(injected).toEqual(['sidebar.remote', 'sidebar.footer.action', 'web-ui.plugin.item'])
+    expect(injected).toEqual(['sidebar.footer.action', 'web-ui.plugin.item'])
   })
 
   it('waits for the settings snapshot before mounting the sidebar entry and runtime', async () => {
@@ -387,6 +386,6 @@ describe('apply registration', () => {
 
     snapshot = { status: 'ready' as const, writable: true, value: { enabled: true } }
     notify()
-    expect(registered).toEqual(['web-ui.plugin.item', 'sidebar.remote', 'sidebar.footer.action'])
+    expect(registered).toEqual(['web-ui.plugin.item', 'sidebar.footer.action'])
   })
 })

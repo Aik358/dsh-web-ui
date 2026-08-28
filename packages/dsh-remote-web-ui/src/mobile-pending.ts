@@ -1,6 +1,11 @@
-import type { MuxFrame } from '@deepseek-ai/dsh-host-apiproxy/api/events'
-import type { RpcRequest } from '@deepseek-ai/dsh-host-apiproxy/api/rpc'
+/**
+ * Mobile-owned mux frame contract. The 0.1.2 cohort removed the host
+ * apiproxy event infrastructure these frames used to ride; the tracker
+ * keeps its shape so a future gateway-event bridge can feed it unchanged,
+ * and pending() honestly reports an empty set until such a bridge exists.
+ */
 
+/** One pending approval from the host agent runtime. */
 export interface PendingApproval {
   rpcId: string
   approvalId: string
@@ -9,6 +14,7 @@ export interface PendingApproval {
   reason?: string
 }
 
+/** One pending user question from the host agent runtime. */
 export interface PendingQuestion {
   rpcId: string
   questions: Array<{
@@ -19,6 +25,21 @@ export interface PendingQuestion {
     options?: Array<{ label: string; description?: string }>
     multiSelect?: boolean
   }>
+}
+
+/** The mobile live-event wire contract (frames the phone consumes). */
+export type MuxFrame =
+  | { type: 'session/event'; sessionId: string; event: { type: string; seq: number; time: number; data: unknown } }
+  | { type: 'approval/requested'; sessionId: string; approvalId: string; toolName: string; callId?: string; reason?: string }
+  | { type: 'approval/resolved'; sessionId: string; approvalId: string }
+  | { type: 'question/requested'; sessionId: string; questions: PendingQuestion['questions'] }
+  | { type: 'question/resolved'; sessionId: string; questionRpcId: string }
+  | { type: 'session/projection'; sessionId: string; key: string; value: unknown }
+
+/** The server-request envelope shape a mux frame rides in. */
+export interface RpcRequest<T> {
+  rpcId: string
+  payload: T
 }
 
 export interface PendingState {

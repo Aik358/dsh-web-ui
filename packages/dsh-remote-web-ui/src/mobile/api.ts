@@ -1,14 +1,81 @@
 /**
  * Mobile-surface business API: the handful of host RPC methods the
- * simplified surface needs. Types come from the harness apiproxy contract
- * (type-only imports; the wire schemas stay in the bundle only through the
- * rpc/mux layers).
+ * simplified surface needs. The wire shapes below are the phone's OWN
+ * contract — the /m/api BFF maps the 0.1.2 Remote faces onto them, so the
+ * phone bundle stays decoupled from SDK-internal type churn.
  */
-
-import type { WorkspaceView } from '@deepseek-ai/dsh-host-apiproxy/api/workspace'
-import type { AgentPresetEntry } from '@deepseek-ai/dsh-host-apiproxy/api/agent-presets'
-import type { SessionSummary, SessionModels, SessionProjectionsBlock } from '@deepseek-ai/dsh-host-apiproxy/api/sessions'
 import { callUnary } from './rpc.ts'
+
+/** One workspace row as the phone's workspace browser consumes it. */
+export interface WorkspaceView {
+  workspaceId: string
+  title?: string
+  path?: string
+  /** Session ids owned by this workspace (drives the phone's owned filter). */
+  sessionIds?: string[]
+  /** ISO timestamp the workspace row was created (advisory metadata). */
+  createdAt?: string
+  /** ISO timestamp of the latest activity on the workspace (advisory). */
+  updatedAt?: string
+}
+
+/** One agent preset choice in the New Session composer. */
+export interface AgentPresetEntry {
+  id: string
+  name?: string
+  description?: string
+  broken?: string
+  isDefault?: boolean
+  trust?: string
+}
+
+/** One session-list row (updatedAt desc cursor paging rides this). */
+export interface SessionSummary {
+  sessionId: string
+  running: boolean
+  updatedAt: number
+  title?: string
+  displayTitle?: string
+  cwd?: string
+  blank: boolean
+  origin?: 'subagent'
+}
+
+/** One history entry (message-aligned event as the phone folds it). */
+export interface HistoryEntry {
+  event: { type: string; seq: number; time: number; data: unknown }
+}
+
+/** Projection baseline riding the tail history page. */
+export interface SessionProjectionsBlock {
+  [key: string]: unknown
+}
+
+/** Reasoning-effort metadata one model advertises. */
+export interface ModelReasoning {
+  defaultEffort?: string
+  efforts: ReadonlyArray<{ id: string; name: string; description?: string }>
+}
+
+/** Model catalog as the phone's model picker renders it. */
+export interface SessionModels {
+  /** The session's active selection (provider + model + effort). */
+  current?: { provider: string; model: string; reasoningEffort?: string }
+  default?: string
+  /** Providers the session can switch to (advisory; present in newer hosts). */
+  routable?: boolean
+  groups: ReadonlyArray<{
+    id: string
+    name?: string
+    models: ReadonlyArray<{
+      id: string
+      name?: string
+      description?: string
+      reasoning?: ModelReasoning
+    }>
+  }>
+  failures?: ReadonlyArray<{ id: string; name: string; message: string }>
+}
 
 /** One session.list page. */
 export interface SessionPage {
@@ -34,7 +101,7 @@ export interface AgentPresetRoster {
 
 /** One history page (already bounded to whole messages by the host). */
 export interface HistoryPage {
-  events: import('@deepseek-ai/dsh-host-apiproxy/api/sessions').HistoryEntry[]
+  events: HistoryEntry[]
   hasMore: boolean
   /**
    * Projection baseline riding the tail page (permissions select etc.);

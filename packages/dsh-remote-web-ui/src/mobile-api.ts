@@ -24,9 +24,8 @@
 
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
-import type { ApiProxy } from '@deepseek-ai/dsh-host-apiproxy'
-import type { RpcRequest } from '@deepseek-ai/dsh-host-apiproxy/api/rpc'
-import { RpcId } from '@deepseek-ai/dsh-host-apiproxy/api/rpc'
+import type { TypertGatewayFace, WorkspaceRegistryFace } from './host-gateway.ts'
+import { invokeGateway } from './host-gateway.ts'
 import type { PendingTracker } from './mobile-pending.ts'
 import type { PairingService } from './pairing.ts'
 import { readBoundedJson, writeJson } from './http.ts'
@@ -96,8 +95,10 @@ function afterCursor(row: { updatedAt: number; sessionId: string }, position: { 
 export interface MobileApiDeps {
   /** The pairing service (device gate + cookie name). */
   service: PairingService
-  /** The host ApiProxy service (injected by the plugin). */
-  apiProxy: ApiProxy
+  /** The typertGateway service (0.1.2 Remote dispatch; injected by the plugin). */
+  gateway: TypertGatewayFace
+  /** The workspace registry (host service backing workspace.list). */
+  workspaceRegistry: WorkspaceRegistryFace
   /** The pending tracker. */
   pendingTracker: PendingTracker
   /** The resolved mobile composer preference (live per request). */
@@ -131,11 +132,11 @@ const MOBILE_API_METHOD_PREFIX = `${MOBILE_API_PREFIX}/`
 
 /**
  * Build the mobile data-channel routes.
- * @param deps - pairing service + apiProxy.
+ * @param deps - pairing service, gateway, and workspace registry.
  * @returns the routes to register on webServer.
  */
 export function makeMobileApiRoutes(deps: MobileApiDeps): WebRoute[] {
-  const { service, apiProxy, mobileEnterToSend } = deps
+  const { service, gateway, workspaceRegistry, mobileEnterToSend } = deps
   const eventsHeartbeatMs = deps.eventsHeartbeatMs ?? DEFAULT_EVENTS_HEARTBEAT_MS
 
   /**
@@ -209,26 +210,14 @@ export function makeMobileApiRoutes(deps: MobileApiDeps): WebRoute[] {
           result: { ok: true, value: deps.pendingTracker.pending(payload?.sessionId) },
         })
       } else if (method === MOBILE_RESPOND_METHOD) {
-        const payload = parsed.payload as any
-        try {
-          const receipt = await apiProxy.respond({
-            type: 'client-response',
-            rpcId: RpcId(payload.rpcId),
-            result: { ok: true, value: payload.response },
-          })
-          writeJson(res, 200, {
-            type: 'server-response',
-            rpcId,
-            result: { ok: true, value: receipt },
-          })
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error)
-          writeJson(res, 200, {
-            type: 'server-response',
-            rpcId,
-            result: { ok: false, error: { code: 'internal', message } },
-          })
-        }
+        // The 0.1.2 question/approval waterfall rides forwarded gateway events
+        // rather than the removed apiproxy respond channel; answering from the
+        // phone returns a controlled unavailable until that bridge exists.
+        writeJson(res, 200, {
+          type: 'server-response',
+          rpcId,
+          result: { ok: false, error: { code: 'unavailable', message: 'respond is unavailable on this host build' } },
+        })
       } else if (method === MOBILE_COMMAND_METHOD) {
         const payload = parsed.payload as { sessionId?: string; line?: string } | undefined
         const sessionId = payload?.sessionId
@@ -280,7 +269,7 @@ export function makeMobileApiRoutes(deps: MobileApiDeps): WebRoute[] {
       // response stream closing before we answer means nobody is listening).
       const abort = new AbortController()
       res.on('close', () => { if (!res.writableEnded) abort.abort() })
-      const response = await dispatch(apiProxy, method, parsed?.payload, rpcId, abort.signal)
+      const response = await dispatch(gateway, workspaceRegistry, method, parsed?.payload, rpcId, abort.signal)
       writeJson(res, 200, response)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
@@ -334,11 +323,15 @@ export function makeMobileApiRoutes(deps: MobileApiDeps): WebRoute[] {
     res.on('close', onClose)
     req.on('close', onClose)
     try {
-      const frames = apiProxy.events.mux({ rpcId: RpcId(`mobile-mux-${Date.now().toString(36)}`), payload: {} }, controller.signal)
-      for await (const frame of frames) {
+      // The 0.1.2 cohort removed the apiproxy event mux this endpoint used to
+      // bridge, so the stream carries keepalives only for now: the phone's
+      // EventSource stays connected (no reconnect churn) and its polling
+      // fallback keeps the open session live via /m/api/session.history.
+      while (!closed) {
+        await new Promise(resolve => setTimeout(resolve, eventsHeartbeatMs))
         if (closed) break
-        deps.pendingTracker.onFrame(frame as any)
-        res.write(`data: ${JSON.stringify(frame)}\n\n`)
+        touchDeviceFor(req)
+        res.write(': ping\n\n')
       }
     } catch {
       // The stream ended or errored; the EventSource reconnects.
@@ -355,21 +348,51 @@ export function makeMobileApiRoutes(deps: MobileApiDeps): WebRoute[] {
   ]
 }
 
-/** Dispatch one allowlisted method through the host ApiProxy. */
-async function dispatch(apiProxy: ApiProxy, method: string, payload: unknown, rpcId: string, signal?: AbortSignal): Promise<unknown> {
-  const request: RpcRequest<unknown> = { rpcId: RpcId(rpcId), payload }
+/**
+ * Map one gateway business result onto the mobile wire shape for a method.
+ * The Remote faces return direct business results; the phone's contract
+ * keeps its own field names (sessionId vs the SDK's id), so list-shaped
+ * results are re-keyed here.
+ */
+function mapListItems(value: unknown): Array<Record<string, unknown>> {
+  if (typeof value !== 'object' || value === null || !Array.isArray((value as { items?: unknown }).items)) return []
+  return (value as { items: unknown[] }).items.filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
+}
+
+/** Dispatch one allowlisted method through the typertGateway faces. */
+async function dispatch(
+  gateway: TypertGatewayFace,
+  workspaceRegistry: WorkspaceRegistryFace,
+  method: string,
+  payload: unknown,
+  rpcId: string,
+  signal?: AbortSignal,
+): Promise<unknown> {
+  const body = (typeof payload === 'object' && payload !== null ? payload : {}) as Record<string, unknown>
+  /** Business-result outcome -> the server-response envelope the phone's callUnary expects. */
+  const respond = (outcome: Awaited<ReturnType<typeof invokeGateway>>): unknown => ({
+    type: 'server-response' as const,
+    rpcId,
+    result: outcome.ok ? { ok: true, value: outcome.value } : { ok: false, error: outcome.error },
+  })
+
   if (method === 'session.list') {
-    const full = await apiProxy.sessions.list(request as never)
-    // The error path must carry the same 'server-response' envelope the
-    // success path builds, or the phone's callUnary throws a transport error
-    // and masks the real business error.
-    if (!full.result.ok) return { type: 'server-response' as const, rpcId, result: full.result }
-    const items = full.result.value.items as Array<{ updatedAt: number; sessionId: string }>
+    // The Remote list is unpaged; this layer keeps slicing stable pages over
+    // (updatedAt desc, sessionId asc) exactly as before, so thin phones never
+    // transfer the whole list at once.
+    const outcome = await invokeGateway(gateway, 'session', 'list', {}, signal)
+    if (!outcome.ok) return { type: 'server-response' as const, rpcId, result: outcome }
+    const items = mapListItems(outcome.value).map(item => ({
+      sessionId: String(item.id ?? item.sessionId ?? ''),
+      running: item.running === true,
+      updatedAt: typeof item.updatedAt === 'number' ? item.updatedAt : 0,
+      blank: item.blank === true,
+      ...(typeof item.title === 'string' ? { title: item.title } : {}),
+      ...(typeof item.displayTitle === 'string' ? { displayTitle: item.displayTitle } : {}),
+      ...(typeof item.cwd === 'string' ? { cwd: item.cwd } : {}),
+      ...(item.origin === 'subagent' ? { origin: 'subagent' as const } : {}),
+    })) as Array<{ updatedAt: number; sessionId: string }>
     const cursor = (payload as { cursor?: string } | undefined)?.cursor
-    // Every call pages (the first call with no cursor IS the first page):
-    // the phone must never transfer the whole session list at once.
-    // One stable page over (updatedAt desc, sessionId asc); pages never skip
-    // or repeat a row while the list changes between calls.
     items.sort((a, b) => b.updatedAt - a.updatedAt
       || (a.sessionId < b.sessionId ? -1 : a.sessionId > b.sessionId ? 1 : 0))
     const position = cursor === undefined ? undefined : parseSessionListCursor(cursor)
@@ -393,26 +416,121 @@ async function dispatch(apiProxy: ApiProxy, method: string, payload: unknown, rp
       },
     }
   }
-  // The ApiProxy unary methods resolve to the internal response shape
-  // ({ rpcId, result }) without the transport envelope the phone's callUnary
-  // requires — wrap every pass-through in the same 'server-response'
-  // envelope session.list builds above.
-  const wrap = (response: { rpcId: string; result: unknown }): unknown => ({
-    type: 'server-response' as const,
-    rpcId,
-    result: response.result,
-  })
-  if (method === 'workspace.list') return wrap(await apiProxy.workspace.list(request as never))
-  if (method === 'workspace.create') return wrap(await apiProxy.workspace.create(request as never))
-  if (method === 'host.listDirectory') return wrap(await apiProxy.host.listDirectory(request as never, signal ?? new AbortController().signal))
-  if (method === 'agentPreset.list') return wrap(await apiProxy.agentPresets.list(request as never))
-  if (method === 'session.create') return wrap(await apiProxy.sessions.create(request as never))
-  if (method === 'session.history') return wrap(await apiProxy.sessions.history(request as never))
-  if (method === 'session.search') return wrap(await apiProxy.sessions.search(request as never, signal ?? new AbortController().signal))
-  if (method === 'session.prompt') return wrap(await apiProxy.sessions.prompt(request as never))
-  if (method === 'session.models') return wrap(await apiProxy.sessions.models(request as never))
-  if (method === 'session.selectModel') return wrap(await apiProxy.sessions.selectModel(request as never))
-  if (method === 'session.rename') return wrap(await apiProxy.sessions.rename(request as never))
-  if (method === 'session.cancel') return wrap(await apiProxy.sessions.cancel(request as never))
+  if (method === 'workspace.list') {
+    // The 0.1.2 Remote has no workspace list RPC; the workspaceRegistry host
+    // service is the row source (the same fact source task-board validates
+    // against).
+    const items = workspaceRegistry.list().map(row => ({
+      workspaceId: row.id,
+      ...(row.title === undefined ? {} : { title: row.title }),
+      ...(row.path === undefined ? {} : { path: row.path }),
+      ...('sessionIds' in row && Array.isArray((row as { sessionIds?: unknown }).sessionIds)
+        ? { sessionIds: (row as { sessionIds: string[] }).sessionIds }
+        : {}),
+    }))
+    return { type: 'server-response', rpcId, result: { ok: true, value: { items } } }
+  }
+  if (method === 'workspace.create') {
+    const outcome = await invokeGateway(gateway, 'workspace', 'create', { request: body }, signal)
+    if (outcome.ok && typeof outcome.value === 'object' && outcome.value !== null) {
+      const row = outcome.value as Record<string, unknown>
+      const workspace = typeof row.workspace === 'object' && row.workspace !== null ? row.workspace : row
+      return { type: 'server-response', rpcId, result: { ok: true, value: { workspace, created: true } } }
+    }
+    return respond(outcome)
+  }
+  if (method === 'host.listDirectory') return respond(await invokeGateway(gateway, 'directoryPicker', 'list', { request: body }, signal))
+  if (method === 'agentPreset.list') {
+    const outcome = await invokeGateway(gateway, 'agentPresets', 'list', {}, signal)
+    if (!outcome.ok) return respond(outcome)
+    const value = (typeof outcome.value === 'object' && outcome.value !== null ? outcome.value : {}) as Record<string, unknown>
+    return {
+      type: 'server-response',
+      rpcId,
+      result: { ok: true, value: { ...value, presets: value.presets ?? [], authorable: value.authorable ?? false, hasDocument: true } },
+    }
+  }
+  if (method === 'session.create') return respond(await invokeGateway(gateway, 'session', 'create', { request: body }, signal))
+  if (method === 'session.history') return respond(await sessionHistory(gateway, body, signal))
+  if (method === 'session.search') return respond(await invokeGateway(gateway, 'session', 'search', { request: body }, signal))
+  if (method === 'session.prompt') return respond(await invokeGateway(gateway, 'session', 'prompt', { request: body }, signal))
+  if (method === 'session.models') {
+    // The catalog is host-global in 0.1.2 (the sessionId argument is accepted
+    // for wire compatibility and ignored).
+    return respond(await invokeGateway(gateway, 'session', 'modelCatalog', {}, signal))
+  }
+  if (method === 'session.selectModel') return respond(await invokeGateway(gateway, 'session', 'selectModel', { request: body }, signal))
+  if (method === 'session.rename') return respond(await invokeGateway(gateway, 'session', 'rename', { request: body }, signal))
+  if (method === 'session.cancel') return respond(await invokeGateway(gateway, 'session', 'cancel', { request: body }, signal))
   throw new Error(`unhandled allowlisted method ${method}`)
+}
+
+/**
+ * One bounded history window via the 0.1.2 read path: open session/follow to
+ * take the opening snapshot's throughSeq, then page backward with
+ * session/page (the dedicated history RPC no longer exists). Bounded by
+ * maxMessages like the old tail page; hasMore mirrors the last page.
+ */
+async function sessionHistory(
+  gateway: TypertGatewayFace,
+  body: Record<string, unknown>,
+  signal?: AbortSignal,
+): Promise<ReturnType<typeof invokeGateway>> {
+  const sessionId = typeof body.sessionId === 'string' ? body.sessionId : ''
+  const maxMessages = typeof body.maxMessages === 'number' ? body.maxMessages : 30
+  if (sessionId === '') {
+    return { ok: false, error: { code: 'bad-request', message: 'session.history requires sessionId' } }
+  }
+  const address = { kind: 'session' as const, sessionId }
+  let cursor: number | undefined
+  let records: unknown[] = []
+  let hasMore = false
+  try {
+    const stream = await gateway.stream?.({ namespace: 'session', method: 'follow', args: { request: { address, maxMessages: 1 } }, ...(signal === undefined ? {} : { signal }) })
+    if (stream === undefined) return { ok: false, error: { code: 'unavailable', message: 'gateway stream is unavailable' } }
+    const iterator = stream[Symbol.asyncIterator]()
+    const next = await iterator.next()
+    if (typeof iterator.return === 'function') await iterator.return()
+    const opening = next.done === true ? undefined : next.value as { type?: string; cursor?: number; records?: unknown[]; hasMore?: boolean }
+    if (opening === undefined || opening.type !== 'snapshot' || typeof opening.cursor !== 'number') {
+      return { ok: false, error: { code: 'internal', message: 'session follow did not open with a snapshot' } }
+    }
+    cursor = opening.cursor
+    records = [...(opening.records ?? [])]
+    hasMore = opening.hasMore === true
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    return { ok: false, error: { code: 'internal', message } }
+  }
+  // Page backward until the window is full or the head is reached. The
+  // opening window usually covers a short tail; the loop bounds at 10 pages.
+  const beforeSeq = typeof body.beforeSeq === 'number' ? body.beforeSeq : undefined
+  for (let page = 0; page < 10 && records.length < maxMessages && hasMore; page += 1) {
+    const outcome = await invokeGateway(gateway, 'session', 'page', {
+      request: {
+        address,
+        throughSeq: cursor,
+        maxMessages,
+        ...(beforeSeq === undefined ? {} : { beforeSeq }),
+      },
+    }, signal)
+    if (!outcome.ok) return outcome
+    const value = outcome.value as { records?: unknown[]; hasMore?: boolean } | null
+    if (value === null || typeof value !== 'object' || !Array.isArray(value.records)) break
+    // Newest-first pages; trim to the requested window once.
+    records = [...records, ...value.records].slice(-maxMessages)
+    hasMore = value.hasMore === true
+  }
+  const events = records.map(record => ({
+    event: typeof record === 'object' && record !== null && 'event' in record
+      ? (record as { event: unknown }).event
+      : record,
+  }))
+  return {
+    ok: true,
+    value: {
+      events,
+      hasMore,
+    },
+  }
 }

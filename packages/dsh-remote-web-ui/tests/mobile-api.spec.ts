@@ -8,7 +8,7 @@ import { createServer, request as httpRequest } from 'node:http'
 import { describe, expect, it, vi } from 'vitest'
 import type { AddressInfo } from 'node:net'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
-import type { ApiProxy } from '@deepseek-ai/dsh-host-apiproxy'
+import type { TypertGatewayFace, WorkspaceRegistryFace } from '../src/host-gateway.ts'
 import { makeMobileApiRoutes } from '../src/mobile-api.ts'
 
 interface TestServer {
@@ -28,27 +28,38 @@ const service = {
 /** The resolved mobile composer preference (tests flip it per case). */
 const mobileEnterToSend = () => true
 
-/** An ApiProxy stub answering each method with the internal response shape. */
-const apiProxy = {
-  workspace: {
-    list: async () => ({ rpcId: 'r', result: { ok: true, value: { items: [] } } }),
+/** Business results the gateway stub answers per namespace/method. */
+const GATEWAY_RESULTS: Record<string, unknown> = {
+  'agentPresets/list': { presets: [], authorable: false },
+  'session/list': { items: [] },
+  'session/create': { sessionId: 's-created' },
+  'session/search': { items: [] },
+  'session/prompt': { accepted: true },
+  'session/modelCatalog': { current: { provider: 'fx', model: 'fx-1' }, groups: [], failures: [] },
+  'session/selectModel': { ok: true },
+  'session/rename': { ok: true },
+  'session/cancel': { accepted: true },
+}
+
+/** A typertGateway stub returning business results (failures throw). */
+const gateway: TypertGatewayFace = {
+  async stream(request) {
+    return this.invoke(request) as AsyncIterable<unknown>
   },
-  agentPresets: {
-    list: async () => ({ rpcId: 'r', result: { ok: true, value: { presets: [], authorable: false, hasDocument: false } } }),
+  async invoke(request) {
+    const key = request.namespace + '/' + request.method
+    if (key in GATEWAY_RESULTS) return GATEWAY_RESULTS[key] as unknown
+    if (key === 'session/follow') {
+      return (async function* () {
+        yield { type: 'snapshot', cursor: 5, records: [], hasMore: false }
+      })()
+    }
+    throw new Error('unexpected gateway call ' + key)
   },
-  sessions: {
-    list: async () => ({ rpcId: 'r', result: { ok: true, value: { items: [] } } }),
-    create: async () => ({ rpcId: 'r', result: { ok: true, value: { sessionId: 's-created' } } }),
-    history: async () => ({ rpcId: 'r', result: { ok: true, value: { items: [] } } }),
-    search: async () => ({ rpcId: 'r', result: { ok: true, value: { items: [] } } }),
-    prompt: async () => ({ rpcId: 'r', result: { ok: true, value: { queued: true } } }),
-    models: async () => ({ rpcId: 'r', result: { ok: true, value: { current: { provider: 'fx', model: 'fx-1' } } } }),
-    selectModel: async () => ({ rpcId: 'r', result: { ok: true, value: { ok: true } } }),
-    rename: async () => ({ rpcId: 'r', result: { ok: true, value: { ok: true } } }),
-    cancel: async () => ({ rpcId: 'r', result: { ok: true, value: { accepted: true } } }),
-  },
-  events: { mux: () => (async function* () {})() },
-} as unknown as ApiProxy
+}
+
+/** A workspace registry stub with no rows. */
+const workspaceRegistry: WorkspaceRegistryFace = { list: () => [] }
 
 async function serve(routes: WebRoute[]): Promise<TestServer> {
   const server = createServer((request, response) => {
@@ -93,6 +104,24 @@ async function call(port: number, method: string): Promise<{ status: number; bod
   })
 }
 
+async function callWithPayload(port: number, method: string, payload: unknown): Promise<{ status: number; body: string }> {
+  return await new Promise((resolve, reject) => {
+    const body = JSON.stringify({ type: 'client-request', rpcId: 'probe-1', method, payload })
+    const req = httpRequest({
+      host: '127.0.0.1', port, path: '/m/api/' + method, method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: cookieName + '=device-1', 'content-length': Buffer.byteLength(body) },
+    }, (response) => {
+      const chunks: Buffer[] = []
+      response.on('data', (chunk) => { chunks.push(chunk as Buffer) })
+      response.on('end', () => {
+        resolve({ status: response.statusCode ?? 0, body: Buffer.concat(chunks).toString('utf8') })
+      })
+    })
+    req.on('error', reject)
+    req.end(body)
+  })
+}
+
 async function callNoCookie(port: number, method: string): Promise<{ status: number; body: string }> {
   return await new Promise((resolve, reject) => {
     const body = JSON.stringify({ type: 'client-request', rpcId: 'probe-1', method, payload: {} })
@@ -113,7 +142,7 @@ async function callNoCookie(port: number, method: string): Promise<{ status: num
 
 describe('mobile api envelope', () => {
   it('writes the unpaired SSE rejection as JSON with family headers', async () => {
-    const server = await serve(makeMobileApiRoutes({ service, apiProxy, mobileEnterToSend }))
+    const server = await serve(makeMobileApiRoutes({ service, gateway, workspaceRegistry, mobileEnterToSend }))
     try {
       const result = await new Promise<{ status: number; body: string; headers: typeof import('node:http').IncomingHttpHeaders }>((resolve, reject) => {
         const req = httpRequest({ host: '127.0.0.1', port: server.port, path: '/m/api/events.mux', method: 'GET' }, (response) => {
@@ -137,7 +166,7 @@ describe('mobile api envelope', () => {
   })
 
   it('wraps every allowlisted unary method in the server-response envelope', async () => {
-    const server = await serve(makeMobileApiRoutes({ service, apiProxy, mobileEnterToSend }))
+    const server = await serve(makeMobileApiRoutes({ service, gateway, workspaceRegistry, mobileEnterToSend }))
     try {
       for (const method of [
         'workspace.list',
@@ -152,7 +181,7 @@ describe('mobile api envelope', () => {
         'session.rename',
         'session.cancel',
       ]) {
-        const { status, body } = await call(server.port, method)
+        const { status, body } = await callWithPayload(server.port, method, method === 'session.history' ? { sessionId: 's-1' } : {})
         expect(status).toBe(200)
         const envelope = JSON.parse(body) as { type?: string; rpcId?: string; result?: { ok?: boolean } }
         expect(envelope.type, method).toBe('server-response')
@@ -165,14 +194,15 @@ describe('mobile api envelope', () => {
   })
 
   it('wraps a session.list error in the server-response envelope, not a bare rpc body', async () => {
-    const failingApiProxy = {
-      ...apiProxy,
-      sessions: {
-        ...apiProxy.sessions,
-        list: async () => ({ rpcId: 'r', result: { ok: false as const, error: { code: 'forbidden', message: 'nope' } } }),
+    const failingGateway: TypertGatewayFace = {
+      invoke: async (request) => {
+        if (request.namespace === 'session' && request.method === 'list') {
+          throw Object.assign(new Error('nope'), { code: 'forbidden' })
+        }
+        return gateway.invoke(request)
       },
-    } as unknown as ApiProxy
-    const server = await serve(makeMobileApiRoutes({ service, apiProxy: failingApiProxy, mobileEnterToSend }))
+    }
+    const server = await serve(makeMobileApiRoutes({ service, gateway: failingGateway, mobileEnterToSend }))
     try {
       const { status, body } = await call(server.port, 'session.list')
       expect(status).toBe(200)
@@ -190,7 +220,8 @@ describe('mobile api envelope', () => {
     let mobileEnterToSend = true
     const server = await serve(makeMobileApiRoutes({
       service,
-      apiProxy,
+      gateway,
+      workspaceRegistry,
       mobileEnterToSend: () => mobileEnterToSend,
     }))
     try {
@@ -216,11 +247,8 @@ describe('mobile api envelope', () => {
   })
 
   it('heartbeat keep-alive reuses the single SSE connection (no new socket)', async () => {
-    const blockingProxy = {
-      ...apiProxy,
-      events: { mux: () => (async function* () { while (true) { await new Promise(() => {}) } })() },
-    } as unknown as ApiProxy
-    const routes = makeMobileApiRoutes({ service, apiProxy: blockingProxy, mobileEnterToSend, eventsHeartbeatMs: 25 })
+    const blockingGateway = gateway
+    const routes = makeMobileApiRoutes({ service, gateway: blockingGateway, mobileEnterToSend, eventsHeartbeatMs: 25 })
     let connections = 0
     const server = createServer((request, response) => {
       const pathname = new URL(request.url ?? '/', 'http://x').pathname
@@ -270,7 +298,7 @@ describe('mobile api envelope', () => {
     // is still actively connected.
     const touchDevice = vi.fn(() => true)
     const spyService = { config: { cookieName }, hasDevice: () => true, touchDevice } as never
-    const server = await serve(makeMobileApiRoutes({ service: spyService, apiProxy, mobileEnterToSend }))
+    const server = await serve(makeMobileApiRoutes({ service: spyService, gateway, workspaceRegistry, mobileEnterToSend }))
     try {
       const { status } = await call(server.port, 'session.list')
       expect(status).toBe(200)
@@ -287,11 +315,8 @@ describe('mobile api envelope', () => {
     // reports "disconnected" while the phone is still connected.
     const touchDevice = vi.fn(() => true)
     const spyService = { config: { cookieName }, hasDevice: () => true, touchDevice } as never
-    const blockingProxy = {
-      ...apiProxy,
-      events: { mux: () => (async function* () { while (true) { await new Promise(() => {}) } })() },
-    } as unknown as ApiProxy
-    const routes = makeMobileApiRoutes({ service: spyService, apiProxy: blockingProxy, mobileEnterToSend, eventsHeartbeatMs: 20 })
+    const blockingGateway = gateway
+    const routes = makeMobileApiRoutes({ service: spyService, gateway: blockingGateway, mobileEnterToSend, eventsHeartbeatMs: 20 })
     const server = createServer((request, response) => {
       const pathname = new URL(request.url ?? '/', 'http://x').pathname
       const exact = routes.find(r => r.kind === 'exact' && r.path === pathname)
@@ -337,7 +362,7 @@ describe('mobile api envelope', () => {
     // stopped). The gate must still refuse and must not leak the request.
     const touchDevice = vi.fn(() => false)
     const spyService = { config: { cookieName }, hasDevice: () => true, touchDevice } as never
-    const server = await serve(makeMobileApiRoutes({ service: spyService, apiProxy, mobileEnterToSend }))
+    const server = await serve(makeMobileApiRoutes({ service: spyService, gateway, workspaceRegistry, mobileEnterToSend }))
     try {
       const { status } = await call(server.port, 'session.list')
       expect(status).toBe(403)
@@ -350,7 +375,7 @@ describe('mobile api envelope', () => {
   it('does not refresh presence when the device cookie is absent', async () => {
     const touchDevice = vi.fn(() => true)
     const spyService = { config: { cookieName }, hasDevice: () => false, touchDevice } as never
-    const server = await serve(makeMobileApiRoutes({ service: spyService, apiProxy, mobileEnterToSend }))
+    const server = await serve(makeMobileApiRoutes({ service: spyService, gateway, workspaceRegistry, mobileEnterToSend }))
     try {
       // A request without the pairing cookie must be vetoed and must not
       // touchDevice (there is no device id to refresh).
@@ -393,7 +418,7 @@ describe('mobile api body failure contract (shared readBoundedJson)', () => {
   }
 
   it('answers 400 for an unparseable, empty or oversized body', async () => {
-    const server = await serve(makeMobileApiRoutes({ service, apiProxy, mobileEnterToSend }))
+    const server = await serve(makeMobileApiRoutes({ service, gateway, workspaceRegistry, mobileEnterToSend }))
     try {
       // Unparseable and explicit empty (content-length 0) bodies answer the
       // full envelope; a body-less POST is a client-side transport nuance and

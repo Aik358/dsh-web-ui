@@ -12,8 +12,8 @@
  */
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { MuxFrame } from '@deepseek-ai/dsh-host-apiproxy/api/events'
-import type { SessionModels } from '@deepseek-ai/dsh-host-apiproxy/api/sessions'
+import type { MuxFrame } from '../../mobile-pending.ts'
+import type { SessionModels } from '../api.ts'
 import { loadHistory, prompt, type SessionView } from './App.tsx'
 import { errorText, formatTime, staleHostHint } from './App.tsx'
 import { fetchMobilePreferences, models, selectModel, sendCommand, cancelSession, fetchPending, respondApproval, respondQuestion } from '../api.ts'
@@ -958,7 +958,7 @@ function ModelSheet({ sessionId, current, onCurrent, onClose }: {
   }
 
   const { data } = state
-  const selected = current ?? data.current
+  const selected = current ?? data.current ?? { provider: '', model: '' }
   const choices = data.groups.flatMap(group => group.models.map(model => ({ group, model })))
   const currentChoice = choices.find(choice => choice.group.id === selected.provider && choice.model.id === selected.model)
   const reasoning = currentChoice?.model.reasoning
@@ -981,7 +981,7 @@ function ModelSheet({ sessionId, current, onCurrent, onClose }: {
     <Sheet title="模型与思考强度" onClose={onClose}>
       {error !== undefined && <p className="sheet-error">{error}</p>}
       {error !== undefined && staleHostHint(error) !== undefined && <p className="sheet-hint">{staleHostHint(error)}</p>}
-      {data.failures.map(failure => (
+      {(data.failures ?? []).map(failure => (
         <p className="sheet-error" key={failure.id}>{failure.name}: {failure.message}</p>
       ))}
       {data.groups.length === 0 && choices.length === 0 && (

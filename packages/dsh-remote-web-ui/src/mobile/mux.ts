@@ -24,9 +24,7 @@
  * delivers again, fallback polling stops and the live stream takes over.
  */
 
-import type { MuxFrame } from '@deepseek-ai/dsh-host-apiproxy/api/events'
-import { muxFrameSchema } from '@deepseek-ai/dsh-host-apiproxy/api/events.schema'
-import { serverRequestSchema } from '@deepseek-ai/dsh-host-apiproxy/api/rpc.schema'
+import type { MuxFrame } from '../mobile-pending.ts'
 import { history as fetchHistory, type HistoryPage } from './api.ts'
 
 /** Injectable seams for tests. */
@@ -296,18 +294,21 @@ export class MuxClient {
       return
     }
     // The SSE channel carries server-request envelopes whose payload is the
-    // mux frame (same wire shape as the desktop mux channel).
-    const envelope = serverRequestSchema.safeParse(parsed)
-    if (!envelope.success) return
-    const frame = muxFrameSchema.safeParse(envelope.data.payload)
-    if (!frame.success) return
+    // mux frame. The zod schemas rode the removed apiproxy package; a
+    // structural guard keeps the same "unknown frames are dropped" semantics.
+    if (typeof parsed !== 'object' || parsed === null) return
+    const envelope = parsed as { rpcId?: unknown; payload?: unknown }
+    if (typeof envelope.rpcId !== 'string' || typeof envelope.payload !== 'object' || envelope.payload === null) return
+    const candidate = envelope.payload as { type?: unknown }
+    if (typeof candidate.type !== 'string') return
+    const frame = envelope.payload as MuxFrame
     // A delivered frame proves the SSE channel is live (the tunnel forwards
     // it) and delivers again — drop any fallback polling so the live stream
     // takes over without double delivery.
     this.sseAlive = true
     this.lastDataAt = this.now()
     if (this.polling) this.stopPolling()
-    this.emit(frame.data)
+    this.emit(frame)
   }
 
   private emit(frame: MuxFrame): void {

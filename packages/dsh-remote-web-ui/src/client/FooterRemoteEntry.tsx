@@ -11,8 +11,13 @@
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { RemoteEntry } from './RemoteEntry.tsx'
 
-/** Entry props: the footer seat's column state + the standard locale seat. */
-export type FooterRemoteEntryProps = PropsLocale<'remote'> & { wide: boolean }
+/** Entry props: the footer seat's column state, the deep-link workspace source, and the standard locale seat. */
+export type FooterRemoteEntryProps = PropsLocale<'remote'> & {
+  /** Whether the sidebar renders wide content (false = 56px rail). */
+  wide: boolean
+  /** Deep-link workspace source forwarded to {@link RemoteEntry}. */
+  getTargetWorkspaceId?: () => string | undefined
+}
 
 /**
  * Render the remote-control trigger + pairing panel from the footer seat.
@@ -23,8 +28,7 @@ export function FooterRemoteEntry(props: FooterRemoteEntryProps) {
   return (
     <RemoteEntry
       wide={props.wide}
-      useWorkspaces={() => undefined as never}
-      useSessions={() => undefined as never}
+      getTargetWorkspaceId={props.getTargetWorkspaceId}
       t={props.t}
     />
   )

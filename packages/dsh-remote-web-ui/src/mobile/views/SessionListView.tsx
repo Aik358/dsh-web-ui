@@ -12,9 +12,9 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { WorkspaceView as WorkspaceRow } from '@deepseek-ai/dsh-host-apiproxy/api/workspace'
-import type { AgentPresetEntry } from '@deepseek-ai/dsh-host-apiproxy/api/agent-presets'
-import type { SessionSummary } from '@deepseek-ai/dsh-host-apiproxy/api/sessions'
+import type { WorkspaceView as WorkspaceRow } from '../api.ts'
+import type { AgentPresetEntry } from '../api.ts'
+import type { SessionSummary } from '../api.ts'
 import { createSession, listAgentPresets, listSessions, listWorkspaces } from '../api.ts'
 import { errorText, formatTime, staleHostHint, toSessionView, type SessionView } from './App.tsx'
 import { ThemeToggle } from '../theme-toggle.tsx'

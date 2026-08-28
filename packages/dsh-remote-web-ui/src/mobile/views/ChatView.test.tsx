@@ -2,7 +2,7 @@
 /** ChatView: collapsible message folds, toolbar chips, and the bottom sheets. */
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { SessionModels } from '@deepseek-ai/dsh-host-apiproxy/api/sessions'
+import type { SessionModels } from '../api.ts'
 import { ChatView, MAX_TAIL_BUFFER_EVENTS, LONG_TEXT_LIMIT } from './ChatView.tsx'
 import { type SessionView } from './App.tsx'
 import type { HistoryPage } from '../api.ts'
@@ -813,4 +813,3 @@ describe('ChatView message visibility and long text folding (#1065)', () => {
     expect(container.querySelector('.chat-md-collapsed')).toBeNull()
   })
 })
-

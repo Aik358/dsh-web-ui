@@ -1,12 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { PendingTracker } from '../src/mobile-pending.ts'
-import type { MuxFrame } from '@deepseek-ai/dsh-host-apiproxy/api/events'
-import type { RpcRequest } from '@deepseek-ai/dsh-host-apiproxy/api/rpc'
-import { RpcId } from '@deepseek-ai/dsh-host-apiproxy/api/rpc'
+import type { MuxFrame, RpcRequest } from '../src/mobile-pending.ts'
 
 function makeFrame(payload: MuxFrame): RpcRequest<MuxFrame> {
   return {
-    rpcId: RpcId('test-rpc'),
+    rpcId: 'test-rpc',
     payload,
   }
 }
@@ -83,7 +81,7 @@ describe('PendingTracker', () => {
     tracker.onFrame(makeFrame({
       type: 'question/resolved',
       sessionId: 'sess-1' as any,
-      questionRpcId: RpcId('test-rpc'),
+      questionRpcId: 'test-rpc',
       outcome: 'answered',
     }))
     

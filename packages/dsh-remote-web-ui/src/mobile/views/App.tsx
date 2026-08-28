@@ -6,7 +6,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { WorkspaceView as WorkspaceRow } from '@deepseek-ai/dsh-host-apiproxy/api/workspace'
+import type { WorkspaceView as WorkspaceRow } from '../api.ts'
 import { fetchMobilePreferences, history as fetchHistory, listSessions, listWorkspaces, prompt } from '../api.ts'
 import { MuxClient } from '../mux.ts'
 import { RpcCallError, RpcTransportError } from '../rpc.ts'
