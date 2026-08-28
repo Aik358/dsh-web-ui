@@ -72,8 +72,53 @@ declare module '@deepseek-ai/cordis' {
 }
 
 
-/** Required services (fiber inject waiting — the runtime must be up first). */
-export const inject = ['slots', 'sessions', 'workspaces', 'connection', 'settingsScope', 'locale', 'remote', 'remote.agentPresets']
+/**
+ * Required services (fiber inject waiting — the runtime must be up first).
+ * The generated remote faces are probed at use time instead of injected:
+ * `remote.agentPresets` only registers on 0.1.2-alpha.1 hosts (the
+ * api-remotes contribution), so a hard wait would pend the entry forever
+ * on hosts below that cohort, which serve the same roster through the
+ * connection RPC face.
+ */
+export const inject = ['slots', 'sessions', 'workspaces', 'connection', 'settingsScope', 'locale', 'remote']
+
+/** One agent-preset row the mode picker consumes (either face's wire shape). */
+interface PresetRosterRow {
+  id: string
+  name?: string
+  description?: string
+  /** Why this preset cannot compose a session; absent when it can. */
+  broken?: string
+  isDefault: boolean
+}
+
+/**
+ * Read the agent-preset roster through whichever face the running host
+ * serves: the generated api-remotes face (`remote.agentPresets`,
+ * 0.1.2-alpha.1) or the connection RPC face
+ * (`connection.api.agentPresets`, hosts below that cohort). Answers
+ * undefined when the host serves neither, so the caller leaves the picker
+ * options untouched instead of erroring.
+ */
+async function readPresetRoster(
+  ctx: ClientContext,
+  remote: ClientRemote,
+): Promise<{ ok: boolean; presets: readonly PresetRosterRow[] } | undefined> {
+  const remotes = (remote as Partial<ClientRemote>).agentPresets
+  if (remotes !== undefined) {
+    const response = await remotes.list()
+    if (!response.ok) return { ok: false, presets: [] }
+    return { ok: true, presets: response.value.presets }
+  }
+  const connection = ctx.get('connection') as unknown as {
+    api?: { agentPresets?: { list(request: Record<string, never>): Promise<{ result: { ok: boolean; value?: { presets?: readonly PresetRosterRow[] } } }> } }
+  }
+  const legacy = connection.api?.agentPresets
+  if (legacy === undefined) return undefined
+  const response = await legacy.list({})
+  if (!response.result.ok || response.result.value === undefined) return { ok: false, presets: [] }
+  return { ok: true, presets: response.result.value.presets ?? [] }
+}
 
 /**
  * Mount the task board.
@@ -171,10 +216,10 @@ export function apply(ctx: ClientContext): void {
     disposers.push(workspaces.list.subscribe(pushWorkspaceOptions))
     const pushPresetOptions = async (): Promise<void> => {
       try {
-        const response = await remote.agentPresets.list()
-        if (!response.ok) return
+        const roster = await readPresetRoster(ctx, remote)
+        if (roster === undefined || !roster.ok) return
         controller.setExecutionOptions({
-          presets: response.value.presets.map(preset => ({
+          presets: roster.presets.map(preset => ({
             id: preset.id,
             name: preset.name,
             description: preset.description,
