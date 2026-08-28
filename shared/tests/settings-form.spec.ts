@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { SettingsScope, SettingsScopeSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SettingsScope, SettingsScopeSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
 import { CardForm, booleanField, choiceField, numberField, secretField, textField, type BatchedWrite, type BatchResult } from '../client/settings/settings-form.ts'
 // The shared vitest env has no runtime: stub the snapshot-store factory so
 // bind() works in tests.
-vi.mock('@deepseek-ai/dsh-client-runtime/client', () => {
+vi.mock('@deepseek-ai/dsh-client-store', () => {
   const createSnapshotStore = (initial: unknown) => {
     let value = initial
     return {
