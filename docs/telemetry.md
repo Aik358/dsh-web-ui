@@ -33,7 +33,7 @@ curl -s 'https://dsh-market.com/api/telemetry/summary?days=30'
 
 GitHub README 展示用两个无需密钥的 shields 端点徽章（只返回聚合计数，响应带 30 分钟缓存头）：
 
-- `GET /api/telemetry/badge/users` — 心跳全量去重实例数（用户数），数据随插件发版后增长。计数是全表扫描，响应在边缘缓存 30 分钟；D1 过载或不可用时回退最近一次成功计数（缓存保留 1 天），端点始终向 shields 返回合法的 200 JSON，README 徽章因此不会渲染成 inaccessible
+- `GET /api/telemetry/badge/users` — 心跳全量去重实例数（用户数），数据随插件发版后增长。计数由 cron 每 30 分钟预算到 D1 单行缓存（全表扫描耗时超出 shields 约 3.5 秒的抓取超时，端点只做单行主键读），响应再经边缘缓存 30 分钟；D1 不可用时回退最近一次成功计数，端点始终向 shields 返回合法的 200 JSON，README 徽章不会渲染成 inaccessible
 - `GET /api/npm-badge/total` — 全部已发布家族包的 npm 累计下载量合计（worker 服务端聚合 npm 官方 range API，含聚合包连带下载的常规口径）
 
 创意工坊卡片另用 `GET /api/npm-downloads` 展示每个带 npm 包名的插件近 30 天 registry 下载量（npm 公开口径，非工坊安装量；包名白名单由服务端已发布 manifest 派生，worker 小时级缓存，响应带 30 分钟缓存头）。工坊安装量本身由 `POST /api/install` 记录一次成功安装事件（幂等去重 + 每次安装计数，Turnstile 校验后一次 D1 批次写入），经 `GET /api/stats` 的 `installs` 字段向卡片与站点展示。

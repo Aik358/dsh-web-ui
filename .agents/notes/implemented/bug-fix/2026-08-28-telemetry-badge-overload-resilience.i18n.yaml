@@ -1,5 +1,2 @@
-# Bilingual-pair consistency record (docs/i18n.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with git hash-object.
-2026-08-28-telemetry-badge-overload-resilience.md: acd0296a365d03f0603b79d8c33fbb5158a51761
-2026-08-28-telemetry-badge-overload-resilience.zh.md: 840754b63a001dcfd212fa2c11242379c8d8b536
+2026-08-28-telemetry-badge-overload-resilience.md: fd896a91900bfbfcfc43616e8a09bcbc7a8c6fd4
+2026-08-28-telemetry-badge-overload-resilience.zh.md: 6807e49de711600300fa8c85573d00a9368a9568

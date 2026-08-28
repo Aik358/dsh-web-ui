@@ -38,7 +38,7 @@ th { background: #f9fafb; }
 <tr><td>GET</td><td><code>/api/npm-badge/version</code></td><td>Shields 端点徽章：聚合包新旧两个 npm 名中的最新版本</td><td>200</td></tr>
 <tr><td>GET</td><td><code>/api/npm-badge/total</code></td><td>Shields 端点徽章：全部已发布家族包的 npm 累计下载量合计</td><td>200</td></tr>
     <tr><td>GET</td><td><code>/api/npm-downloads</code></td><td>清单内每个带 npm 包名的插件近 30 天 npm 下载量（npm 公开口径，非工坊安装量）</td><td>200 / 503</td></tr>
-<tr><td>GET</td><td><code>/api/telemetry/badge/users</code></td><td>Shields 端点徽章：匿名心跳的全量去重实例数（用户数），仅聚合计数，无需密钥；边缘缓存 30 分钟，D1 过载时回退最近一次成功计数</td><td>200</td></tr>
+<tr><td>GET</td><td><code>/api/telemetry/badge/users</code></td><td>Shields 端点徽章：匿名心跳的全量去重实例数（用户数），仅聚合计数，无需密钥；读 cron 预计算的单行缓存并经边缘缓存 30 分钟，D1 故障时回退最近一次成功计数</td><td>200</td></tr>
 <tr><td>GET</td><td><code>/api/skin-center/v2/skins/{skinId}/{asset}</code></td><td>皮肤资产：<code>stylesheet</code>、<code>patches</code>、<code>hooks.mjs</code>、<code>assets/*</code>、<code>preview/*</code></td><td>200 / 404</td></tr>
 </tbody>
 </table>

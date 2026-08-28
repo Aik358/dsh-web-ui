@@ -4,27 +4,32 @@ Status: implemented
 
 ## Problem
 
-The README "users" shields endpoint badge rendered "inaccessible". shields fetched `/api/telemetry/badge/users` during D1 overload windows, the worker died with an unhandled `D1_ERROR: D1 DB is overloaded. Requests queued for too long.` exception, and shields received the Cloudflare 1101 error page (HTTP 500) instead of badge JSON. A live `wrangler tail` session captured hundreds of failing requests in ten minutes of production traffic — the badge itself, `/api/stats` reads, and telemetry writes. The badge count is a full-table `COUNT(DISTINCT)` scan over `telemetry_events`, so essentially every read during an overload window could throw.
+The README "users" shields endpoint badge rendered "inaccessible". Two independent failure layers stacked up on `/api/telemetry/badge/users`:
+
+1. **Slow compute.** The badge answered with a live `COUNT(DISTINCT visitor)` over `telemetry_events` (~1.1M heartbeat rows, ~86k distinct visitors). A production `wrangler tail` captured shields' own fetcher (UA `Shields.io/080e177`) aborting every request at a wall time of ~3450 ms — shields' upstream fetch timeout is ~3.5 s. Each aborted invocation was killed before it could cache anything, so every shields fetch landed on a cold path again: the badge could never succeed through shields regardless of database health.
+2. **D1 overload.** During overload windows the query failed outright with `D1_ERROR: D1 DB is overloaded. Requests queued for too long.`, the worker died with an unhandled exception, and shields received the Cloudflare 1101 error page (HTTP 500). The same tail captured hundreds of failing requests in ten minutes of production traffic, including the badge, `/api/stats` reads and telemetry writes.
 
 ## Decision
 
-- `handleTelemetryUsersBadge` (`market/worker/src/telemetry.js`) caches its response in the edge Cache API for 30 minutes (matching the pre-existing `cache-control` header) and keeps a second stale copy for 24 hours under a separate cache key. On a D1 error it serves the stale copy; with no stale copy available it returns a valid `{"schemaVersion":1,"label":"users","message":"unavailable","color":"lightgrey"}` 200 JSON. The handler can no longer produce a 5xx, so the README badge degrades to a grey "unavailable" instead of "inaccessible".
-- `handleTelemetryPost` catches D1 write errors and returns `503 {"ok":false,"error":"storage-unavailable"}` — the same shape as the existing missing-binding branch — instead of an unhandled exception page. Clients treat non-acceptance as "retry on the next mount", which matches the documented fire-and-forget contract in docs/telemetry.md.
-- The public contract text gained the same facts: docs/telemetry.md (badge bullet and client retry paragraph), the api-doc.js endpoint table (badge caching, event 503) and the OpenAPI summaries.
+- A new `badge_cache` D1 table (migration `0004_badge_cache.sql`) holds precomputed counts as single rows. A cron trigger (`*/30 * * * *` in `market/worker/wrangler.jsonc`, `scheduled` handler in `market/worker/src/index.js`) recomputes the heartbeat distinct-visitor count into the table every 30 minutes.
+- `handleTelemetryUsersBadge` (`market/worker/src/telemetry.js`) now reads that single indexed row — fast enough for shields' timeout from any colo — and keeps the 30-minute edge Cache API entry plus a 24-hour stale copy on top. Before the first cron tick (or if the row is missing) it bootstraps by running the scan once and seeding the row. On any D1 failure it serves the stale copy, or a valid `{"schemaVersion":1,...,"message":"unavailable"}` 200 JSON. No code path can produce a 5xx or exceed shields' timeout by serving a slow first byte.
+- `handleTelemetryPost` catches D1 write errors and returns `503 {"ok":false,"error":"storage-unavailable"}` — the same shape as the existing missing-binding branch — instead of an unhandled exception page. Clients treat non-acceptance as "retry on the next mount", matching the documented fire-and-forget contract in docs/telemetry.md.
+- The public contract text gained the same facts: docs/telemetry.md (badge bullet and client retry paragraph), the api-doc.js endpoint table (badge precompute, event 503) and the OpenAPI summaries.
 
 ## Testing
 
-Local `wrangler dev` with local D1: the badge computes the seeded distinct-visitor count; after inserting another visitor the served count stays cached (edge hit); dropping `telemetry_events` with a warm cache still serves the cached count; with an emptied cache it serves the 200 "unavailable" JSON; recreating the table restores the live count; POST with the table dropped returns the 503 JSON and succeeds again after recovery.
+Local `wrangler dev --test-scheduled` with local D1: the cron trigger rewrites a deliberately corrupted row value back to the real count; the badge serves the row in ~10 ms; deleting the row makes the next request bootstrap through the full scan and re-seed; dropping `telemetry_events` with an emptied cache yields the 200 "unavailable" JSON; POST with the table dropped returns the 503 JSON. Production `wrangler tail` after deploy shows the `Shields.io/080e177` fetcher completing with outcome "ok" well under the 3.5 s timeout, and the shields badge renders the real count.
 
 ## Alternatives considered
 
-- Maintaining a counter table (deduplicated visitor rows plus a totals counter) so the badge reads one row instead of scanning: it removes the full scan but adds schema, migration, and write-path complexity for a query that now runs at most once per 30 minutes per colo. Declined as disproportionate.
-- Adjusting only the shields-side `cacheSeconds`: shields' server cache is outside our control, the worker would still throw for every direct fetch during an overload, and the badge stays broken. Declined.
-- Sampling or rate-limiting heartbeat writes to remove the overload itself: a telemetry-architecture decision (cadence, aggregation, storage tier) that deserves its own proposal; this change only stops the badge and the write path from surfacing raw exceptions.
+- Maintaining a counter incremented on every heartbeat insert instead of a cron recomputation: avoids the periodic scan but adds write-path cost and complexity to every event insert for a number that moves slowly. The cron scan (one query per 30 minutes) is simpler and self-healing.
+- Serving stale-while-revalidate from the edge cache alone: cold colos still run the slow scan, and shields' abort kills the invocation before anything is cached, so the badge never recovers through shields. Declined.
+- Adjusting only the shields-side `cacheSeconds`: the timeout, not the cache, was the binding constraint. Declined.
+- Sampling or rate-limiting heartbeat writes to reduce D1 load: a telemetry-architecture decision (cadence, aggregation, storage tier) that deserves its own proposal; this change makes the badge and the write path resilient regardless.
 
 ## Consequences
 
-- The badge may show a count up to 30 minutes old, plus one outage window; acceptable for an all-time cumulative number.
-- If D1 stays unavailable for more than 24 hours past the last good computation, the badge shows the grey "unavailable" state rather than a number.
+- The badge shows a count at most ~1 hour old (30 min cron + 30 min edge cache); acceptable for an all-time cumulative number.
+- If D1 stays unavailable past the last computed row and both cache copies expire, the badge shows the grey "unavailable" state rather than a number.
 - `/api/stats` and `/api/telemetry/summary` still surface D1 overload as worker exceptions; they are site/dashboard inputs rather than shields inputs and need their own decision.
-- During overloads telemetry senders now receive 503 responses and retry on the next mount; retry volume is bounded by one pending day per browser.
+- During overloads telemetry senders receive 503 responses and retry on the next mount; retry volume is bounded by one pending day per browser.

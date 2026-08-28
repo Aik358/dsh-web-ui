@@ -251,15 +251,28 @@ function formatBadgeCount(users) {
   return users >= 1e6 ? trim(users / 1e6) + 'm' : users >= 1e3 ? trim(users / 1e3) + 'k' : String(users)
 }
 
+const BADGE_CACHE_ID = 'users'
+
+/** Recompute the heartbeat distinct-visitor count and seed badge_cache. */
+export async function refreshBadgeCache(env) {
+  const row = await env.DB.prepare("SELECT COUNT(DISTINCT visitor) AS users FROM telemetry_events WHERE kind = 'hb'").first()
+  const users = Number(row && row.users || 0)
+  await env.DB.prepare(
+    'INSERT INTO badge_cache (id, value, computed_at) VALUES (?1, ?2, ?3) ON CONFLICT(id) DO UPDATE SET value = excluded.value, computed_at = excluded.computed_at'
+  ).bind(BADGE_CACHE_ID, users, Date.now()).run()
+  return users
+}
+
 /**
  * Public shields endpoint badge: all-time distinct heartbeat visitors
  * ("users"). Aggregate count only — no key required, no raw data exposed.
  *
- * The count is a full-table scan, so the response is cached at the edge for
- * 30 minutes (Cache API) and the last good count is kept for a day under a
- * stale key. When D1 is overloaded the badge serves the stale copy instead
- * of throwing: shields renders any non-200 worker response as
- * "inaccessible", which is exactly what the README badge must never show.
+ * The live count is a full-table scan over ~1M rows that exceeds shields'
+ * ~3.5s fetch timeout, so the badge reads a single precomputed row that a
+ * cron trigger (wrangler.jsonc triggers.crons) refreshes every 30 minutes.
+ * On top of that the response is cached at the edge for 30 minutes with a
+ * 24h stale copy. Every fallback answers within the timeout or with a valid
+ * shields JSON — the README badge must never show "inaccessible".
  */
 export async function handleTelemetryUsersBadge(request, env, json) {
   const url = new URL(request.url)
@@ -272,9 +285,16 @@ export async function handleTelemetryUsersBadge(request, env, json) {
   let counted = false
   try {
     if (env.DB) {
-      const row = await env.DB.prepare("SELECT COUNT(DISTINCT visitor) AS users FROM telemetry_events WHERE kind = 'hb'").first()
-      message = formatBadgeCount(Number(row && row.users || 0))
-      counted = true
+      const row = await env.DB.prepare('SELECT value FROM badge_cache WHERE id = ?1').bind(BADGE_CACHE_ID).first()
+      if (row) {
+        message = formatBadgeCount(Number(row.value || 0))
+        counted = true
+      } else {
+        // Bootstrap before the first cron tick: run the full scan once and
+        // seed the row so every later read is a single indexed lookup.
+        message = formatBadgeCount(await refreshBadgeCache(env))
+        counted = true
+      }
     }
   } catch { /* D1 overloaded or unavailable: fall through to the stale copy */ }
   if (!counted) {

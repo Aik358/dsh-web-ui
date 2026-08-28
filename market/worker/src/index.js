@@ -6,7 +6,7 @@
  * described by /openapi.json and documented at /api-docs.html.
  */
 
-import { handleTelemetryPost, handleTelemetrySummary, handleTelemetryUsersBadge } from './telemetry.js'
+import { handleTelemetryPost, handleTelemetrySummary, handleTelemetryUsersBadge, refreshBadgeCache } from './telemetry.js'
 import { readJsonCapped } from './body.js'
 import { isKnownAsset } from './asset-allowlist.js'
 import { handleNpmBadge, handleNpmDownloads } from './npm-badge.js'
@@ -255,6 +255,13 @@ async function mutateLike(env, kind, assetId, hash, unlike) {
 }
 
 export default {
+  /** Cron trigger: recompute the public badge counts (wrangler.jsonc triggers.crons). */
+  async scheduled(controller, env) {
+    try {
+      await refreshBadgeCache(env)
+    } catch { /* best-effort; the badge serves the last computed row */ }
+  },
+
   async fetch(request, env) {
     const url = new URL(request.url)
     const path = url.pathname

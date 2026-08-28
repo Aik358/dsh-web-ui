@@ -179,7 +179,7 @@ export default {
     },
     '/api/telemetry/badge/users': {
       get: {
-        summary: 'Shields endpoint badge: all-time distinct heartbeat visitors (anonymous install count); aggregate only, no key required; edge-cached 30 min and serves the last good count when storage is overloaded',
+        summary: 'Shields endpoint badge: all-time distinct heartbeat visitors (anonymous install count); aggregate only, no key required; served from a cron-precomputed D1 row plus a 30 min edge cache, falling back to the last good count under storage failures',
         responses: { 200: { description: 'Shields endpoint schema (schemaVersion 1)' } },
       },
     },
