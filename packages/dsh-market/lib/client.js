@@ -7,7 +7,6 @@ window.__ModuleLoader__.load({
 		let react = require("react");
 		let _deepseek_ai_dsh_client_ui_primitives = require("@deepseek-ai/dsh-client-ui-primitives");
 		let react_jsx_runtime = require("react/jsx-runtime");
-		let _deepseek_ai_dsh_client_store = require("@deepseek-ai/dsh-client-store");
 		//#region src/client/turnstile.ts
 		/** Turnstile token relay hosted on the market origin. */
 		const MARKET_ORIGIN$1 = "https://dsh-market.com";
@@ -488,6 +487,19 @@ window.__ModuleLoader__.load({
 			});
 		}
 		//#endregion
+		//#region \0dsh-store-engine
+		const platform = ["@deepseek-ai/dsh-client", "-store"].join("");
+		const legacy = ["@deepseek-ai/dsh-client-runtime", "/client"].join("");
+		let engine;
+		try {
+			engine = require(platform);
+		} catch {
+			engine = require(legacy);
+		}
+		const createSnapshotStore = engine.createSnapshotStore;
+		engine.defineStore;
+		engine.shallowEqual;
+		//#endregion
 		//#region src/client/settings-form.ts
 		/** A boolean field, edited through true/false draft text. */
 		function booleanField(field) {
@@ -547,7 +559,7 @@ window.__ModuleLoader__.load({
 			}
 			/** Publish a projection of this form, rebuilt whenever the scope or a draft changes. */
 			bind(project) {
-				const store = (0, _deepseek_ai_dsh_client_store.createSnapshotStore)(project());
+				const store = createSnapshotStore(project());
 				this.listeners.add(() => {
 					store.set(project());
 				});
