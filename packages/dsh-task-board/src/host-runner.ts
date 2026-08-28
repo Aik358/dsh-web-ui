@@ -25,6 +25,24 @@ function sessionAddress(sessionId: string): SessionAddress {
   return { kind: 'session', sessionId: sessionId as SessionSummary['sessionId'] }
 }
 
+/**
+ * Gateway errors of this code mean the target service has not finished
+ * activating. The alpha.1 session tree starts `sessionController` only after
+ * its nine inject services resolve, while the first roster poll fires during
+ * plugin start, so the window is retried instead of flagging the roster
+ * unknown at every boot.
+ */
+function isServiceUnavailable(error: unknown): boolean {
+  return (error as { code?: unknown }).code === 'service-unavailable'
+}
+
+const SERVICE_UNAVAILABLE_ATTEMPTS = 5
+const SERVICE_UNAVAILABLE_BACKOFF_MS = 2_000
+
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => { setTimeout(resolve, ms) })
+}
+
 function recordEvent(record: SessionHistoryRecord): { type: string; seq: number; time: number; data: unknown } {
   return record.event
 }
@@ -86,12 +104,18 @@ function invokeWireArgs(namespace: string, method: string, request: Record<strin
 export class HostExecutionRunner {
   /** Newest scanned event sequence per session with no matching execution end. */
   private readonly scanMemos = new Map<string, number>()
+  private readonly unavailableAttempts: number
+  private readonly unavailableBackoffMs: number
 
   constructor(
     private readonly gateway: SessionGateway | TypertGateway,
     private readonly commands?: SessionCommandDispatcher,
     private readonly workspaceRegistry?: TaskBoardWorkspaceRegistry,
-  ) {}
+    unavailableRetry?: { attempts?: number; backoffMs?: number },
+  ) {
+    this.unavailableAttempts = unavailableRetry?.attempts ?? SERVICE_UNAVAILABLE_ATTEMPTS
+    this.unavailableBackoffMs = unavailableRetry?.backoffMs ?? SERVICE_UNAVAILABLE_BACKOFF_MS
+  }
 
   private invoke(namespace: string, method: string, request: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> {
     return this.gateway.invoke({ namespace, method, args: invokeWireArgs(namespace, method, request), ...(signal === undefined ? {} : { signal }) })
@@ -139,12 +163,17 @@ export class HostExecutionRunner {
   }
 
   async listRunning(): Promise<{ known: true; count: number; items: SessionSummary[] } | { known: false }> {
-    try {
-      const response = await this.invoke('session', 'list', {}) as SessionListValue
-      return { known: true, count: response.items.filter(item => item.running).length, items: response.items as SessionSummary[] }
-    } catch (error) {
-      console.error('[dsh-task-board] session/list failed; treating the host session roster as unknown', error)
-      return { known: false }
+    for (let attempt = 1; ; attempt++) {
+      try {
+        const response = await this.invoke('session', 'list', {}) as SessionListValue
+        return { known: true, count: response.items.filter(item => item.running).length, items: response.items as SessionSummary[] }
+      } catch (error) {
+        if (!isServiceUnavailable(error) || attempt >= this.unavailableAttempts) {
+          console.error('[dsh-task-board] session/list failed; treating the host session roster as unknown', error)
+          return { known: false }
+        }
+        await delay(this.unavailableBackoffMs)
+      }
     }
   }
 

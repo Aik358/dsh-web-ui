@@ -315,6 +315,47 @@ describe('HostExecutionRunner', () => {
     }
   })
 
+  it('retries a boot-race service-unavailable roster error until the controller activates', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const items = [{ sessionId: 'session-a', running: false }]
+      let calls = 0
+      const gateway = {
+        invoke: fakeInvoke(async () => {
+          calls++
+          if (calls === 1) {
+            throw Object.assign(new Error('typert gateway: session/list: active Service "sessionController" is unavailable'), { code: 'service-unavailable' })
+          }
+          return { items }
+        }),
+      }
+      const runner = new HostExecutionRunner(gateway, undefined, undefined, { attempts: 5, backoffMs: 0 })
+      await expect(runner.listRunning()).resolves.toEqual({ known: true, count: 0, items })
+      expect(calls).toBe(2)
+      expect(errorSpy).not.toHaveBeenCalled()
+    } finally {
+      errorSpy.mockRestore()
+    }
+  })
+
+  it('stops retrying after the unavailable window and reports the roster unknown once', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const gateway = {
+        invoke: fakeInvoke(async () => {
+          throw Object.assign(new Error('typert gateway: session/list: active Service "sessionController" is unavailable'), { code: 'service-unavailable' })
+        }),
+      }
+      const runner = new HostExecutionRunner(gateway, undefined, undefined, { attempts: 3, backoffMs: 0 })
+      await expect(runner.listRunning()).resolves.toEqual({ known: false })
+      expect(gateway.invoke).toHaveBeenCalledTimes(3)
+      expect(errorSpy).toHaveBeenCalledTimes(1)
+      expect(errorSpy).toHaveBeenCalledWith('[dsh-task-board] session/list failed; treating the host session roster as unknown', expect.any(Error))
+    } finally {
+      errorSpy.mockRestore()
+    }
+  })
+
   it('probes the history head instead of re-scanning a wedged session whose newest seq is unchanged', async () => {
     let headSeq = 40
     const page = vi.fn(async (request: GatewayRequest) => ({
