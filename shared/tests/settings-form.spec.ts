@@ -25,6 +25,14 @@ class FakeScope<T extends Record<string, unknown>> implements SettingsScope<T> {
   private listeners = new Set<() => void>()
   set = vi.fn(async (field: string, value: unknown) => { (this.user as Record<string, unknown>)[field] = value })
   unset = vi.fn(async (field: string) => { delete (this.user as Record<string, unknown>)[field] })
+  mutate = vi.fn(async (ops: ReadonlyArray<{ op: string; path: Array<string | number>; value?: unknown }>) => {
+    for (const item of ops) {
+      const field = String(item.path[item.path.length - 1])
+      if (item.op === 'unset') delete (this.user as Record<string, unknown>)[field]
+      else (this.user as Record<string, unknown>)[field] = item.value
+    }
+    this.reflect()
+  })
   subscribe(listener: () => void): () => void {
     this.listeners.add(listener)
     return () => { this.listeners.delete(listener) }
@@ -129,8 +137,11 @@ describe('CardForm', () => {
     expect(form.shell().dirty).toBe(true)
     expect(form.field('size')).toMatchObject({ text: '64', overridden: true, invalid: false })
     await form.save()
-    expect(scope.set).toHaveBeenCalledWith('size', 64)
-    expect(scope.set).toHaveBeenCalledWith('name', 'hugo')
+    expect(scope.mutate).toHaveBeenCalledTimes(1)
+    expect(scope.mutate).toHaveBeenCalledWith([
+      { op: 'set', path: ['size'], value: 64 },
+      { op: 'set', path: ['name'], value: 'hugo' },
+    ])
     expect(form.shell().dirty).toBe(false)
     expect(form.field('size')).toMatchObject({ text: '64', overridden: true })
   })
@@ -197,14 +208,15 @@ describe('CardForm', () => {
     expect(form.shell().dirty).toBe(false)
   })
 
-  it('marks the shell failed when a write does not land', async () => {
+  it('marks the shell failed when the atomic mutation is refused', async () => {
     const scope = new FakeScope<Record<string, unknown>>({ name: 'old' })
-    // Drop the write on the floor: the read-back never sees the staged value.
-    scope.set.mockImplementation(async () => {})
+    // The host validator refuses the batch: nothing lands, drafts survive.
+    scope.mutate.mockRejectedValue(new Error('settings-rejected'))
     const form = new CardForm(scope, fields())
     form.actions().edit('name', 'new')
     await form.save()
     expect(form.shell()).toMatchObject({ failed: true, dirty: true })
+    expect(form.shell().failedReason).toBe('settings-rejected')
   })
 
   it('resets a field back to its base value', () => {
@@ -241,7 +253,7 @@ class BatchScope<T extends Record<string, unknown>> implements SettingsScope<T> 
   status: 'ready' | 'loading' = 'ready'
   set = vi.fn(async () => {})
   unset = vi.fn(async () => {})
-  mutate = vi.fn(async (_writes: BatchedWrite[]): Promise<BatchResult> => ({ ok: true, fields: [] }))
+  mutate = vi.fn(async (_ops: ReadonlyArray<{ op: string; path: string[]; value?: unknown }>) => {})
   private listeners = new Set<() => void>()
   constructor(value: T) {
     this.value = value
@@ -264,15 +276,11 @@ class BatchScope<T extends Record<string, unknown>> implements SettingsScope<T> 
   }
 }
 
-describe('CardForm batch save', () => {
+describe('CardForm atomic save', () => {
   const batchFields = () => [numberField('size'), textField('name'), textField('url')]
 
-  it('sends every planned write in one scope.mutate call', async () => {
+  it('sends every planned write in one atomic scope.mutate call', async () => {
     const scope = new BatchScope<Record<string, unknown>>({ size: 32 })
-    scope.mutate.mockResolvedValue({
-      ok: true,
-      fields: [{ field: 'size', landed: true }, { field: 'name', landed: true }],
-    })
     const form = new CardForm(scope, batchFields())
     const actions = form.actions()
     actions.edit('size', '64')
@@ -280,69 +288,51 @@ describe('CardForm batch save', () => {
     await form.save()
     expect(scope.mutate).toHaveBeenCalledTimes(1)
     expect(scope.mutate).toHaveBeenCalledWith([
-      { field: 'size', op: 'set', value: 64 },
-      { field: 'name', op: 'set', value: 'hugo' },
+      { op: 'set', path: ['size'], value: 64 },
+      { op: 'set', path: ['name'], value: 'hugo' },
     ])
     expect(scope.set).not.toHaveBeenCalled()
     expect(scope.unset).not.toHaveBeenCalled()
     expect(form.shell().dirty).toBe(false)
   })
 
-  it('keeps only the fields that landed staged after a partial batch', async () => {
+  it('keeps every draft staged when the atomic mutation fails', async () => {
     const scope = new BatchScope<Record<string, unknown>>({ name: 'old', url: 'old-url' })
-    scope.mutate.mockResolvedValue({
-      ok: true,
-      fields: [
-        { field: 'name', landed: true },
-        { field: 'url', landed: false },
-      ],
-    })
+    scope.mutate.mockRejectedValue(new Error('rejected by the host validator'))
     const form = new CardForm(scope, batchFields())
     const actions = form.actions()
     actions.edit('name', 'new')
     actions.edit('url', 'new-url')
     await form.save()
-    // The landed field's draft is dropped; the failed one stays staged.
+    // The mutation is atomic: nothing landed, so every draft stays staged.
     expect(form.shell().failed).toBe(true)
+    expect(form.shell().failedReason).toBe('rejected by the host validator')
     expect(form.shell().dirty).toBe(true)
     expect(form.field('url')).toMatchObject({ text: 'new-url' })
   })
 
-  it('judges a secret field by the batch land flag, not value read-back', async () => {
+  it('rides the same atomic mutation for secret fields without read-back comparison', async () => {
     const scope = new BatchScope<Record<string, unknown>>({ model: 'm' })
-    // The bridge redacts the apiKey secret from the user layer; the mutate view
-    // reports it through the secret-set marker, surfaced as field.landed.
-    scope.mutate.mockResolvedValue({
-      ok: true,
-      fields: [{ field: 'apiKey', landed: true }],
-    })
     const form = new CardForm(scope, [textField('model'), secretField('apiKey')])
     const actions = form.actions()
     actions.edit('apiKey', 'sk-secret')
     await form.save()
-    expect(scope.mutate).toHaveBeenCalledWith([{ field: 'apiKey', op: 'set', value: 'sk-secret' }])
+    expect(scope.mutate).toHaveBeenCalledWith([{ op: 'set', path: ['apiKey'], value: 'sk-secret' }])
     expect(form.shell().failed).toBe(false)
     expect(form.shell().dirty).toBe(false)
   })
 
-  it('surfaces the host rejection message on the failed shell', async () => {
-    const scope = new BatchScope<Record<string, unknown>>({ model: 'm' })
-    scope.mutate.mockResolvedValue({
-      ok: false,
-      fields: [],
-      code: 'settings-rejected',
-      message: 'describe-image: baseURL and model must be set together',
-    })
-    const form = new CardForm(scope, batchFields())
-    form.actions().edit('size', '64')
+  it('clears a field with an unset operation when its draft is empty', async () => {
+    const scope = new BatchScope<Record<string, unknown>>({ model: 'm', apiKey: 'existing' })
+    const form = new CardForm(scope, [textField('model'), secretField('apiKey')])
+    form.actions().edit('apiKey', '')
     await form.save()
-    expect(form.shell().failed).toBe(true)
-    expect(form.shell().failedReason).toBe('describe-image: baseURL and model must be set together')
-    expect(form.shell().dirty).toBe(true)
+    expect(scope.mutate).toHaveBeenCalledWith([{ op: 'unset', path: ['apiKey'] }])
+    expect(form.shell().failed).toBe(false)
   })
 })
 
-describe('CardForm secret field (per-field path)', () => {
+describe('CardForm secret field (atomic path)', () => {
   it('treats a redacted secret write as landed without read-back comparison', async () => {
     const scope = new FakeScope<Record<string, unknown>>({ model: 'm' })
     // Redact the apiKey secret: the scope never reflects it into the user layer.
@@ -351,7 +341,7 @@ describe('CardForm secret field (per-field path)', () => {
     const form = new CardForm(scope, [textField('model'), secretField('apiKey')])
     form.actions().edit('apiKey', 'sk-secret')
     await form.save()
-    expect(scope.set).toHaveBeenCalledWith('apiKey', 'sk-secret')
+    expect(scope.mutate).toHaveBeenCalledWith([{ op: 'set', path: ['apiKey'], value: 'sk-secret' }])
     expect(form.shell().failed).toBe(false)
     expect(form.shell().dirty).toBe(false)
   })

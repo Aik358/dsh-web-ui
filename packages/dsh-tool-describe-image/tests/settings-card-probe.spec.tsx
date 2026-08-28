@@ -46,7 +46,7 @@ import {
 } from '../src/client/DescribeImageSettingsCard.tsx'
 import { setLanguage } from '../src/client/locales.ts'
 import type { FieldState } from '../src/client/settings-form.ts'
-import type { SettingsScope } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { DescribeImageSettings } from '../src/client/DescribeImageSettingsCard.tsx'
 
 afterEach(() => {
