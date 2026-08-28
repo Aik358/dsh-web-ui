@@ -1,7 +1,7 @@
-import type { ApiProxy } from '@deepseek-ai/dsh-host-apiproxy'
+import type { TypertGateway } from '@deepseek-ai/dsh-api-gateway'
 import { nextRunAtMs } from './core/schedule.ts'
 import { HostTaskLedger, type OpenedRun, type OpenExecutionReference } from './host-ledger.ts'
-import { HostExecutionRunner, SessionLaunchError, type SessionCommandDispatcher, type SessionSummary } from './host-runner.ts'
+import { HostExecutionRunner, SessionLaunchError, type SessionCommandDispatcher, type SessionSummary, type TaskBoardWorkspaceRegistry } from './host-runner.ts'
 import { PowerInhibitor } from './power-inhibitor.ts'
 import type { TaskBoardAction, TaskBoardEventPayload, TaskBoardSnapshot } from './protocol.ts'
 
@@ -24,14 +24,15 @@ export class TaskBoardHostService {
   private lastPowerJson = ''
   private readonly now: () => number
 
-  constructor(api: ApiProxy, options: {
+  constructor(gateway: TypertGateway, options: {
     ledger?: HostTaskLedger
     power?: PowerInhibitor
     now?: () => number
     commandDispatcher?: SessionCommandDispatcher
+    workspaceRegistry?: TaskBoardWorkspaceRegistry
   } = {}) {
     this.ledger = options.ledger ?? new HostTaskLedger()
-    this.runner = new HostExecutionRunner(api, options.commandDispatcher)
+    this.runner = new HostExecutionRunner(gateway, options.commandDispatcher, options.workspaceRegistry)
     this.power = options.power ?? new PowerInhibitor()
     this.now = options.now ?? Date.now
     this.ledger.subscribe(() => {

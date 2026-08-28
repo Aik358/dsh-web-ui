@@ -8,8 +8,13 @@
  * shell fails the whole boot when a plugin apply throws, and an external
  * plugin must not take the GUI down.
  */
-import type { ClientContext, ISessions, IWorkspaces, SessionId, SettingsScope, SettingsScopeSpec } from '@deepseek-ai/dsh-client-runtime/client'
-import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
+import type { ClientRemote, SessionId } from '@deepseek-ai/dsh-api-remotes/client'
+import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { IWorkspaces } from '@deepseek-ai/dsh-api-workspace-controller/client'
+import type { SettingsScope, SettingsScopeSpec } from '@deepseek-ai/dsh-client-ui-settings/client'
+import type {} from '@deepseek-ai/dsh-api-remotes/client'
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale) and its
 // LocaleNamespaceMap merge table.
@@ -68,7 +73,7 @@ declare module '@deepseek-ai/cordis' {
 
 
 /** Required services (fiber inject waiting — the runtime must be up first). */
-export const inject = ['slots', 'sessions', 'workspaces', 'connection', 'settingsScope', 'locale', 'remote']
+export const inject = ['slots', 'sessions', 'workspaces', 'connection', 'settingsScope', 'locale', 'remote', 'remote.agentPresets']
 
 /**
  * Mount the task board.
@@ -132,7 +137,7 @@ export function apply(ctx: ClientContext): void {
     // narrow these two client services during a combined package build.
     const sessions = ctx.get('sessions') as unknown as ISessions
     const workspaces = ctx.get('workspaces') as unknown as IWorkspaces
-    const connection = ctx.get('connection') as ConnectionHandle
+    const remote = ctx.get('remote') as unknown as ClientRemote
 
     // Core wiring: real runtime faces into the framework-free services.
     const store = new LocalStorageTaskStore()
@@ -166,10 +171,10 @@ export function apply(ctx: ClientContext): void {
     disposers.push(workspaces.list.subscribe(pushWorkspaceOptions))
     const pushPresetOptions = async (): Promise<void> => {
       try {
-        const response = await connection.api.agentPresets.list({})
-        if (!response.result.ok) return
+        const response = await remote.agentPresets.list()
+        if (!response.ok) return
         controller.setExecutionOptions({
-          presets: response.result.value.presets.map(preset => ({
+          presets: response.value.presets.map(preset => ({
             id: preset.id,
             name: preset.name,
             description: preset.description,
