@@ -8,8 +8,9 @@
  * card-store pattern.
  */
 
-import type { SettingsScope, SettingsScopeSnapshot, SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
-import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SettingsScope, SettingsScopeSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
+import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
+import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 
 /** The write one field's staged text performs when the card is saved. */
 export type FieldWrite =
@@ -53,8 +54,8 @@ export interface CardShell {
   available: boolean
   /**
    * Whether the namespace is actually served to this client. False when the
-   * Host deployment does not expose it (e.g. the official apiproxy settings
-   * allowlist omits third-party namespaces): the card renders an explanation
+   * Host deployment does not expose it (e.g. the owning plugin's settings
+   * domain is not mounted): the card renders an explanation
    * instead of its form, so a missing namespace never looks like a missing
    * plugin.
    */
