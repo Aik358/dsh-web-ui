@@ -18,4 +18,4 @@ Status: implemented
 
 ## 后果
 
-所有清单、lockfile 与聚合产物现在描述一个只存在于一次性 store 的队列，CI 在队列发布或 CI 增加队列构建步骤之前无法通过；该分支在此状态下不得合入 `dev`。overrides 块是回到 registry 的唯一开关。aionui 面板从全家桶中整体消失。聚合中的第三方插件停留在 SDK peer 早于本队列的版本：安装时仅有 peer 告警，在其上游适配前运行期持续损坏——这是预览版的既有外部限制，不是本次引入的回归。
+所有清单、lockfile 与聚合产物现在描述一个只存在于一次性 store 的队列，CI 在队列发布或 CI 增加队列构建步骤之前无法通过。该分支当晚即已合入 `dev`，CI 现已能自行重建 store：[CI 重建预览 cohort tarball store](2026-08-29-ci-rebuilds-cohort-tarball-store.zh.md)。overrides 块是回到 registry 的唯一开关。aionui 面板从全家桶中整体消失。聚合中的第三方插件停留在 SDK peer 早于本队列的版本：安装时仅有 peer 告警，在其上游适配前运行期持续损坏——这是预览版的既有外部限制，不是本次引入的回归。

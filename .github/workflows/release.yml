@@ -64,6 +64,23 @@ jobs:
       # checkout's absolute path into every bundle (CSS-module hashes and
       # \0dsh-css region markers), so rebuilt bytes differ per machine. The
       # explicit Build step still verifies everything builds.
+      - name: Prepare preview cohort store directory
+        run: |
+          sudo mkdir -p /Users/zcl/.dsh-cohorts
+          sudo chown -R "$(id -u):$(id -g)" /Users/zcl
+
+      # The preview cohort resolves from file: tarballs at the absolute store
+      # path recorded in pnpm-workspace.yaml and the lockfile; restore or
+      # rebuild the store so the frozen install resolves unchanged.
+      - name: Restore preview cohort store
+        uses: actions/cache@v4
+        with:
+          path: /Users/zcl/.dsh-cohorts/0.1.2-alpha.1
+          key: dsh-cohorts-${{ hashFiles('pnpm-workspace.yaml') }}
+
+      - name: Materialize preview cohort store
+        run: node scripts/build-cohort-tarballs.mjs
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
 
@@ -175,6 +192,21 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+
+      - name: Prepare preview cohort store directory
+        run: |
+          sudo mkdir -p /Users/zcl/.dsh-cohorts
+          sudo chown -R "$(id -u):$(id -g)" /Users/zcl
+
+      # Same store contract as the publish job above.
+      - name: Restore preview cohort store
+        uses: actions/cache@v4
+        with:
+          path: /Users/zcl/.dsh-cohorts/0.1.2-alpha.1
+          key: dsh-cohorts-${{ hashFiles('pnpm-workspace.yaml') }}
+
+      - name: Materialize preview cohort store
+        run: node scripts/build-cohort-tarballs.mjs
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
