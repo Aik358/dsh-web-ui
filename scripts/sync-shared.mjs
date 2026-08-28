@@ -27,7 +27,7 @@ export const REPO_ROOT = resolve(SCRIPT_DIR, '..')
  * live exactly once under shared/; consumers import the committed copy.
  */
 // Consumers of the settings card trio: one list, three derivations below.
-const SETTINGS_CONSUMERS = ['dsh-pet', 'dsh-task-board', 'dsh-remote-web-ui', 'dsh-aionui-panel', 'dsh-tool-describe-image', 'dsh-desktop-launcher', 'dsh-doctor', 'dsh-market']
+const SETTINGS_CONSUMERS = ['dsh-pet', 'dsh-task-board', 'dsh-remote-web-ui', 'dsh-tool-describe-image', 'dsh-desktop-launcher', 'dsh-doctor', 'dsh-market']
 
 const MANIFEST = [
   {
@@ -91,7 +91,6 @@ const MANIFEST = [
       'packages/dsh-liangshen/src/mount-once.ts',
       'packages/dsh-task-board/src/mount-once.ts',
       'packages/dsh-git-graph/src/mount-once.ts',
-      'packages/dsh-aionui-panel/src/mount-once.ts',
       'packages/dsh-community-plugins/src/mount-once.ts',
       'packages/dsh-plugin-manager/src/mount-once.ts',
       'packages/dsh-web-settings/src/mount-once.ts',
