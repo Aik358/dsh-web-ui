@@ -115,7 +115,7 @@ The right panel is provided by the external plugin [dsh-better-sidebar](https://
 
 ![Right panel](docs/screenshots/19-right-panel.png)
 
-> The previous aionui-panel right panel is **no longer supported**: it is off by default, receives no maintenance, tests, or fixes, and will be removed from the family bundle in a future release; Settings → Web Plugins → Side Card edits its everyday settings inline.
+> The previous aionui-panel right panel has been **fully removed** (2026-08-28): the package and its family-bundle row are gone; the right panel is provided by [dsh-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar), whose preferences live in that plugin's own settings section.
 
 ### Git Graph（Git 图谱）
 
@@ -213,7 +213,6 @@ dsh plugin --profile web add @linxin666/dsh-pet@latest                     # Wha
 dsh plugin --profile web add @linxin666/dsh-liangshen@latest               # LiangShen mode (two-phase anchored preset, pick in new sessions)
 dsh plugin --profile web add @linxin666/dsh-doctor@latest                  # Rescue mode (on by default, can be disabled in the Doctor card)
 dsh plugin --profile web add dsh-better-sidebar@latest                     # Right panel (recommended; explorer/editor/terminal/git/browser)
-dsh plugin --profile web add @linxin666/dsh-client-ui-aionui-panel@latest  # Legacy right panel (aionui-panel, unsupported, transitional only)
 ```
 
 <details>
@@ -240,7 +239,6 @@ Every plugin is published on npm under the `@linxin666/dsh-*` scope and can be v
 | [@linxin666/dsh-doctor](https://www.npmjs.com/package/@linxin666/dsh-doctor) | Transactional rescue mode: repairs DSH profiles (on by default) |
 | [@linxin666/dsh-client-ui-community-plugins](https://www.npmjs.com/package/@linxin666/dsh-client-ui-community-plugins) | Community plugin data source: the market plugin list is generated from it |
 | [@linxin666/dsh-client-ui-web-ui-settings](https://www.npmjs.com/package/@linxin666/dsh-client-ui-web-ui-settings) | Settings section for the dsh-web plugin group |
-| [@linxin666/dsh-client-ui-aionui-panel](https://www.npmjs.com/package/@linxin666/dsh-client-ui-aionui-panel) | Legacy right panel (no longer supported, off by default) |
 
 </details>
 
@@ -364,7 +362,7 @@ This repository is licensed under [Apache-2.0](LICENSE). Third-party code merged
 
 **Plugins**
 
-- **dsh-task-board / dsh-git-graph / dsh-aionui-panel / dsh-pet / dsh-remote-web-ui / dsh-web-settings / dsh-doctor / dsh-ssh / dsh-skill-explorer / dsh-desktop-launcher / dsh-market / dsh-plugin-manager / dsh-community-plugins / dsh-web-all** — authored by zhu1090093659, Apache-2.0 (zhu1090093659)
+- **dsh-task-board / dsh-git-graph / dsh-pet / dsh-remote-web-ui / dsh-web-settings / dsh-doctor / dsh-ssh / dsh-skill-explorer / dsh-desktop-launcher / dsh-market / dsh-plugin-manager / dsh-community-plugins / dsh-web-all** — authored by zhu1090093659, Apache-2.0 (zhu1090093659)
 - **dsh-tool-describe-image** — ported from [whitelonng/dsh-plugin-describe-image](https://github.com/whitelonng/dsh-plugin-describe-image) (deepseek-harness `packages/vision/tool-describe-image`), Apache-2.0 (zhu1090093659)
 - **dsh-liangshen** — plugin body original; preset derives from the DeepSeek Harness builtin Minimal / Standard presets and [xiaobright/dsh-anchored-standard](https://github.com/xiaobright/dsh-anchored-standard), Apache-2.0 (zhu1090093659) + MIT (preset derivations)
 - **dsh-better-sidebar** — external integrated plugin [omdsh-dev/DSH-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) (right panel, npm dependency reference), MIT (omdsh-dev)
