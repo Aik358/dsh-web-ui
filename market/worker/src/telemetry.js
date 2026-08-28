@@ -222,7 +222,14 @@ export async function handleTelemetryPost(request, env, json) {
     if (!parsed.ok) return json({ ok: false, error: parsed.error }, 400)
     subjects = parsed.items.map((item) => ({ subject: item.name, version: item.version, channel: item.channel }))
   }
-  await recordEvents(env, await submissionRows(env, body.kind === 'pageview' ? 'pv' : 'hb', hash, subjects))
+  try {
+    await recordEvents(env, await submissionRows(env, body.kind === 'pageview' ? 'pv' : 'hb', hash, subjects))
+  } catch {
+    // Telemetry is best-effort: D1 overload must not surface as a worker
+    // exception page. A 503 keeps the client contract (retry on next mount)
+    // instead of the client treating the day as reported.
+    return json({ ok: false, error: 'storage-unavailable' }, 503)
+  }
   return json({ ok: true })
 }
 
@@ -238,17 +245,48 @@ export async function summaryAuthorized(request, url, env) {
   return (await sha256(presented)) === (await sha256(key))
 }
 
+/** Compact shields count: 84912 -> "84.9k", 1200000 -> "1.2m". */
+function formatBadgeCount(users) {
+  const trim = (v) => String(Math.round(v * 10) / 10)
+  return users >= 1e6 ? trim(users / 1e6) + 'm' : users >= 1e3 ? trim(users / 1e3) + 'k' : String(users)
+}
+
 /**
  * Public shields endpoint badge: all-time distinct heartbeat visitors
  * ("users"). Aggregate count only — no key required, no raw data exposed.
+ *
+ * The count is a full-table scan, so the response is cached at the edge for
+ * 30 minutes (Cache API) and the last good count is kept for a day under a
+ * stale key. When D1 is overloaded the badge serves the stale copy instead
+ * of throwing: shields renders any non-200 worker response as
+ * "inaccessible", which is exactly what the README badge must never show.
  */
-export async function handleTelemetryUsersBadge(env, json) {
-  if (!env.DB) return json({ schemaVersion: 1, label: 'users', message: 'unavailable', color: 'lightgrey' }, 200)
-  const row = await env.DB.prepare("SELECT COUNT(DISTINCT visitor) AS users FROM telemetry_events WHERE kind = 'hb'").first()
-  const users = Number(row && row.users || 0)
-  const trim = (v) => String(Math.round(v * 10) / 10)
-  const message = users >= 1e6 ? trim(users / 1e6) + 'm' : users >= 1e3 ? trim(users / 1e3) + 'k' : String(users)
-  return json({ schemaVersion: 1, label: 'users', message, color: 'blue' }, 200, { 'cache-control': 'public, max-age=1800' })
+export async function handleTelemetryUsersBadge(request, env, json) {
+  const url = new URL(request.url)
+  url.search = ''
+  const cache = caches.default
+  const key = new Request(url.href, { method: 'GET' })
+  const fresh = await cache.match(key)
+  if (fresh) return fresh
+  let message = 'unavailable'
+  let counted = false
+  try {
+    if (env.DB) {
+      const row = await env.DB.prepare("SELECT COUNT(DISTINCT visitor) AS users FROM telemetry_events WHERE kind = 'hb'").first()
+      message = formatBadgeCount(Number(row && row.users || 0))
+      counted = true
+    }
+  } catch { /* D1 overloaded or unavailable: fall through to the stale copy */ }
+  if (!counted) {
+    const stale = await cache.match(new Request(url.href + '?stale=1', { method: 'GET' }))
+    if (stale) return stale
+    return json({ schemaVersion: 1, label: 'users', message, color: 'lightgrey' }, 200)
+  }
+  const body = { schemaVersion: 1, label: 'users', message, color: 'blue' }
+  const freshResponse = json(body, 200, { 'cache-control': 'public, max-age=1800' })
+  await cache.put(key, freshResponse.clone())
+  await cache.put(new Request(url.href + '?stale=1', { method: 'GET' }), json(body, 200, { 'cache-control': 'public, max-age=86400' }))
+  return freshResponse
 }
 
 export async function handleTelemetrySummary(request, url, env, json) {

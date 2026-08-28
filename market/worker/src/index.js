@@ -265,7 +265,7 @@ export default {
     if (path === '/api/npm-badge/version' && request.method === 'GET') return handleNpmBadge('version', json)
     if (path === '/api/npm-badge/total' && request.method === 'GET') return handleNpmBadge('total', json)
     if (path === '/api/npm-downloads' && request.method === 'GET') return handleNpmDownloads(env, json)
-    if (path === '/api/telemetry/badge/users' && request.method === 'GET') return handleTelemetryUsersBadge(env, json)
+    if (path === '/api/telemetry/badge/users' && request.method === 'GET') return handleTelemetryUsersBadge(request, env, json)
     if (path === '/api/turnstile/challenge' && request.method === 'GET') return challengePage()
 
     if (path === '/api/stats' && request.method === 'GET') {

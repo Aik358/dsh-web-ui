@@ -129,6 +129,7 @@ export default {
           200: { description: 'Event accepted (duplicates collapse per day)' },
           400: { description: 'Invalid parameters or JSON' },
           413: { description: 'Body exceeds the 16 KiB telemetry cap (payload-too-large)' },
+          503: { description: 'Storage unavailable (D1 overloaded); retry on a later mount' },
         },
       },
     },
@@ -178,7 +179,7 @@ export default {
     },
     '/api/telemetry/badge/users': {
       get: {
-        summary: 'Shields endpoint badge: all-time distinct heartbeat visitors (anonymous install count); aggregate only, no key required',
+        summary: 'Shields endpoint badge: all-time distinct heartbeat visitors (anonymous install count); aggregate only, no key required; edge-cached 30 min and serves the last good count when storage is overloaded',
         responses: { 200: { description: 'Shields endpoint schema (schemaVersion 1)' } },
       },
     },
