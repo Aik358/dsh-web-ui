@@ -459,7 +459,7 @@ function applyImpl(ctx: Context, config?: Config): void {
   const initialPostureTimer = nodeSetTimeout(() => { runPostureProbe() }, 5_000)
   initialPostureTimer.unref()
   ctx.effect(() => () => { clearTimeout(initialPostureTimer) }, 'remote-web-ui: posture probe boot')
-  // Sibling plugins (aionui-panel, …) look this up by name. Absent when this
+  // Sibling plugins look this up by name. Absent when this
   // plugin is not installed; stop() / enabled=false still refuse cookies.
   new RemoteWebUiPairing(ctx, (request) => {
     if (!resolve().enabled) return false

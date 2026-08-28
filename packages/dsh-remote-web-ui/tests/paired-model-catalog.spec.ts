@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import type { TypertGatewayFace } from '../src/host-gateway.ts'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import { makePairedModelCatalogRoutes, PAIRED_MODEL_CATALOG_PATHS } from '../src/paired-model-catalog.ts'
+import { assertWireArgs } from './wire-gateway.ts'
 
 interface TestServer {
   port: number
@@ -38,15 +39,31 @@ interface GatewayOptions {
   discoverError?: string
 }
 
+/**
+ * A TypertRemoteFailure-shaped throw: the structured {code, message, details}
+ * payload rides .failure and the error itself carries no .code (exactly the
+ * 0.1.2 business-failure shape). The real host messages carry no
+ * conflict/reject token, so the 409/422 mapping must ride the code.
+ */
+function remoteFailure(code: string): Error {
+  const message = code === 'settings-conflict'
+    ? 'settings namespace "llm-pi-ai" changed since it was read (expected revision 7, now 8)'
+    : code === 'settings-rejected'
+      ? 'the settings provider refused the write'
+      : code
+  return Object.assign(new Error(message), { failure: { code, message, details: {} } })
+}
+
 function makeGateway(options: GatewayOptions = {}): { gateway: TypertGatewayFace, calls: Call[] } {
   const calls: Call[] = []
   const result = (method: string, value: unknown, failure?: string) => async (args: Record<string, unknown>) => {
     calls.push({ method, payload: args })
-    if (failure !== undefined) throw Object.assign(new Error(failure), { code: failure })
+    if (failure !== undefined) throw remoteFailure(failure)
     return value
   }
   const gateway: TypertGatewayFace = {
     invoke: async (request) => {
+      assertWireArgs(request)
       const key = request.namespace + '/' + request.method
       const args = request.args as Record<string, unknown>
       switch (key) {
@@ -140,7 +157,6 @@ describe('paired model catalog API', () => {
     const server = await serve(makeRoutes(gateway, { value: true }, { lanAddresses: ['192.168.1.5'] }))
     try {
       const result = await call(server.port, PAIRED_MODEL_CATALOG_PATHS.catalog, { method: 'GET', host: '192.168.1.5:3456' })
-      console.log('DEBUG status', result.status, 'body', JSON.stringify(result.body))
       expect(result.status).toBe(200)
       expect(result.body).toEqual({ capability: 'paired-model-catalog', providers: [{ provider: 'acme', displayName: 'Acme' }] })
     } finally { await server.close() }
@@ -298,7 +314,7 @@ describe('paired model catalog API', () => {
     } finally { await server.close() }
   })
 
-  it('turns settings conflicts, schema refusals, and catalog failures into safe errors', async () => {
+  it('maps the structured TypertRemoteFailure codes onto 409/422/502 by code, not message', async () => {
     for (const [options, status] of [
       [{ mutateError: 'settings-conflict' }, 409],
       [{ mutateError: 'settings-rejected' }, 422],

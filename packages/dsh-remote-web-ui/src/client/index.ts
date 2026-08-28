@@ -137,11 +137,14 @@ export function apply(ctx: ClientContext): void {
   // The sidebar foot seat is `sidebar.footer.action` in the 0.1.2 shell
   // composition (the legacy `sidebar.remote` seat is gone upstream). The
   // deep-link workspace source is the head row of the workspaces projection
-  // (host order), read through the injected controller.
-  const workspacesSource = ctx.get('workspaces') as {
-    list: { getSnapshot(): { items: ReadonlyArray<{ workspaceId: unknown }> } }
-  } | undefined
+  // (host order), read through the injected controller. The service lookup
+  // stays lazy: `workspaces` may register after apply() runs (deep-link.ts
+  // polls for it), so a source captured once here would stay undefined for
+  // the page lifetime.
   const getTargetWorkspaceId = (): string | undefined => {
+    const workspacesSource = ctx.get('workspaces') as {
+      list: { getSnapshot(): { items: ReadonlyArray<{ workspaceId: unknown }> } }
+    } | undefined
     const head = workspacesSource?.list.getSnapshot().items[0]
     return head === undefined ? undefined : String(head.workspaceId)
   }

@@ -359,6 +359,28 @@ function mapListItems(value: unknown): Array<Record<string, unknown>> {
   return (value as { items: unknown[] }).items.filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
 }
 
+/**
+ * Wire-argument layout of the 0.1.2-alpha.1 descriptor tables; the gateway's
+ * assertExactArguments (@deepseek-ai/dsh-api-gateway/lib/index.js) throws
+ * arguments-invalid on any extra or missing args key.
+ * - session/list declares its single request parameter with wire key
+ *   '_request' (dsh-api-session-controller/lib/typert.host.js, descriptor
+ *   '@deepseek-ai/dsh-api-session-controller#session/list').
+ * - directoryPicker/list declares one flat optional 'path' parameter instead
+ *   of a request object (dsh-api-workspace-controller typert tables).
+ * - agentPresets/list and session/modelCatalog declare no parameters.
+ * Every other method dispatched here declares wire key 'request'.
+ */
+function invokeWireArgs(namespace: string, method: string, request: Record<string, unknown>): Record<string, unknown> {
+  if (namespace === 'session' && method === 'list') return { _request: request }
+  if (namespace === 'directoryPicker' && method === 'list') {
+    return typeof request.path === 'string' ? { path: request.path } : {}
+  }
+  if ((namespace === 'agentPresets' && method === 'list')
+    || (namespace === 'session' && method === 'modelCatalog')) return {}
+  return { request }
+}
+
 /** Dispatch one allowlisted method through the typertGateway faces. */
 async function dispatch(
   gateway: TypertGatewayFace,
@@ -380,7 +402,7 @@ async function dispatch(
     // The Remote list is unpaged; this layer keeps slicing stable pages over
     // (updatedAt desc, sessionId asc) exactly as before, so thin phones never
     // transfer the whole list at once.
-    const outcome = await invokeGateway(gateway, 'session', 'list', {}, signal)
+    const outcome = await invokeGateway(gateway, 'session', 'list', invokeWireArgs('session', 'list', {}), signal)
     if (!outcome.ok) return { type: 'server-response' as const, rpcId, result: outcome }
     const items = mapListItems(outcome.value).map(item => ({
       sessionId: String(item.id ?? item.sessionId ?? ''),
@@ -391,6 +413,8 @@ async function dispatch(
       ...(typeof item.displayTitle === 'string' ? { displayTitle: item.displayTitle } : {}),
       ...(typeof item.cwd === 'string' ? { cwd: item.cwd } : {}),
       ...(item.origin === 'subagent' ? { origin: 'subagent' as const } : {}),
+      // SessionSummary.projections (values.title drives the phone's list label).
+      ...(item.projections !== null && typeof item.projections === 'object' ? { projections: item.projections } : {}),
     })) as Array<{ updatedAt: number; sessionId: string }>
     const cursor = (payload as { cursor?: string } | undefined)?.cursor
     items.sort((a, b) => b.updatedAt - a.updatedAt
@@ -431,7 +455,7 @@ async function dispatch(
     return { type: 'server-response', rpcId, result: { ok: true, value: { items } } }
   }
   if (method === 'workspace.create') {
-    const outcome = await invokeGateway(gateway, 'workspace', 'create', { request: body }, signal)
+    const outcome = await invokeGateway(gateway, 'workspace', 'create', invokeWireArgs('workspace', 'create', body), signal)
     if (outcome.ok && typeof outcome.value === 'object' && outcome.value !== null) {
       const row = outcome.value as Record<string, unknown>
       const workspace = typeof row.workspace === 'object' && row.workspace !== null ? row.workspace : row
@@ -439,37 +463,51 @@ async function dispatch(
     }
     return respond(outcome)
   }
-  if (method === 'host.listDirectory') return respond(await invokeGateway(gateway, 'directoryPicker', 'list', { request: body }, signal))
+  if (method === 'host.listDirectory') return respond(await invokeGateway(gateway, 'directoryPicker', 'list', invokeWireArgs('directoryPicker', 'list', body), signal))
   if (method === 'agentPreset.list') {
-    const outcome = await invokeGateway(gateway, 'agentPresets', 'list', {}, signal)
+    const outcome = await invokeGateway(gateway, 'agentPresets', 'list', invokeWireArgs('agentPresets', 'list', {}), signal)
     if (!outcome.ok) return respond(outcome)
     const value = (typeof outcome.value === 'object' && outcome.value !== null ? outcome.value : {}) as Record<string, unknown>
     return {
       type: 'server-response',
       rpcId,
-      result: { ok: true, value: { ...value, presets: value.presets ?? [], authorable: value.authorable ?? false, hasDocument: true } },
+      result: { ok: true, value: { ...value, presets: value.presets ?? [], authorable: value.authorable ?? false } },
     }
   }
-  if (method === 'session.create') return respond(await invokeGateway(gateway, 'session', 'create', { request: body }, signal))
+  if (method === 'session.create') return respond(await invokeGateway(gateway, 'session', 'create', invokeWireArgs('session', 'create', body), signal))
   if (method === 'session.history') return respond(await sessionHistory(gateway, body, signal))
-  if (method === 'session.search') return respond(await invokeGateway(gateway, 'session', 'search', { request: body }, signal))
-  if (method === 'session.prompt') return respond(await invokeGateway(gateway, 'session', 'prompt', { request: body }, signal))
+  if (method === 'session.search') return respond(await invokeGateway(gateway, 'session', 'search', invokeWireArgs('session', 'search', body), signal))
+  if (method === 'session.prompt') return respond(await invokeGateway(gateway, 'session', 'prompt', invokeWireArgs('session', 'prompt', body), signal))
   if (method === 'session.models') {
     // The catalog is host-global in 0.1.2 (the sessionId argument is accepted
     // for wire compatibility and ignored).
-    return respond(await invokeGateway(gateway, 'session', 'modelCatalog', {}, signal))
+    const outcome = await invokeGateway(gateway, 'session', 'modelCatalog', invokeWireArgs('session', 'modelCatalog', {}), signal)
+    if (!outcome.ok) return respond(outcome)
+    // The 0.1.2 catalog names the active selection 'default' (no 'current');
+    // map it so the model sheet highlights the active selection.
+    const value = (typeof outcome.value === 'object' && outcome.value !== null ? outcome.value : {}) as Record<string, unknown>
+    const { default: current, ...rest } = value
+    return {
+      type: 'server-response',
+      rpcId,
+      result: { ok: true, value: { ...rest, ...(current === undefined ? {} : { current }) } },
+    }
   }
-  if (method === 'session.selectModel') return respond(await invokeGateway(gateway, 'session', 'selectModel', { request: body }, signal))
-  if (method === 'session.rename') return respond(await invokeGateway(gateway, 'session', 'rename', { request: body }, signal))
-  if (method === 'session.cancel') return respond(await invokeGateway(gateway, 'session', 'cancel', { request: body }, signal))
+  if (method === 'session.selectModel') return respond(await invokeGateway(gateway, 'session', 'selectModel', invokeWireArgs('session', 'selectModel', body), signal))
+  if (method === 'session.rename') return respond(await invokeGateway(gateway, 'session', 'rename', invokeWireArgs('session', 'rename', body), signal))
+  if (method === 'session.cancel') return respond(await invokeGateway(gateway, 'session', 'cancel', invokeWireArgs('session', 'cancel', body), signal))
   throw new Error(`unhandled allowlisted method ${method}`)
 }
 
 /**
  * One bounded history window via the 0.1.2 read path: open session/follow to
  * take the opening snapshot's throughSeq, then page backward with
- * session/page (the dedicated history RPC no longer exists). Bounded by
- * maxMessages like the old tail page; hasMore mirrors the last page.
+ * session/page (the dedicated history RPC no longer exists). Backward paging
+ * advances beforeSeq to the oldest seq accumulated so far (the same pattern
+ * as the dsh-task-board session scan), records dedupe by seq and the reply
+ * keeps ascending seq order, so the opening snapshot's newest record can
+ * never resurface out of order. Bounded by maxMessages like the old tail
+ * page, at most 10 pages; hasMore mirrors the last page.
  */
 async function sessionHistory(
   gateway: TypertGatewayFace,
@@ -482,55 +520,83 @@ async function sessionHistory(
     return { ok: false, error: { code: 'bad-request', message: 'session.history requires sessionId' } }
   }
   const address = { kind: 'session' as const, sessionId }
-  let cursor: number | undefined
-  let records: unknown[] = []
-  let hasMore = false
   try {
     const stream = await gateway.stream?.({ namespace: 'session', method: 'follow', args: { request: { address, maxMessages: 1 } }, ...(signal === undefined ? {} : { signal }) })
     if (stream === undefined) return { ok: false, error: { code: 'unavailable', message: 'gateway stream is unavailable' } }
     const iterator = stream[Symbol.asyncIterator]()
     const next = await iterator.next()
     if (typeof iterator.return === 'function') await iterator.return()
-    const opening = next.done === true ? undefined : next.value as { type?: string; cursor?: number; records?: unknown[]; hasMore?: boolean }
+    const opening = next.done === true ? undefined : next.value as {
+      type?: string; cursor?: number; records?: unknown[]; hasMore?: boolean; projections?: unknown
+    }
     if (opening === undefined || opening.type !== 'snapshot' || typeof opening.cursor !== 'number') {
       return { ok: false, error: { code: 'internal', message: 'session follow did not open with a snapshot' } }
     }
-    cursor = opening.cursor
-    records = [...(opening.records ?? [])]
-    hasMore = opening.hasMore === true
+    // An explicit beforeSeq (the phone's "load older" cursor) is an exclusive
+    // upper bound for the whole window: records at or above it never
+    // accumulate, which also fences off the opening snapshot's newest record.
+    const upperBound = typeof body.beforeSeq === 'number' ? body.beforeSeq : undefined
+    const seqOf = (record: unknown): number | undefined => {
+      const event = (typeof record === 'object' && record !== null ? (record as { event?: unknown }).event : undefined) as { seq?: unknown } | undefined
+      return typeof event?.seq === 'number' ? event.seq : undefined
+    }
+    /** Records deduped by seq; the reply sorts them ascending at the end. */
+    const bySeq = new Map<number, unknown>()
+    const accumulate = (records: unknown[]): void => {
+      for (const record of records) {
+        const seq = seqOf(record)
+        if (seq === undefined) continue
+        if (upperBound !== undefined && seq >= upperBound) continue
+        if (!bySeq.has(seq)) bySeq.set(seq, record)
+      }
+    }
+    accumulate(opening.records ?? [])
+    let hasMore = opening.hasMore === true
+    // Backward cursor: the exclusive bound the next session/page call reads
+    // below. The phone's beforeSeq seeds it; afterwards it advances to the
+    // oldest seq accumulated so far, so every page fetches strictly older
+    // records instead of repeating the first one.
+    let beforeSeq = upperBound
+    for (let page = 0; page < 10 && bySeq.size < maxMessages && hasMore; page += 1) {
+      const outcome = await invokeGateway(gateway, 'session', 'page', {
+        request: {
+          address,
+          throughSeq: opening.cursor,
+          maxMessages,
+          ...(beforeSeq === undefined ? {} : { beforeSeq }),
+        },
+      }, signal)
+      if (!outcome.ok) return outcome
+      const value = outcome.value as { records?: unknown[]; hasMore?: boolean } | null
+      if (value === null || typeof value !== 'object' || !Array.isArray(value.records)) break
+      accumulate(value.records)
+      hasMore = value.hasMore === true
+      // session/page is deterministic in (throughSeq, beforeSeq): only a
+      // moved cursor guarantees the next page differs from the last one.
+      const oldest = bySeq.size === 0 ? undefined : Math.min(...bySeq.keys())
+      if (oldest === undefined || oldest === beforeSeq) break
+      beforeSeq = oldest
+    }
+    const events = [...bySeq.keys()].sort((left, right) => left - right).slice(-maxMessages)
+      .map(seq => {
+        const record = bySeq.get(seq) as { event?: unknown }
+        return {
+          event: record !== null && typeof record === 'object' && 'event' in record
+            ? (record as { event: unknown }).event
+            : record,
+        }
+      })
+    return {
+      ok: true,
+      value: {
+        events,
+        hasMore,
+        // The opening snapshot's projection baseline (permissions select etc.).
+        ...(opening.projections === undefined ? {} : { projections: opening.projections }),
+      },
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     return { ok: false, error: { code: 'internal', message } }
-  }
-  // Page backward until the window is full or the head is reached. The
-  // opening window usually covers a short tail; the loop bounds at 10 pages.
-  const beforeSeq = typeof body.beforeSeq === 'number' ? body.beforeSeq : undefined
-  for (let page = 0; page < 10 && records.length < maxMessages && hasMore; page += 1) {
-    const outcome = await invokeGateway(gateway, 'session', 'page', {
-      request: {
-        address,
-        throughSeq: cursor,
-        maxMessages,
-        ...(beforeSeq === undefined ? {} : { beforeSeq }),
-      },
-    }, signal)
-    if (!outcome.ok) return outcome
-    const value = outcome.value as { records?: unknown[]; hasMore?: boolean } | null
-    if (value === null || typeof value !== 'object' || !Array.isArray(value.records)) break
-    // Newest-first pages; trim to the requested window once.
-    records = [...records, ...value.records].slice(-maxMessages)
-    hasMore = value.hasMore === true
-  }
-  const events = records.map(record => ({
-    event: typeof record === 'object' && record !== null && 'event' in record
-      ? (record as { event: unknown }).event
-      : record,
-  }))
-  return {
-    ok: true,
-    value: {
-      events,
-      hasMore,
-    },
   }
 }

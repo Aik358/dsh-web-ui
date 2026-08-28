@@ -2,16 +2,6 @@
 /** The sidebar entry + panel: issue flow, status stream, and the three actions. */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-// The npm SDK's client half is a closure-factory bundle for the GUI's
-// __ModuleLoader__ (not importable under vitest); provide the one value
-// member the apply chain needs.
-vi.mock('@deepseek-ai/dsh-client-runtime/client', () => ({
-  createSnapshotStore: (init: unknown) => ({
-    get: () => init,
-    set: () => {},
-    subscribe: () => () => {},
-  }),
-}))
 import { RemoteEntry, type RemoteEntryProps } from '../src/client/RemoteEntry.tsx'
 import { en, type RemoteKey } from '../src/client/locales.ts'
 

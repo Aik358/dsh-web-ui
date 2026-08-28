@@ -270,8 +270,10 @@ export function makePairedModelCatalogRoutes(deps: PairedModelCatalogDeps): WebR
     if (before === undefined) return reject(res, 502, `model catalog is unavailable for provider ${body.provider}`)
     const plan = mutationPlan(eligible.provider.profile, body.provider, body.model, before)
     if (plan === undefined) return reject(res, 502, `model catalog is unavailable for provider ${body.provider}`)
-    // The gateway mutate takes (ns, ops, expectedRevision) flat and throws on
-    // conflicts; message content maps the historical 409/422 distinctions.
+    // The gateway mutate takes (ns, ops, expectedRevision) flat; the host
+    // classifies refusals with the wire codes 'settings-conflict' (409) and
+    // 'settings-rejected' (422), which invokeGateway surfaces from the
+    // TypertRemoteFailure payload.
     const mutation = await invokeGateway(gateway, 'settings', 'mutate', {
       ns: 'llm-pi-ai',
       ops: plan.ops,

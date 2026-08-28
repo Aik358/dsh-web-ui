@@ -39,6 +39,8 @@ export interface SessionSummary {
   cwd?: string
   blank: boolean
   origin?: 'subagent'
+  /** Projection hints riding the row (values.title drives the list label). */
+  projections?: { asOfSeq?: number; values?: Record<string, unknown> }
 }
 
 /** One history entry (message-aligned event as the phone folds it). */
@@ -96,7 +98,6 @@ export interface CreatedSession {
 export interface AgentPresetRoster {
   presets: readonly AgentPresetEntry[]
   authorable: boolean
-  hasDocument: boolean
 }
 
 /** One history page (already bounded to whole messages by the host). */

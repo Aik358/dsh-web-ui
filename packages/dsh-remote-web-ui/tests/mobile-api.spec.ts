@@ -10,6 +10,7 @@ import type { AddressInfo } from 'node:net'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import type { TypertGatewayFace, WorkspaceRegistryFace } from '../src/host-gateway.ts'
 import { makeMobileApiRoutes } from '../src/mobile-api.ts'
+import { assertWireArgs } from './wire-gateway.ts'
 
 interface TestServer {
   port: number
@@ -35,18 +36,26 @@ const GATEWAY_RESULTS: Record<string, unknown> = {
   'session/create': { sessionId: 's-created' },
   'session/search': { items: [] },
   'session/prompt': { accepted: true },
-  'session/modelCatalog': { current: { provider: 'fx', model: 'fx-1' }, groups: [], failures: [] },
+  'session/modelCatalog': { default: { provider: 'fx', model: 'fx-1' }, routableProviders: ['fx'], groups: [], failures: [] },
   'session/selectModel': { ok: true },
   'session/rename': { ok: true },
   'session/cancel': { accepted: true },
+  'directoryPicker/list': { path: '/tmp/x', home: '/tmp', crumbs: [], entries: [], truncated: false },
 }
 
-/** A typertGateway stub returning business results (failures throw). */
+/**
+ * A typertGateway stub returning business results (failures throw). Every
+ * call is validated against the 0.1.2 descriptor wire layout first, so an
+ * args-shape drift (the class of bug that broke session/list and
+ * directoryPicker/list) fails here instead of going green.
+ */
 const gateway: TypertGatewayFace = {
   async stream(request) {
+    assertWireArgs(request)
     return this.invoke(request) as AsyncIterable<unknown>
   },
   async invoke(request) {
+    assertWireArgs(request)
     const key = request.namespace + '/' + request.method
     if (key in GATEWAY_RESULTS) return GATEWAY_RESULTS[key] as unknown
     if (key === 'session/follow') {
@@ -443,6 +452,267 @@ describe('mobile api body failure contract (shared readBoundedJson)', () => {
       )
       expect(oversize.error).toBeNull()
       expect(oversize.status).toBe(400)
+    } finally {
+      await server.close()
+    }
+  })
+})
+
+describe('mobile api 0.1.2 wire mapping', () => {
+  /** A recorded gateway asserting exact wire args, answering per method. */
+  function recordingGateway(results: Record<string, unknown>): {
+    gateway: TypertGatewayFace
+    calls: Array<{ namespace: string; method: string; args: Record<string, unknown> }>
+  } {
+    const calls: Array<{ namespace: string; method: string; args: Record<string, unknown> }> = []
+    const gateway: TypertGatewayFace = {
+      async stream(request) {
+        assertWireArgs(request)
+        calls.push({ namespace: request.namespace, method: request.method, args: request.args })
+        if (request.namespace + '/' + request.method === 'session/follow') {
+          const value = results['session/follow'] as unknown
+          return (async function* () { yield value })()
+        }
+        throw new Error('unexpected stream call ' + request.namespace + '/' + request.method)
+      },
+      async invoke(request) {
+        assertWireArgs(request)
+        calls.push({ namespace: request.namespace, method: request.method, args: request.args })
+        const key = request.namespace + '/' + request.method
+        if (key in results) return results[key] as unknown
+        throw new Error('unexpected gateway call ' + key)
+      },
+    }
+    return { gateway, calls }
+  }
+
+  it('sends session/list on its _request wire and passes projections through', async () => {
+    const { gateway, calls } = recordingGateway({
+      'session/list': {
+        items: [{
+          sessionId: 's-1', running: false, updatedAt: 123, blank: false,
+          projections: { asOfSeq: 9, values: { title: '改造移动端' } },
+        }],
+      },
+    })
+    const server = await serve(makeMobileApiRoutes({ service, gateway, workspaceRegistry, mobileEnterToSend }))
+    try {
+      const { status, body } = await call(server.port, 'session.list')
+      expect(status).toBe(200)
+      expect(calls).toEqual([{ namespace: 'session', method: 'list', args: { _request: {} } }])
+      const envelope = JSON.parse(body) as { result?: { ok?: boolean; value?: { items?: Array<Record<string, unknown>> } } }
+      expect(envelope.result?.ok).toBe(true)
+      expect(envelope.result?.value?.items?.[0]?.projections).toEqual({ asOfSeq: 9, values: { title: '改造移动端' } })
+    } finally {
+      await server.close()
+    }
+  })
+
+  it('sends directoryPicker/list the flat optional path', async () => {
+    const { gateway, calls } = recordingGateway({
+      'directoryPicker/list': { path: '/tmp/x', home: '/tmp', crumbs: [], entries: [], truncated: false },
+    })
+    const server = await serve(makeMobileApiRoutes({ service, gateway, workspaceRegistry, mobileEnterToSend }))
+    try {
+      const withPath = await callWithPayload(server.port, 'host.listDirectory', { path: '/tmp/x' })
+      expect(withPath.status).toBe(200)
+      expect(calls).toEqual([{ namespace: 'directoryPicker', method: 'list', args: { path: '/tmp/x' } }])
+      const withoutPath = await callWithPayload(server.port, 'host.listDirectory', {})
+      expect(withoutPath.status).toBe(200)
+      expect(calls[1]).toEqual({ namespace: 'directoryPicker', method: 'list', args: {} })
+    } finally {
+      await server.close()
+    }
+  })
+
+  it('maps the catalog default onto current for session.models', async () => {
+    const { gateway, calls } = recordingGateway({
+      'session/modelCatalog': { default: { provider: 'fx', model: 'fx-1' }, routableProviders: ['fx'], groups: [], failures: [] },
+    })
+    const server = await serve(makeMobileApiRoutes({ service, gateway, workspaceRegistry, mobileEnterToSend }))
+    try {
+      const { body } = await callWithPayload(server.port, 'session.models', { sessionId: 's-1' })
+      expect(calls).toEqual([{ namespace: 'session', method: 'modelCatalog', args: {} }])
+      const envelope = JSON.parse(body) as { result?: { ok?: boolean; value?: Record<string, unknown> } }
+      expect(envelope.result?.ok).toBe(true)
+      expect(envelope.result?.value?.current).toEqual({ provider: 'fx', model: 'fx-1' })
+      expect(envelope.result?.value).not.toHaveProperty('default')
+    } finally {
+      await server.close()
+    }
+  })
+
+  it('answers agentPreset.list with the real 0.1.2 roster (no fabricated hasDocument)', async () => {
+    const { gateway, calls } = recordingGateway({
+      'agentPresets/list': { presets: [{ id: 'a', trust: 'system' }], authorable: false },
+    })
+    const server = await serve(makeMobileApiRoutes({ service, gateway, workspaceRegistry, mobileEnterToSend }))
+    try {
+      const { body } = await callWithPayload(server.port, 'agentPreset.list', {})
+      expect(calls).toEqual([{ namespace: 'agentPresets', method: 'list', args: {} }])
+      const envelope = JSON.parse(body) as { result?: { ok?: boolean; value?: Record<string, unknown> } }
+      expect(envelope.result?.value).toEqual({ presets: [{ id: 'a', trust: 'system' }], authorable: false })
+    } finally {
+      await server.close()
+    }
+  })
+
+  it('answers mobile.respond with the controlled unavailable envelope', async () => {
+    const server = await serve(makeMobileApiRoutes({ service, gateway, workspaceRegistry, mobileEnterToSend }))
+    try {
+      const { status, body } = await callWithPayload(server.port, 'mobile.respond', {
+        sessionId: 's-1', type: 'approval', approvalId: 'a-1', outcome: 'allowed-once',
+      })
+      expect(status).toBe(200)
+      expect(JSON.parse(body)).toEqual({
+        type: 'server-response',
+        rpcId: 'probe-1',
+        result: { ok: false, error: { code: 'unavailable', message: 'respond is unavailable on this host build' } },
+      })
+    } finally {
+      await server.close()
+    }
+  })
+
+  it('maps a TypertRemoteFailure business failure through its structured code', async () => {
+    const failingGateway: TypertGatewayFace = {
+      invoke: async (request) => {
+        assertWireArgs(request)
+        if (request.namespace === 'session' && request.method === 'list') {
+          // TypertRemoteFailure shape: the structured payload rides .failure;
+          // the error itself carries no .code.
+          throw Object.assign(new Error('session "s-1" not found'), {
+            failure: { code: 'session-not-found', message: 'session "s-1" not found', details: {} },
+          })
+        }
+        return gateway.invoke(request)
+      },
+    }
+    const server = await serve(makeMobileApiRoutes({ service, gateway: failingGateway, mobileEnterToSend }))
+    try {
+      const { body } = await call(server.port, 'session.list')
+      const envelope = JSON.parse(body) as { result?: { ok?: boolean; error?: unknown } }
+      expect(envelope.result?.ok).toBe(false)
+      expect(envelope.result?.error).toEqual({ code: 'session-not-found', message: 'session "s-1" not found' })
+    } finally {
+      await server.close()
+    }
+  })
+
+  /** One fake log event. */
+  interface FakeEvent { seq: number; type: string }
+
+  /**
+   * A message-aligned fake history host: real paginate semantics (windows
+   * are cut on message counts and include every event in the slice) with an
+   * optional per-page record cap, so a conforming small-page host can drive
+   * the backward loop through several differing pages.
+   */
+  function historyGateway(events: FakeEvent[], options: { projections?: unknown; pageCap?: number } = {}): TypertGatewayFace {
+    const messageAligned = (beforeSeq: number | undefined, maxMessages: number, throughSeq: number): { records: unknown[]; hasMore: boolean } => {
+      const end = Math.min(throughSeq + 1, beforeSeq ?? throughSeq + 1)
+      let count = 0
+      let cut = 0
+      for (let index = end - 1; index >= 0; index--) {
+        const event = events[index]
+        if (event === undefined || (event.type !== 'user/message' && event.type !== 'assistant/message')) continue
+        count += 1
+        if (count >= maxMessages) {
+          cut = event.seq
+          break
+        }
+      }
+      let slice = events.slice(cut, end)
+      if (options.pageCap !== undefined && slice.length > options.pageCap) slice = slice.slice(-options.pageCap)
+      return { records: slice.map(event => ({ type: 'event', event })), hasMore: cut > 0 }
+    }
+    return {
+      async stream(request) {
+        assertWireArgs(request)
+        const req = (request.args as { request: { maxMessages?: number } }).request
+        const cursor = events.at(-1)?.seq ?? -1
+        const opening = messageAligned(undefined, req.maxMessages ?? 1, cursor)
+        return (async function* () {
+          yield {
+            type: 'snapshot',
+            cursor,
+            records: opening.records,
+            hasMore: opening.hasMore,
+            ...(options.projections === undefined ? {} : { projections: options.projections }),
+          }
+        })()
+      },
+      async invoke(request) {
+        assertWireArgs(request)
+        const req = (request.args as { request: { throughSeq: number; beforeSeq?: number; maxMessages?: number } }).request
+        return messageAligned(req.beforeSeq, req.maxMessages ?? 1, req.throughSeq)
+      },
+    }
+  }
+
+  const seqsOf = (page: { events?: Array<{ event: { seq: number } }> }): number[] => (page.events ?? []).map(entry => entry.event.seq)
+
+  it('pages sessionHistory backward by advancing beforeSeq when pages run short', async () => {
+    // 12 message events; a 3-record page cap forces several differing pages.
+    const events = Array.from({ length: 12 }, (_, seq) => ({ seq, type: 'user/message' }))
+    const gateway = historyGateway(events, { pageCap: 3 })
+    const server = await serve(makeMobileApiRoutes({ service, gateway, workspaceRegistry, mobileEnterToSend }))
+    try {
+      const { body } = await callWithPayload(server.port, 'session.history', { sessionId: 's-1', maxMessages: 8 })
+      const envelope = JSON.parse(body) as { result?: { ok?: boolean; value?: { events: Array<{ event: { seq: number } }>; hasMore: boolean } } }
+      expect(envelope.result?.ok).toBe(true)
+      const seqs = seqsOf(envelope.result?.value ?? {})
+      // Ascending and deduped, covering records well past the first page
+      // window (the loop must advance beforeSeq to reach them).
+      expect(seqs).toEqual([4, 5, 6, 7, 8, 9, 10, 11])
+      expect(new Set(seqs).size).toBe(seqs.length)
+      expect(envelope.result?.value?.hasMore).toBe(false)
+    } finally {
+      await server.close()
+    }
+  })
+
+  it('keeps a short log ascending and never surfaces the opening newest record out of order', async () => {
+    const events = [
+      { seq: 0, type: 'user/message' },
+      { seq: 1, type: 'user/message' },
+      { seq: 2, type: 'user/message' },
+    ]
+    const projections = {
+      asOfSeq: 2,
+      values: { permissions: { options: [{ id: 'default', name: 'Default' }], currentValue: 'default' } },
+    }
+    const gateway = historyGateway(events, { projections })
+    const server = await serve(makeMobileApiRoutes({ service, gateway, workspaceRegistry, mobileEnterToSend }))
+    try {
+      const { body } = await callWithPayload(server.port, 'session.history', { sessionId: 's-1' })
+      const envelope = JSON.parse(body) as { result?: { ok?: boolean; value?: { events: Array<{ event: { seq: number } }>; hasMore: boolean; projections?: unknown } } }
+      expect(envelope.result?.ok).toBe(true)
+      const seqs = seqsOf(envelope.result?.value ?? {})
+      // The follow(maxMessages:1) opening record (seq 2) must not resurface
+      // at events[0] or duplicate the newest page record.
+      expect(seqs).toEqual([0, 1, 2])
+      expect(new Set(seqs).size).toBe(seqs.length)
+      expect(envelope.result?.value?.projections).toEqual(projections)
+      expect(envelope.result?.value?.hasMore).toBe(false)
+    } finally {
+      await server.close()
+    }
+  })
+
+  it('honors an explicit beforeSeq as the exclusive upper bound (load older)', async () => {
+    const events = Array.from({ length: 10 }, (_, seq) => ({ seq, type: 'user/message' }))
+    const gateway = historyGateway(events)
+    const server = await serve(makeMobileApiRoutes({ service, gateway, workspaceRegistry, mobileEnterToSend }))
+    try {
+      const { body } = await callWithPayload(server.port, 'session.history', { sessionId: 's-1', beforeSeq: 6, maxMessages: 3 })
+      const envelope = JSON.parse(body) as { result?: { ok?: boolean; value?: { events: Array<{ event: { seq: number } }>; hasMore: boolean } } }
+      expect(envelope.result?.ok).toBe(true)
+      const seqs = seqsOf(envelope.result?.value ?? {})
+      // Strictly below the bound; the opening snapshot's newest record
+      // (seq 9, at or above the bound) never leaks into the older window.
+      expect(seqs).toEqual([3, 4, 5])
+      expect(envelope.result?.value?.hasMore).toBe(true)
     } finally {
       await server.close()
     }

@@ -51,7 +51,7 @@ function renderList(props: Partial<SessionListViewProps> = {}): void {
 beforeEach(() => {
   listSessionsMock.mockResolvedValue({ items: [], hasMore: false })
   listWorkspacesMock.mockResolvedValue([workspace])
-  listAgentPresetsMock.mockResolvedValue({ presets: [], authorable: false, hasDocument: false })
+  listAgentPresetsMock.mockResolvedValue({ presets: [], authorable: false })
   createSessionMock.mockResolvedValue({ sessionId: 's-new' })
 })
 
@@ -121,7 +121,6 @@ describe('SessionListView creation', () => {
         { id: 'router-spec', name: 'Router Spec', description: '规格驱动模式', trust: 'system', isDefault: false },
       ],
       authorable: false,
-      hasDocument: false,
     })
     renderList()
 
@@ -143,7 +142,6 @@ describe('SessionListView creation', () => {
         { id: 'local-router', name: 'Local Router', trust: 'user', isDefault: false },
       ],
       authorable: false,
-      hasDocument: false,
     })
     renderList()
 
@@ -175,7 +173,7 @@ describe('SessionListView creation', () => {
     const button = screen.getByRole('button', { name: '+ 新建会话' })
     expect(button.hasAttribute('disabled')).toBe(true)
 
-    resolvePresets({ presets: [], authorable: false, hasDocument: false })
+    resolvePresets({ presets: [], authorable: false })
     await waitFor(() => { expect(button.hasAttribute('disabled')).toBe(false) })
   })
 

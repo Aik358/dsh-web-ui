@@ -312,3 +312,49 @@ describe('MuxClient polling fallback', () => {
     client.stop()
   })
 })
+
+describe('MuxClient structural frame guards', () => {
+  /** A started client with a recorded source and frame log. */
+  function guardClient(): { client: MuxClient; sources: FakeSource[]; frames: unknown[] } {
+    const { factory, sources } = makeSources()
+    const client = new MuxClient('/m/api/events.mux', {
+      sourceFactory: factory,
+      pollLatest: async () => pageOf([]),
+      stallThresholdMs: 800,
+      pollIntervalMs: 400,
+    })
+    const frames: unknown[] = []
+    client.onFrame(frame => { frames.push(frame) })
+    client.start()
+    return { client, sources, frames }
+  }
+
+  it('drops malformed SSE payloads without emitting a frame', () => {
+    const { client, sources, frames } = guardClient()
+    const malformed = [
+      '',
+      'not json',
+      JSON.stringify(42),
+      JSON.stringify('text'),
+      JSON.stringify(null),
+      // No rpcId / non-string rpcId.
+      JSON.stringify({ payload: { type: 'session/subscribed' } }),
+      JSON.stringify({ rpcId: 7, payload: { type: 'session/subscribed' } }),
+      // Non-object payload / payload without a string type.
+      JSON.stringify({ rpcId: 'r1', payload: 'not-an-object' }),
+      JSON.stringify({ rpcId: 'r1', payload: {} }),
+      JSON.stringify({ rpcId: 'r1', payload: { type: 9 } }),
+    ]
+    for (const data of malformed) sources[0]?.onmessage?.({ data })
+    expect(frames).toHaveLength(0)
+    client.stop()
+  })
+
+  it('delivers a well-formed envelope payload as a frame', () => {
+    const { client, sources, frames } = guardClient()
+    sources[0]?.onmessage?.({ data: envelopeWith({ type: 'session/subscribed', sessionId: 's1', lastSeq: 4 }) })
+    expect(frames).toHaveLength(1)
+    expect(frames[0]).toMatchObject({ type: 'session/subscribed', sessionId: 's1' })
+    client.stop()
+  })
+})

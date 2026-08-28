@@ -300,10 +300,10 @@ over Server-Sent Events on `/m/api/events.mux`. The canonical `/m/` page owns a 
   SDK's: on a `--host 0.0.0.0` bind the SDK auto-trusts LAN literals, so a
   LAN client bypassing the UI can still reach `/api` directly — the posture
   probe reports that stance on the panel.
-- Sibling host routes outside `/api` (`/pet/*`, `/git/*`, the right-panel `/aionui-panel/*`
-  family) can consult this plugin's `remoteWebUiPairing` service: a live
-  paired-device cookie is an allow path, `stop()` still cuts them off, and
-  the service is absent when this plugin is not installed.
+- Sibling host routes outside `/api` (`/pet/*`, `/git/*`) can consult this
+  plugin's `remoteWebUiPairing` service: a live paired-device cookie is an
+  allow path, `stop()` still cuts them off, and the service is absent when
+  this plugin is not installed.
 - The QR link is built from the machine's non-internal IPv4 literals; a
   multi-homed host (Wi-Fi + wired, or a proxy/VPN virtual adapter) shows a
   radio picker so you can advertise the network the phone can actually
