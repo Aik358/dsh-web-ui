@@ -12,6 +12,50 @@ type GatewayRequest = {
 
 type FakeWorkspace = { id: string }
 
+// Real 0.1.2-alpha.1 gateway wire contract, encoded from assertExactArguments
+// in @deepseek-ai/dsh-api-gateway/lib/index.js plus the descriptor tables in
+// each package's lib/typert.host.js: session/list carries its request under
+// the '_request' wire key; session create/rename/prompt/page/follow (and the
+// follow stream) carry it under 'request'; agentPresets/list declares no
+// parameters. The fakes below throw on a wrong shape exactly like the real
+// gateway, so a drifted invoke wrapper cannot pass silently.
+const wireArgsKeys: Record<string, Record<string, readonly string[]>> = {
+  agentPresets: { list: [] },
+  session: {
+    create: ['request'],
+    rename: ['request'],
+    prompt: ['request'],
+    list: ['_request'],
+    page: ['request'],
+    follow: ['request'],
+  },
+}
+
+function assertWireArgs(request: GatewayRequest): void {
+  const expected = wireArgsKeys[request.namespace]?.[request.method]
+  if (expected === undefined) throw new Error('unexpected endpoint ' + request.namespace + '/' + request.method)
+  const actual = Object.keys(request.args)
+  const missing = expected.filter(key => !actual.includes(key))
+  const extra = actual.filter(key => !expected.includes(key))
+  if (missing.length !== 0 || extra.length !== 0) {
+    throw new Error('arguments-invalid for ' + request.namespace + '/' + request.method + ' (missing ' + JSON.stringify(missing) + ', unexpected ' + JSON.stringify(extra) + ')')
+  }
+}
+
+function fakeInvoke(handle: (request: GatewayRequest) => Promise<unknown>) {
+  return vi.fn(async (request: GatewayRequest) => {
+    assertWireArgs(request)
+    return handle(request)
+  })
+}
+
+function fakeStream(handle: (request: GatewayRequest) => Promise<AsyncIterable<unknown>>) {
+  return vi.fn(async (request: GatewayRequest) => {
+    assertWireArgs(request)
+    return handle(request)
+  })
+}
+
 function workspaceRegistry(items: readonly FakeWorkspace[] = [{ id: 'workspace-a' }]) {
   return { list: vi.fn(() => items) } as unknown as { list(): readonly Workspace[] }
 }
@@ -45,10 +89,10 @@ describe('HostExecutionRunner', () => {
       }),
     }
     const gateway = {
-      stream: vi.fn(async () => ({ async *[Symbol.asyncIterator]() { yield snapshot([], 0, false) } })),
-      invoke: vi.fn(async (request: GatewayRequest) => {
-        expect(request.args).toEqual(request.namespace === 'agentPresets' ? {} : expect.objectContaining({ request: expect.anything() }))
+      stream: fakeStream(async () => ({ async *[Symbol.asyncIterator]() { yield snapshot([], 0, false) } })),
+      invoke: fakeInvoke(async (request: GatewayRequest) => {
         if (request.namespace === 'agentPresets') {
+          expect(request.args).toEqual({})
           order.push('preset')
           return { presets: [{ id: 'preset-a', isDefault: false }] }
         }
@@ -78,8 +122,8 @@ describe('HostExecutionRunner', () => {
   it('fails closed on a stale workspace or unacknowledged permission command', async () => {
     const create = vi.fn()
     const gateway = {
-      stream: vi.fn(async () => ({ async *[Symbol.asyncIterator]() { yield snapshot([], 0, false) } })),
-      invoke: vi.fn(async (request: GatewayRequest) => {
+      stream: fakeStream(async () => ({ async *[Symbol.asyncIterator]() { yield snapshot([], 0, false) } })),
+      invoke: fakeInvoke(async (request: GatewayRequest) => {
         if (request.method === 'create') return create()
         return { presets: [{ id: 'preset-a' }] }
       }),
@@ -89,8 +133,8 @@ describe('HostExecutionRunner', () => {
 
     const prompt = vi.fn()
     const permissionRejected = {
-      stream: vi.fn(async () => ({ async *[Symbol.asyncIterator]() { yield snapshot([], 0, false) } })),
-      invoke: vi.fn(async (request: GatewayRequest) => {
+      stream: fakeStream(async () => ({ async *[Symbol.asyncIterator]() { yield snapshot([], 0, false) } })),
+      invoke: fakeInvoke(async (request: GatewayRequest) => {
         if (request.namespace === 'agentPresets') return { presets: [{ id: 'preset-a' }] }
         if (request.method === 'create') return { sessionId: 'session-a' }
         if (request.method === 'rename') return { title: 'Run me', seq: 1 }
@@ -114,8 +158,8 @@ describe('HostExecutionRunner', () => {
   it('fails closed when the permission command reports an error', async () => {
     const prompt = vi.fn()
     const gateway = {
-      stream: vi.fn(async () => ({ async *[Symbol.asyncIterator]() { yield snapshot([], 0, false) } })),
-      invoke: vi.fn(async (request: GatewayRequest) => {
+      stream: fakeStream(async () => ({ async *[Symbol.asyncIterator]() { yield snapshot([], 0, false) } })),
+      invoke: fakeInvoke(async (request: GatewayRequest) => {
         if (request.namespace === 'agentPresets') return { presets: [{ id: 'preset-a' }] }
         if (request.method === 'create') return { sessionId: 'session-a' }
         if (request.method === 'rename') return { title: 'Run me', seq: 1 }
@@ -140,8 +184,8 @@ describe('HostExecutionRunner', () => {
         throw new Error('permission command timed out')
       })
       const gateway = {
-        stream: vi.fn(async () => ({ async *[Symbol.asyncIterator]() { yield snapshot([], 0, false) } })),
-        invoke: vi.fn(async (request: GatewayRequest) => {
+        stream: fakeStream(async () => ({ async *[Symbol.asyncIterator]() { yield snapshot([], 0, false) } })),
+        invoke: fakeInvoke(async (request: GatewayRequest) => {
           if (request.namespace === 'agentPresets') return { presets: [{ id: 'preset-a' }] }
           if (request.method === 'create') return { sessionId: 'session-a' }
           if (request.method === 'rename') return { title: 'Run me', seq: 1 }
@@ -166,8 +210,9 @@ describe('HostExecutionRunner', () => {
   it('settles from session list plus the newest turn end and waits on read failures', async () => {
     let running = true
     let historyOk = true
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const gateway = {
-      invoke: vi.fn(async (request: GatewayRequest) => {
+      invoke: fakeInvoke(async (request: GatewayRequest) => {
         if (request.method === 'list') return { items: [{ sessionId: 'session-a', running }] }
         if (request.method === 'page') {
           if (!historyOk) throw new Error('offline')
@@ -175,18 +220,23 @@ describe('HostExecutionRunner', () => {
         }
         throw new Error('unexpected gateway call')
       }),
-      stream: vi.fn(async () => ({
+      stream: fakeStream(async () => ({
         async *[Symbol.asyncIterator]() {
           yield snapshot([], 10, true)
         },
       })),
     }
     const runner = new HostExecutionRunner(gateway)
-    await expect(runner.inspect('session-a')).resolves.toEqual({ outcome: 'pending' })
-    running = false
-    await expect(runner.inspect('session-a')).resolves.toEqual({ outcome: 'failed', error: 'agent turn ended with an error' })
-    historyOk = false
-    await expect(runner.inspect('session-a')).resolves.toEqual({ outcome: 'pending' })
+    try {
+      await expect(runner.inspect('session-a')).resolves.toEqual({ outcome: 'pending' })
+      running = false
+      await expect(runner.inspect('session-a')).resolves.toEqual({ outcome: 'failed', error: 'agent turn ended with an error' })
+      historyOk = false
+      await expect(runner.inspect('session-a')).resolves.toEqual({ outcome: 'pending' })
+      expect(warnSpy).toHaveBeenCalledWith('[dsh-task-board] session/page failed during execution inspection; keeping the outcome pending', expect.any(Error))
+    } finally {
+      warnSpy.mockRestore()
+    }
   })
 
   it('pages backward to the execution turn and ignores later user turns in the same session', async () => {
@@ -197,10 +247,10 @@ describe('HostExecutionRunner', () => {
         : { records: [sessionEvent('turn/end', 100, 1_100, { reason: { kind: 'complete' } }), sessionEvent('session/start', 90, 900, {})], hasMore: false }
     })
     const gateway = {
-      invoke: vi.fn(async (request: GatewayRequest) => request.method === 'list'
+      invoke: fakeInvoke(async (request: GatewayRequest) => request.method === 'list'
         ? { items: [{ sessionId: 'session-a', running: false }] }
         : page(request)),
-      stream: vi.fn(async () => ({
+      stream: fakeStream(async () => ({
         async *[Symbol.asyncIterator]() {
           yield snapshot([sessionEvent('user/message', 400, 4_000, {})], 400, true)
         },
@@ -216,8 +266,8 @@ describe('HostExecutionRunner', () => {
     const list = vi.fn(async () => ({ items }))
     const page = vi.fn(async () => ({ records: [sessionEvent('turn/end', 10, 1_100, { reason: { kind: 'complete' } })], hasMore: false }))
     const gateway = {
-      invoke: vi.fn(async (request: GatewayRequest) => request.method === 'list' ? list() : page()),
-      stream: vi.fn(async () => ({
+      invoke: fakeInvoke(async (request: GatewayRequest) => request.method === 'list' ? list() : page()),
+      stream: fakeStream(async () => ({
         async *[Symbol.asyncIterator]() {
           yield snapshot([], 10, true)
         },
@@ -232,6 +282,39 @@ describe('HostExecutionRunner', () => {
     expect(page).toHaveBeenCalledOnce()
   })
 
+  it('requests the host roster under the descriptor _request wire key and reports it known', async () => {
+    const items = [{ sessionId: 'session-a', running: true }, { sessionId: 'session-b', running: false }]
+    const gateway = {
+      invoke: fakeInvoke(async () => ({ items })),
+    }
+    const runner = new HostExecutionRunner(gateway)
+    await expect(runner.listRunning()).resolves.toEqual({ known: true, count: 1, items })
+    expect(gateway.invoke).toHaveBeenCalledTimes(1)
+    expect(gateway.invoke.mock.calls[0]?.[0]).toMatchObject({ namespace: 'session', method: 'list' })
+    expect(gateway.invoke.mock.calls[0]?.[0].args).toEqual({ _request: {} })
+  })
+
+  it('logs swallowed gateway failures while keeping the roster unknown and the outcome pending', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const gateway = {
+        invoke: fakeInvoke(async (request: GatewayRequest) => {
+          if (request.namespace === 'session' && request.method === 'list') throw new Error('args fields do not match the descriptor: missing "_request"')
+          throw new Error('unexpected gateway call')
+        }),
+      }
+      const runner = new HostExecutionRunner(gateway)
+      await expect(runner.listRunning()).resolves.toEqual({ known: false })
+      expect(errorSpy).toHaveBeenCalledWith('[dsh-task-board] session/list failed; treating the host session roster as unknown', expect.any(Error))
+      await expect(runner.inspect('session-a')).resolves.toEqual({ outcome: 'pending' })
+      expect(warnSpy).toHaveBeenCalledWith('[dsh-task-board] session/list failed during execution inspection; keeping the outcome pending', expect.any(Error))
+    } finally {
+      errorSpy.mockRestore()
+      warnSpy.mockRestore()
+    }
+  })
+
   it('probes the history head instead of re-scanning a wedged session whose newest seq is unchanged', async () => {
     let headSeq = 40
     const page = vi.fn(async (request: GatewayRequest) => ({
@@ -239,8 +322,8 @@ describe('HostExecutionRunner', () => {
       hasMore: false,
     }))
     const gateway = {
-      invoke: vi.fn(async (request: GatewayRequest) => request.method === 'list' ? { items: [{ sessionId: 'session-a', running: false }] } : page(request)),
-      stream: vi.fn(async () => ({
+      invoke: fakeInvoke(async (request: GatewayRequest) => request.method === 'list' ? { items: [{ sessionId: 'session-a', running: false }] } : page(request)),
+      stream: fakeStream(async () => ({
         async *[Symbol.asyncIterator]() {
           yield snapshot([sessionEvent('assistant/message', headSeq, 4_000, {})], headSeq, false)
         },
@@ -265,8 +348,8 @@ describe('HostExecutionRunner', () => {
       hasMore: false,
     }))
     const gateway = {
-      invoke: vi.fn(async (request: GatewayRequest) => request.method === 'list' ? { items: [{ sessionId: 'session-a', running: false }] } : page(request)),
-      stream: vi.fn(async () => ({
+      invoke: fakeInvoke(async (request: GatewayRequest) => request.method === 'list' ? { items: [{ sessionId: 'session-a', running: false }] } : page(request)),
+      stream: fakeStream(async () => ({
         async *[Symbol.asyncIterator]() {
           yield snapshot([sessionEvent('assistant/message', headSeq, 4_000, {})], headSeq, true)
         },

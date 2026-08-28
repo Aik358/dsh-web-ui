@@ -66,6 +66,23 @@ function isErrorTurnEnd(data: unknown): boolean {
   return typeof reason === 'object' && reason !== null && (reason as { kind?: unknown }).kind === 'error'
 }
 
+/**
+ * Wire-argument layout of the 0.1.2-alpha.1 descriptor tables; the gateway's
+ * assertExactArguments (@deepseek-ai/dsh-api-gateway/lib/index.js) throws
+ * arguments-invalid on any extra or missing args key.
+ * - agentPresets/list declares no parameters, so its args must be {}.
+ * - session/list declares its single request parameter with wire key
+ *   '_request' (dsh-api-session-controller/lib/typert.host.js, descriptor
+ *   '@deepseek-ai/dsh-api-session-controller#session/list'); every other
+ *   session method used here (create, rename, prompt, page, follow) declares
+ *   wire key 'request'.
+ */
+function invokeWireArgs(namespace: string, method: string, request: Record<string, unknown>): Record<string, unknown> {
+  if (namespace === 'agentPresets' && method === 'list') return {}
+  if (namespace === 'session' && method === 'list') return { _request: request }
+  return { request }
+}
+
 export class HostExecutionRunner {
   /** Newest scanned event sequence per session with no matching execution end. */
   private readonly scanMemos = new Map<string, number>()
@@ -77,7 +94,7 @@ export class HostExecutionRunner {
   ) {}
 
   private invoke(namespace: string, method: string, request: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> {
-    return this.gateway.invoke({ namespace, method, args: namespace === 'agentPresets' && method === 'list' ? {} : { request }, ...(signal === undefined ? {} : { signal }) })
+    return this.gateway.invoke({ namespace, method, args: invokeWireArgs(namespace, method, request), ...(signal === undefined ? {} : { signal }) })
   }
 
   private stream(namespace: string, method: string, request: Record<string, unknown>, signal?: AbortSignal): Promise<AsyncIterable<unknown>> {
@@ -125,7 +142,8 @@ export class HostExecutionRunner {
     try {
       const response = await this.invoke('session', 'list', {}) as SessionListValue
       return { known: true, count: response.items.filter(item => item.running).length, items: response.items as SessionSummary[] }
-    } catch {
+    } catch (error) {
+      console.error('[dsh-task-board] session/list failed; treating the host session roster as unknown', error)
       return { known: false }
     }
   }
@@ -139,7 +157,8 @@ export class HostExecutionRunner {
       let response: SessionListValue
       try {
         response = await this.invoke('session', 'list', {}) as SessionListValue
-      } catch {
+      } catch (error) {
+        console.warn('[dsh-task-board] session/list failed during execution inspection; keeping the outcome pending', error)
         return { outcome: 'pending' }
       }
       items = response.items
@@ -162,7 +181,8 @@ export class HostExecutionRunner {
         return { outcome: 'pending' }
       }
       opening = { cursor: follow.cursor, records: follow.records, hasMore: follow.hasMore }
-    } catch {
+    } catch (error) {
+      console.warn('[dsh-task-board] session/follow failed during execution inspection; keeping the outcome pending', error)
       return { outcome: 'pending' }
     }
     const openingEvents = opening.records.map(record => ({ event: recordEvent(record) }))
@@ -180,7 +200,8 @@ export class HostExecutionRunner {
           maxMessages: 100,
           ...(beforeSeq === undefined ? {} : { beforeSeq }),
         }) as SessionPage
-      } catch {
+      } catch (error) {
+        console.warn('[dsh-task-board] session/page failed during execution inspection; keeping the outcome pending', error)
         return { outcome: 'pending' }
       }
       const pageEntries = pageEvents(history)
