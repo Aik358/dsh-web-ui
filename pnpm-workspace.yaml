@@ -80,7 +80,6 @@ minimumReleaseAgeExclude:
   - '@morlay/session-rdb@0.0.11'
   - '@morlay/ui-conversation-message-actions@0.0.11'
 
-
 # DEVELOPER PREVIEW cohort 0.1.2-alpha.1: not published to npm. Every official
 # SDK package resolves to a tarball built from the official source tag
 # deepseek-harness@dsh-v0.1.2-alpha.1 (commit cd5ef81). Remove this block and
@@ -336,3 +335,6 @@ overrides:
   '@deepseek-ai/dsh-workflow': 'file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-workflow-0.1.2-alpha.1.tgz'
   '@deepseek-ai/dsh-workflow-worker-thread': 'file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-workflow-worker-thread-0.1.2-alpha.1.tgz'
   '@deepseek-ai/dsh-workspace': 'file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-workspace-0.1.2-alpha.1.tgz'
+
+patchedDependencies:
+  '@morlay/ui-conversation-message-actions@0.0.11': patches/@morlay__ui-conversation-message-actions@0.0.11.patch

@@ -255,6 +255,9 @@ overrides:
   '@deepseek-ai/dsh-workflow-worker-thread': file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-workflow-worker-thread-0.1.2-alpha.1.tgz
   '@deepseek-ai/dsh-workspace': file:/Users/zcl/.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-workspace-0.1.2-alpha.1.tgz
 
+patchedDependencies:
+  '@morlay/ui-conversation-message-actions@0.0.11': 365ff75868e4f3a0a74faecd6751450402e437049005d86cb91257017eefd280
+
 importers:
 
   .:
@@ -7014,7 +7017,7 @@ snapshots:
       '@deepseek-ai/dsh-invariants': file:../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-invariants-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
       '@morlay/session-branch': 0.0.11(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)(@deepseek-ai/cordis@4.0.1)
       '@morlay/session-rdb': 0.0.11(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/schemastery@3.18.1)(zod@4.4.3)
-      '@morlay/ui-conversation-message-actions': 0.0.11(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)(@deepseek-ai/cordis@4.0.1)
+      '@morlay/ui-conversation-message-actions': 0.0.11(patch_hash=365ff75868e4f3a0a74faecd6751450402e437049005d86cb91257017eefd280)(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)(@deepseek-ai/cordis@4.0.1)
     transitivePeerDependencies:
       - '@aws-sdk/client-rds-data'
       - '@cloudflare/workers-types'
@@ -7143,7 +7146,7 @@ snapshots:
       - valibot
       - zod
 
-  '@morlay/ui-conversation-message-actions@0.0.11(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)(@deepseek-ai/cordis@4.0.1)':
+  '@morlay/ui-conversation-message-actions@0.0.11(patch_hash=365ff75868e4f3a0a74faecd6751450402e437049005d86cb91257017eefd280)(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)(@deepseek-ai/cordis@4.0.1)':
     dependencies:
       '@deepseek-ai/cordis': 4.0.1(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
       '@deepseek-ai/dsh-invariants': file:../../.dsh-cohorts/0.1.2-alpha.1/deepseek-ai-dsh-invariants-0.1.2-alpha.1.tgz(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
