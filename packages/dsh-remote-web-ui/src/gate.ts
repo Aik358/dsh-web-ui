@@ -100,8 +100,8 @@ export function makeGateListener(
 
 /**
  * Whether a request carries a live, non-revoked paired-device cookie for
- * this service. Sibling host routes outside /api use the same check via
- * the remoteWebUiPairing service.
+ * this service. Sibling host routes outside /api (the right-panel
+ * /sidebar/* routes, etc.) use the same check via the remoteWebUiPairing service.
  * @param service - the pairing service that owns the device table.
  * @param request - the incoming HTTP request.
  * @returns true when the cookie names a live session (and lastSeenAt was refreshed).

@@ -9,7 +9,7 @@ DSH Web UI 全家桶聚合插件：一键安装全部功能插件（task-board /
 - **一次安装、全部到位**：其 dependencies 引入全部子插件包（dsh-client-ui-task-board / dsh-client-ui-git-graph / dsh-pet / dsh-remote-web-ui / dsh-ssh / dsh-client-ui-web-ui-settings / dsh-client-ui-skin-center / dsh-client-ui-community-plugins / dsh-skins），外加外部 npm 插件 `dsh-better-sidebar`（默认右侧面板：文件资源管理器 / 编辑器 / 终端 / Git / 浏览器）、`@mlgbnb/dsh-archive-manager`（默认设置页归档管理：按项目分组、搜索筛选、预览对话、一键恢复与删除）与 `@morlay/better-session`（分支式会话编辑：就地 edit / retry / rewind / fork，RDB 持久化；默认关闭，见[启用 better-session](#启用-better-session)）。
 - **聚合载具**：`cordis.patch.yml` 汇总各子插件的 `insert` 行与外部插件行，经 dsh 插件 profile 机制挂载。`@morlay/better-session` 这类外部 profile bundle 由生成器展开：其 patch 行变成可导入的聚合行，bundle 自身的 harness-row patch 原样保留；标记了 `"inactive": true` 的外部行会在产物之后统一追加 `disabled: true` 覆盖行，未主动启用前不会挂载。
 - **选择性默认**：聚合行可携带与独立包默认值不同的播种配置。`@linxin666/dsh-ssh` 在本全家桶中默认关闭（多数用户使用频率低）：在 设置 → Web 插件 → SSH 中打开一次即可，开关像普通设置修改一样持久；独立包安装不受影响。
-- **右侧面板**：右侧面板固定为 `dsh-better-sidebar`（aionui-panel 已不可启用）。设置 → Web 插件 → 侧边卡片 声明右侧面板来自 [dsh-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) 并内嵌其常用设置。
+- **右侧面板**：右侧面板固定为 `dsh-better-sidebar`（旧 aionui-panel 已于 2026-08-28 彻底移除，其附带的「侧边卡片」内嵌偏好编辑器一并删除）。侧边卡片的偏好在 [dsh-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) 自身的设置区管理。
 
 ## 安装
 

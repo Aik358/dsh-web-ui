@@ -80,7 +80,7 @@ dsh plugin --profile web add link:$(pwd)/packages/dsh-remote-web-ui
 - 移动端输入框默认 Enter 发送（Shift+Enter 换行）。在插件设置卡片（或 profile patch）把 `mobileEnterToSend` 设为 false 后，普通 Enter 改为插入换行，只有「发送」按钮会发送；手机打开聊天时经自己的 `/m/api` 偏好方法读取该开关。在支持 `field-sizing: content` 的浏览器上，输入框随草稿自动增高，最高 120px 封顶（两种模式一致）。
 - `/m/` Worker 对静态壳使用 network-first 回退，并等待当前页面关闭后才激活更新。它旁路 `/m/api`、`/api`、SSE 与所有写请求。
 - 安装本插件后，非 loopback 桌面中受围栏保护的流量会改走门控的 `/remote` 通道（见 `src/index.ts` 的 `requirePairingForLan`）。在该开关开启（默认）时，经局域网 URL 或隧道打开的桌面浏览器必须像任何远程设备一样配对——未配对状态显示完整阻断页而不是数据；loopback（127.0.0.1）不受影响，继续使用原始路径。把 profile patch 里 `requirePairingForLan` 设为 false 可让桌面继续走普通 `/api`，残留的 `/remote` 改写也会放行未配对调用（仅在开放局域网姿态下有意义；loopback-only 路径仍被拒绝），同时保留令牌/状态/撤销。注意 `/api` 路由本体属于 SDK：`--host 0.0.0.0` 绑定时 SDK 自动信任局域网字面量，绕过 UI 的局域网客户端仍能直接访问 `/api`——姿态探测会在面板上报告该姿态。
-- `/api` 之外的兄弟 host 路由（`/pet/*`、`/git/*`）可查询本插件的 `remoteWebUiPairing` 服务：有效的已配对设备 cookie 是放行路径，`stop()` 仍会切断它们；未安装本插件时该服务不存在。
+- `/api` 之外的兄弟 host 路由（`/pet/*`、`/git/*`、右侧面板的 `/sidebar/*`）可查询本插件的 `remoteWebUiPairing` 服务：有效的已配对设备 cookie 是放行路径，`stop()` 仍会切断它们；未安装本插件时该服务不存在。
 - 二维码链接基于机器的非内部 IPv4 字面量构建；多宿主主机（Wi-Fi + 有线，或代理/VPN 虚拟适配器）会显示单选器供你发布手机实际可达的网络。第一个字面量是默认值。设 `publicBaseUrl` 后，单选器在顶部额外加一项 公网地址——默认二维码改用公网 base，选中局域网字面量会重新铸一枚网内链接。
 - 配置的 `publicBaseUrl` 本身满足可达绑定需求：`dsh web` 绑定 `127.0.0.1`（不带 `--host 0.0.0.0`）仍能经隧道铸出可用的公网二维码链接。
 

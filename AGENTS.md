@@ -47,9 +47,8 @@ Market build order: build `market/shell` first (`npm run build` in `market/shell
 ## Development Workflow
 
 - For implementation and maintenance tasks, load [dsh-web-agent-coding](.agents/skills/dsh-web-agent-coding/SKILL.md) and the focused skill it selects.
-- Record every non-trivial change as an Agent Note under [.agents/notes/](.agents/notes/README.md) in the same change; lifecycle, classes, and format rules live in the [Agent Note rules](.agents/notes/README.md).
-- Prefer CodeGraph for code navigation, symbol lookup, dependency analysis, review, and impact analysis. Use `query`, `explore`, `node`, `impact`, and `affected`; initialize with `codegraph init <project-root>` when needed.
-- After all code changes in a session, before final validation, run `codegraph sync <project-root>` and `codegraph status <project-root>`. If the index is missing or sync fails, run `codegraph index <project-root>`.
+- Record every non-trivial change as an Agent Note under [.agents/notes/](.agents/notes/README.md) in the same change; lifecycle, classes, and format rules live there.
+- Prefer CodeGraph for code navigation, symbol lookup, dependency analysis, review, and impact analysis (`query`, `explore`, `node`, `impact`, `affected`; `codegraph init <project-root>` when needed). After all code changes in a session, before final validation, run `codegraph sync <project-root>` and `codegraph status <project-root>`; if the index is missing or sync fails, run `codegraph index <project-root>`.
 - Keep changes focused, preserve existing work, and verify real behavior. User-visible changes require appropriate runtime evidence; visual changes require screenshots and multimodal validation.
 - Agent 的代码改动涉及 Wallpaper Engine / 渲染器域（如 `packages/skins/skin-center/src/client/wallpaper.ts`、`packages/skins/skin-center/src/we-player-source.ts` 及其测试 `packages/skins/skin-center/tests/wallpaper.spec.ts` / `packages/skins/skin-center/tests/we-player.spec.ts`）时，通知负责该域的协作者 Aa728848（EDDYCRAZY-CC）；域归属见 [CONTRIBUTING.md](CONTRIBUTING.md) 与 [.github/pr-review-routes.json](.github/pr-review-routes.json)。
 
@@ -75,7 +74,7 @@ Market build order: build `market/shell` first (`npm run build` in `market/shell
 
 ## Release
 
-Releases are tag-driven by [.github/workflows/release.yml](.github/workflows/release.yml). Verify every package version against the `vX.Y.Z` tag, generate release notes with `scripts/release-notes.mjs`, and pass all gates before publishing. Do not bypass the release process by editing package versions manually.
+Releases are tag-driven by [.github/workflows/release.yml](.github/workflows/release.yml). Verify every package version against the `vX.Y.Z` tag, generate release notes with `scripts/release-notes.mjs`, and pass all gates. The npm publish lane stays behind the workflow `NPM_PUBLISH_ENABLED` switch. Do not bypass the release process by editing package versions manually.
 
 ## Instruction Layers
 

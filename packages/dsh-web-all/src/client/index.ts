@@ -4,7 +4,7 @@
  * The current dsh web shell renders its grid columns without the legacy
  * `data-pane` / `data-dsh-frame` hooks (the columns carry css-module class
  * names such as `*_sidebarCol` / `*_centerCol` / `*_detailsCol`). The
- * dsh-web family plugins (task-board, ssh, aionui-panel, several skins)
+ * dsh-web family plugins (task-board, ssh, several skins)
  * mount at the DOM level through those legacy selectors, so without them the
  * plugins stay silent even though they load.
  *

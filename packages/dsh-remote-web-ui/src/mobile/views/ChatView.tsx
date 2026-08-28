@@ -402,7 +402,7 @@ export function ChatView({ session, mux, onBack }: ChatViewProps) {
         (state) => {
           if (cancelled) return
           setPendingApprovals(state.approvals)
-          setPendingQuestions(state.questions)
+          setPendingQuestions(state.questions.flatMap((group) => group.questions))
         },
         () => { /* transient; next tick retries */ },
       )

@@ -4,8 +4,8 @@
  * images, lists, blockquotes, hr, and tables. All HTML is escaped before
  * transformation — the output only ever contains the renderer's own tags.
  * Dependency-free on purpose (the mobile bundle stays at ~456 KB); the
- * escape-first + protocol allow-list design mirrors the desktop panel's
- * preview renderer (dsh-aionui-panel/src/client/preview/markdown.ts).
+ * escape-first + protocol allow-list design mirrors the retired desktop
+ * panel's preview renderer (the dsh-aionui-panel package, removed 2026-08-28).
  * Pure and exported for tests.
  * @module dsh-remote-web-ui/mobile/markdown
  */
