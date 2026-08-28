@@ -109,10 +109,6 @@
     - id: web-ui-skin-center
       name: '@linxin666/dsh-client-ui-skin-center'
 
-# config override for web-ui-ssh (seed default; settings wins once the user edits it)
-- id: web-ui-ssh
-  config: {"enabled":false}
-
 # external bundle: dsh-better-sidebar
 
 # from external bundle dsh-better-sidebar (insert row web-ui-better-sidebar)

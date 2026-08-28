@@ -77,17 +77,27 @@ function applyImpl(ctx: Context, config?: Config): void {
   // The live source the surfaces read: the settings section once the web
   // settings surface is served, the composition entry otherwise.
   let current: () => Config = () => config ?? {}
-  const resolve = (): Config => {
-    const value = current()
-    return {
-      announceToAgent: value.announceToAgent ?? DEFAULT_ANNOUNCE,
-      enabled: value.enabled ?? true,
-    }
-  }
+  let isSettingsBound = false
 
   const store = new HostStore()
   const engine = new SshEngine(store)
   ctx.effect(() => () => { engine.dispose() }, 'dsh-ssh: engine')
+
+  const resolve = (): Config => {
+    const value = current()
+    let enabled = value.enabled ?? true
+    // When dsh-ssh was seeded with enabled: false (e.g. from an aggregate profile line),
+    // but the user has never explicitly configured settings (not bound yet)
+    // AND already has active host records in dsh-ssh.json, keep the plugin enabled so
+    // existing users are not broken upon upgrade (#1250).
+    if (enabled === false && !isSettingsBound && store.list().length > 0) {
+      enabled = true
+    }
+    return {
+      announceToAgent: value.announceToAgent ?? DEFAULT_ANNOUNCE,
+      enabled,
+    }
+  }
 
   // The /api/dsh-ssh route family + terminal upgrade.
   const { routes, upgrade } = makeRoutes({ store, engine })
@@ -154,6 +164,7 @@ function applyImpl(ctx: Context, config?: Config): void {
 
   installSettingsSection(ctx, SSH_SETTINGS_NAMESPACE, Config, config ?? {}, {
     setSource: (source) => {
+      isSettingsBound = true
       current = source
       sync()
     },
