@@ -208,10 +208,12 @@ async function main() {
   })
 
   const overrides = readOverrides()
-  // --store-dir remaps every referenced tarball onto an alternative store
-  // directory (validation, sandboxed runs); without it the store is exactly
-  // the absolute location the overrides and the frozen lockfile record.
-  const storeDir = resolve(values['store-dir'] ?? dirname(Object.values(overrides)[0]))
+  // The lockfile stores the tarball resolutions relative to the checkout root
+  // (file:../../.dsh-cohorts/...), so the store lives two levels above the
+  // checkout on every machine; --store-dir remaps it for sandboxed runs.
+  const overridePaths = Object.values(overrides)
+  const versionDir = basename(dirname(overridePaths[0]))
+  const storeDir = resolve(values['store-dir'] ?? join(REPO_ROOT, '..', '..', '.dsh-cohorts', versionDir))
   const expected = new Map(
     Object.entries(overrides).map(([name, path]) => [name, join(storeDir, basename(path))]),
   )

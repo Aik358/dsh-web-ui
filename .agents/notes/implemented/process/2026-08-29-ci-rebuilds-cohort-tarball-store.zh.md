@@ -10,7 +10,7 @@ Status: implemented
 
 `scripts/build-cohort-tarballs.mjs` 在任何机器上物化该 store。它把 overrides 块解析为期望的 tarball 集合（249 个文件名），store 已齐全时立即退出；否则准备一个固定在源码 tag（`dsh-v0.1.2-alpha.1`，commit cd5ef814）上的 harness checkout（可传入已有 checkout，否则浅克隆），以 frozen lockfile 且禁用脚本的方式安装，用 `pnpm run build:official` 构建（release packer 的 build-record 门禁要求 official 产物 profile），用 harness 自带的 `release:pack` 打包发布 family，对 family 排除但 overrides 仍引用的 private experimental 包直接打包，最后把每个打包产物中的清单归一化为 store 的自包含形态：`peerDependencies` 以规范键序并入 `dependencies` 并删除 peer 段，因为消费方 lockfile 在 autoInstallPeers 关闭下安装；`peerDependenciesMeta` 作为惰性文档保留。脚本最终校验每个被引用的 tarball 存在且非空。
 
-五个使用 pnpm 的 job（CI checks、plugin-mount、release publish、release smoke、market deploy）先用 sudo 在 workspace 之外预建 store 目录（runner 用户无法创建 `/Users`），再按 `dsh-cohorts-<pnpm-workspace.yaml 哈希>` 为键从 actions cache 恢复，然后运行脚本：命中缓存即为 no-op，未命中则完整重建。各 workflow 移除 `version: 11` 输入，让 `packageManager` 成为唯一的 pnpm 版本来源；contributors workflow 关闭它无法满足的包管理器缓存检测。
+五个使用 pnpm 的 job（CI checks、plugin-mount、release publish、release smoke、market deploy）按 `dsh-cohorts-<pnpm-workspace.yaml 哈希>` 为键从 actions cache 恢复 store，然后运行脚本：命中缓存即为 no-op，未命中则完整重建。store 的位置是机器无关的相对位置——checkout 上两级，因为 lockfile 记录的 tarball resolution 是 `file:../../.dsh-cohorts/...`：本机上落在用户主目录，runner 上落在 workspace 父目录。各 workflow 移除 `version: 11` 输入，让 `packageManager` 成为唯一的 pnpm 版本来源；contributors workflow 关闭它无法满足的包管理器缓存检测。
 
 ## Alternatives considered
 
@@ -25,4 +25,4 @@ Status: implemented
 
 ## Testing
 
-在固定 commit 的隔离 harness worktree 上完整走了一遍脚本的安装、official 构建与打包，产出到全新 store：249/249 个被引用的 tarball 全部产出，所有清单与本机 store 语义一致，其余 lib 差异为文档记载的 per-checkout 路径与 CSS 哈希不确定性；快路径对两个 store 均 no-op。packageManager 冲突从 dev 分支的 CI 失败日志复现，并由 workflow 修改解决。
+在固定 commit 的隔离 harness worktree 上完整走了一遍脚本的安装、official 构建与打包，产出到全新 store：249/249 个被引用的 tarball 全部产出，所有清单与本机 store 语义一致，其余 lib 差异为文档记载的 per-checkout 路径与 CSS 哈希不确定性；快路径对两个 store 均 no-op。packageManager 冲突从 dev 分支的 CI 失败日志复现，并由 workflow 修改解决。dev 分支的一次 CI 运行在全新 runner 上约四分钟完整物化了 store，验证了 runner 侧构建路径；其后的 install 仍然失败，原因是该次把 store 放在了 overrides 的绝对路径位置，而 lockfile 的 resolution 相对 checkout 根解析——上文的 store 位置已改为遵循这一规则。

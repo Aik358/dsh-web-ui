@@ -43,18 +43,14 @@ jobs:
       # and \0dsh-css region markers), so rebuilt bytes would differ per
       # machine and make the check non-deterministic. The explicit Build step
       # below still verifies that everything builds.
-      - name: Prepare preview cohort store directory
-        run: |
-          sudo mkdir -p /Users/zcl/.dsh-cohorts
-          sudo chown -R "$(id -u):$(id -g)" /Users/zcl
-
-      # The preview cohort resolves from file: tarballs at the absolute store
-      # path recorded in pnpm-workspace.yaml and the lockfile; restore or
-      # rebuild the store so the frozen install resolves unchanged.
+      # The lockfile resolves the preview cohort tarballs relative to the
+      # checkout root (file:../../.dsh-cohorts/...), so the store lives two
+      # levels above the workspace; restore or rebuild it for the frozen
+      # install. A cache hit makes the materialize step a no-op.
       - name: Restore preview cohort store
         uses: actions/cache@v4
         with:
-          path: /Users/zcl/.dsh-cohorts/0.1.2-alpha.1
+          path: ${{ github.workspace }}/../../.dsh-cohorts/0.1.2-alpha.1
           key: dsh-cohorts-${{ hashFiles('pnpm-workspace.yaml') }}
 
       - name: Materialize preview cohort store
@@ -158,16 +154,11 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      - name: Prepare preview cohort store directory
-        run: |
-          sudo mkdir -p /Users/zcl/.dsh-cohorts
-          sudo chown -R "$(id -u):$(id -g)" /Users/zcl
-
       # Same store contract as the CI checks job above.
       - name: Restore preview cohort store
         uses: actions/cache@v4
         with:
-          path: /Users/zcl/.dsh-cohorts/0.1.2-alpha.1
+          path: ${{ github.workspace }}/../../.dsh-cohorts/0.1.2-alpha.1
           key: dsh-cohorts-${{ hashFiles('pnpm-workspace.yaml') }}
 
       - name: Materialize preview cohort store
