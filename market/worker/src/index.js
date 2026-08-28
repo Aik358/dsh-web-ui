@@ -6,7 +6,7 @@
  * described by /openapi.json and documented at /api-docs.html.
  */
 
-import { handleTelemetryPost, handleTelemetrySummary, handleTelemetryUsersBadge, refreshBadgeCache } from './telemetry.js'
+import { handleTelemetryPost, handleTelemetrySummary, handleTelemetryUsersBadge, pruneOldEvents, refreshBadgeCache } from './telemetry.js'
 import { readJsonCapped } from './body.js'
 import { isKnownAsset } from './asset-allowlist.js'
 import { handleNpmBadge, handleNpmDownloads } from './npm-badge.js'
@@ -255,11 +255,15 @@ async function mutateLike(env, kind, assetId, hash, unlike) {
 }
 
 export default {
-  /** Cron trigger: recompute the public badge counts (wrangler.jsonc triggers.crons). */
+  /** Cron trigger: recompute the public badge counts and prune expired
+   * telemetry events (wrangler.jsonc triggers.crons). */
   async scheduled(controller, env) {
     try {
       await refreshBadgeCache(env)
     } catch { /* best-effort; the badge serves the last computed row */ }
+    try {
+      await pruneOldEvents(env)
+    } catch { /* best-effort; pruning retries on the next tick */ }
   },
 
   async fetch(request, env) {
@@ -276,8 +280,42 @@ export default {
     if (path === '/api/turnstile/challenge' && request.method === 'GET') return challengePage()
 
     if (path === '/api/stats' && request.method === 'GET') {
-      const [votes, installs] = await Promise.all([readStats(env), readInstalls(env)])
-      return json({ ...votes, installs }, 200, { 'cache-control': 'no-store' })
+      // Worker-level cache for one minute with a one-hour stale copy:
+      // workshop cards fetch this on every GUI start, and under D1 overload
+      // the card UI must render last-known counts instead of an error. The
+      // client response stays no-store so the zone cache rules and browsers
+      // keep the pre-existing freshness semantics; only the worker-internal
+      // copies are cacheable.
+      const statsUrl = new URL(request.url)
+      statsUrl.search = ''
+      const statsCache = caches.default
+      const statsKey = new Request(statsUrl.href, { method: 'GET' })
+      const freshStats = await statsCache.match(statsKey)
+      if (freshStats) {
+        // Stored copies carry a max-age for the worker-cache TTL; strip it on
+        // the way out so every client-visible response stays no-store and the
+        // zone cache rules never pin stats for hours.
+        const headers = new Headers(freshStats.headers)
+        headers.set('cache-control', 'no-store')
+        return new Response(freshStats.body, { status: freshStats.status, headers })
+      }
+      try {
+        const [votes, installs] = await Promise.all([readStats(env), readInstalls(env)])
+        const body = { ...votes, installs }
+        try {
+          await statsCache.put(statsKey, json(body, 200, { 'cache-control': 'public, max-age=60' }))
+          await statsCache.put(new Request(statsUrl.href + '?stale=1', { method: 'GET' }), json(body, 200, { 'cache-control': 'public, max-age=3600' }))
+        } catch { /* caching is best-effort; serve the computed response */ }
+        return json(body, 200, { 'cache-control': 'no-store' })
+      } catch {
+        const staleStats = await statsCache.match(new Request(statsUrl.href + '?stale=1', { method: 'GET' }))
+        if (staleStats) {
+          const headers = new Headers(staleStats.headers)
+          headers.set('cache-control', 'no-store')
+          return new Response(staleStats.body, { status: staleStats.status, headers })
+        }
+        return json({ ok: false, error: 'storage-unavailable' }, 503)
+      }
     }
 
     if (path === '/api/install' && request.method === 'POST') {

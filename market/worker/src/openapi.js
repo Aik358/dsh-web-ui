@@ -25,8 +25,11 @@ export default {
     },
     '/api/stats': {
       get: {
-        summary: 'Vote counts per kind and asset id',
-        responses: { 200: { description: 'Vote counts' } },
+        summary: 'Vote counts per kind and asset id; edge-cached one minute and served from the last good counts under storage failures',
+        responses: {
+          200: { description: 'Vote counts and install counts' },
+          503: { description: 'Storage unavailable (D1 overloaded) and no cached copy; cards fall back to their zero state' },
+        },
       },
     },
     '/api/install': {
@@ -147,6 +150,7 @@ export default {
         responses: {
           200: { description: 'Per-day and per-item aggregates for site pageviews and plugin heartbeats; hot paths and items are paginated, totals included' },
           403: { description: 'TELEMETRY_READ_KEY configured and not presented' },
+          503: { description: 'Storage unavailable (D1 overloaded); retry later' },
         },
       },
     },

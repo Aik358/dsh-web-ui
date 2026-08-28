@@ -30,7 +30,7 @@ const BOT_UA_RE = /bot|crawler|spider|scrape|curl|wget|python|httpclient|http-cl
 const MAX_ITEMS = 64
 /** Heartbeats carry at most MAX_ITEMS small items; cap the raw body too. */
 const TELEMETRY_BODY_MAX_BYTES = 16 * 1024
-/** Events older than this many days are pruned opportunistically. */
+/** Events older than this many days are pruned by the cron trigger. */
 const RETENTION_DAYS = 400
 
 async function sha256(text) {
@@ -195,7 +195,7 @@ export async function telemetrySummary(env, days, page = {}) {
   }
 }
 
-/** Opportunistic retention prune; called on summary reads. */
+/** Retention prune; called by the cron trigger. */
 export async function pruneOldEvents(env) {
   const cutoffDay = utcDay(Date.now() - RETENTION_DAYS * 86400000)
   await env.DB.prepare('DELETE FROM telemetry_events WHERE day < ?1').bind(cutoffDay).run()
@@ -304,8 +304,10 @@ export async function handleTelemetryUsersBadge(request, env, json) {
   }
   const body = { schemaVersion: 1, label: 'users', message, color: 'blue' }
   const freshResponse = json(body, 200, { 'cache-control': 'public, max-age=1800' })
-  await cache.put(key, freshResponse.clone())
-  await cache.put(new Request(url.href + '?stale=1', { method: 'GET' }), json(body, 200, { 'cache-control': 'public, max-age=86400' }))
+  try {
+    await cache.put(key, freshResponse.clone())
+    await cache.put(new Request(url.href + '?stale=1', { method: 'GET' }), json(body, 200, { 'cache-control': 'public, max-age=86400' }))
+  } catch { /* caching is best-effort; the computed response is already valid */ }
   return freshResponse
 }
 
@@ -315,10 +317,16 @@ export async function handleTelemetrySummary(request, url, env, json) {
   let days = Number.parseInt(url.searchParams.get('days') || '', 10)
   if (!Number.isFinite(days)) days = 30
   days = Math.min(Math.max(days, 1), 365)
-  const summary = await telemetrySummary(env, days, {
-    paths: parsePage(url, 'paths', 20, 100),
-    items: parsePage(url, 'items', 200, 200),
-  })
-  try { await pruneOldEvents(env) } catch { /* pruning is best-effort */ }
+  let summary
+  try {
+    summary = await telemetrySummary(env, days, {
+      paths: parsePage(url, 'paths', 20, 100),
+      items: parsePage(url, 'items', 200, 200),
+    })
+  } catch {
+    // D1 overload must surface as a plain 503 for the dashboard proxy,
+    // not as a worker exception page.
+    return json({ ok: false, error: 'storage-unavailable' }, 503)
+  }
   return json(summary)
 }

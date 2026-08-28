@@ -11,14 +11,16 @@ The README "users" shields endpoint badge rendered "inaccessible". Two independe
 
 ## Decision
 
-- A new `badge_cache` D1 table (migration `0004_badge_cache.sql`) holds precomputed counts as single rows. A cron trigger (`*/30 * * * *` in `market/worker/wrangler.jsonc`, `scheduled` handler in `market/worker/src/index.js`) recomputes the heartbeat distinct-visitor count into the table every 30 minutes.
+- A new `badge_cache` D1 table (migration `0005_badge_cache.sql`) holds precomputed counts as single rows. A cron trigger (`*/30 * * * *` in `market/worker/wrangler.jsonc`, `scheduled` handler in `market/worker/src/index.js`) recomputes the heartbeat distinct-visitor count into the table every 30 minutes.
 - `handleTelemetryUsersBadge` (`market/worker/src/telemetry.js`) now reads that single indexed row — fast enough for shields' timeout from any colo — and keeps the 30-minute edge Cache API entry plus a 24-hour stale copy on top. Before the first cron tick (or if the row is missing) it bootstraps by running the scan once and seeding the row. On any D1 failure it serves the stale copy, or a valid `{"schemaVersion":1,...,"message":"unavailable"}` 200 JSON. No code path can produce a 5xx or exceed shields' timeout by serving a slow first byte.
 - `handleTelemetryPost` catches D1 write errors and returns `503 {"ok":false,"error":"storage-unavailable"}` — the same shape as the existing missing-binding branch — instead of an unhandled exception page. Clients treat non-acceptance as "retry on the next mount", matching the documented fire-and-forget contract in docs/telemetry.md.
-- The public contract text gained the same facts: docs/telemetry.md (badge bullet and client retry paragraph), the api-doc.js endpoint table (badge precompute, event 503) and the OpenAPI summaries.
+- `/api/stats` (market/worker/src/index.js) gained the same edge-cache pattern (60 s fresh, 1 h stale copy) plus a 503 `storage-unavailable` fallback: workshop cards fetch it on every GUI start, and the card UI already treats non-200 as its zero state. `/api/telemetry/summary` returns the same 503 JSON instead of an exception page; it is deliberately NOT edge-cached because the cache key cannot carry the `x-telemetry-key` authorization.
+- Retention pruning moved off the summary read path into the cron trigger, so dashboard reads no longer issue opportunistic DELETEs against an overloaded D1.
+- The public contract text gained the same facts: docs/telemetry.md (badge bullet, client retry paragraph, prune sentence), the api-doc.js endpoint table (badge precompute, stats and summary 503) and the OpenAPI summaries.
 
 ## Testing
 
-Local `wrangler dev --test-scheduled` with local D1: the cron trigger rewrites a deliberately corrupted row value back to the real count; the badge serves the row in ~10 ms; deleting the row makes the next request bootstrap through the full scan and re-seed; dropping `telemetry_events` with an emptied cache yields the 200 "unavailable" JSON; POST with the table dropped returns the 503 JSON. Production `wrangler tail` after deploy shows the `Shields.io/080e177` fetcher completing with outcome "ok" well under the 3.5 s timeout, and the shields badge renders the real count.
+Local `wrangler dev --test-scheduled` with local D1: the cron trigger rewrites a deliberately corrupted row value back to the real count; the badge serves the row in ~10 ms; deleting the row makes the next request bootstrap through the full scan and re-seed; dropping `telemetry_events` with an emptied cache yields the 200 "unavailable" JSON; POST with the table dropped returns the 503 JSON. `/api/stats` serves counts, keeps serving them from the stale copy after its table is dropped, and returns the 503 JSON when there is no cached copy; `/api/telemetry/summary` returns 503 JSON with `telemetry_events` dropped; the cron runs clean with both tables missing. Production `wrangler tail` after deploy shows the `Shields.io/080e177` fetcher completing with outcome "ok" well under the 3.5 s timeout, and the shields badge renders the real count.
 
 ## Alternatives considered
 
@@ -31,5 +33,4 @@ Local `wrangler dev --test-scheduled` with local D1: the cron trigger rewrites a
 
 - The badge shows a count at most ~1 hour old (30 min cron + 30 min edge cache); acceptable for an all-time cumulative number.
 - If D1 stays unavailable past the last computed row and both cache copies expire, the badge shows the grey "unavailable" state rather than a number.
-- `/api/stats` and `/api/telemetry/summary` still surface D1 overload as worker exceptions; they are site/dashboard inputs rather than shields inputs and need their own decision.
 - During overloads telemetry senders receive 503 responses and retry on the next mount; retry volume is bounded by one pending day per browser.
