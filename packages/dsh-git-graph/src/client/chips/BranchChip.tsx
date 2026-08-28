@@ -136,7 +136,9 @@ export function BranchChip(props: BranchChipProps) {
   // session baseline's blank flag instead.
   const dockSeat = 'session' in props && 'input' in props
   const sessionSnapshot = dockSeat ? props.session : undefined
-  const heroSeat = sessionSnapshot?.composerPhase === 'blank' && (sessionSnapshot.openState === 'open' || blankSession === true)
+  // 0.1.2 cohort: the composer phase machine is gone from the snapshot; the
+  // blank empty-log mirror plus open state covers the same show-selector seat.
+  const heroSeat = sessionSnapshot?.blank === true && (sessionSnapshot.openState === 'open' || blankSession === true)
   const showBranchSelector = dockSeat ? heroSeat : blankSession
   const stockLightTheme = useStockLightTheme()
 

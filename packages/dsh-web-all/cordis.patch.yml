@@ -28,11 +28,6 @@
     - id: web-ui-market
       name: '@linxin666/dsh-client-ui-market'
 
-# from ../dsh-aionui-panel
-- insert:
-    - id: web-ui-dsh-aionui-panel
-      name: '@linxin666/dsh-client-ui-aionui-panel'
-
 # from ../dsh-task-board
 - insert:
     - id: web-ui-task-board

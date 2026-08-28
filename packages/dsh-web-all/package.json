@@ -44,7 +44,6 @@
     "@linxin666/dsh-client-ui-plugin-manager": "workspace:*",
     "@linxin666/dsh-client-ui-community-plugins": "workspace:*",
     "@linxin666/dsh-client-ui-market": "workspace:*",
-    "@linxin666/dsh-client-ui-aionui-panel": "workspace:*",
     "@linxin666/dsh-client-ui-task-board": "workspace:*",
     "@linxin666/dsh-client-ui-git-graph": "workspace:*",
     "@linxin666/dsh-perf": "workspace:*",
@@ -58,6 +57,7 @@
     "@linxin666/dsh-doctor": "workspace:*",
     "@linxin666/dsh-client-ui-web-ui-settings": "workspace:*",
     "@linxin666/dsh-client-ui-skin-center": "workspace:*",
+    "@linxin666/dsh-client-ui-aionui-panel": "workspace:*",
     "@mlgbnb/dsh-archive-manager": "1.0.7",
     "@morlay/better-session": "0.0.11",
     "dsh-better-sidebar": "0.15.2"

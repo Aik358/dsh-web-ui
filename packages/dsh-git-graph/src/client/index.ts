@@ -14,7 +14,10 @@
  * @module dsh-git-graph/client
  */
 
-import type { ClientContext, SessionId } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
+import type { SessionId } from '@deepseek-ai/dsh-api-remotes/client'
+// Type-only: pulls the ctx.slots merge (the renderer owns the slot registry since 0.1.2).
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 // Type-only: pulls the ui-conversation SlotMap merge (the conversation
 // slots); the selector-context hole is spelled locally below because the
@@ -205,7 +208,9 @@ export function apply(ctx: ClientContext): void {
           // a registration failure rolls the worktree back (no half-made env).
           try {
             const workspace = await scope.workspaces.create({ path: created.value.path })
-            scope.workspaces.startSession(workspace.workspaceId)
+            // 0.1.2 cohort: workspace-side session launch moved to the sessions face
+            // (ISessions.create adopts the target workspace and opens its blank session).
+            await scope.sessions.create({ workspaceId: workspace.workspaceId })
           } catch (error: unknown) {
             await git.removeWorktree(resolved.path, created.value.path, { force: true })
             return { ok: false, error: { code: 'internal', message: `workspace registration failed: ${String(error)}` } }

@@ -36,7 +36,7 @@
   },
   "scripts": {
     "build": "tsc -b && tsdown",
-    "prepare": "tsdown",
+    "prepare": "echo 'aionui-panel: frozen (discontinued; cannot build against the 0.1.2-alpha.1 cohort)'",
     "watch": "tsdown --watch"
   },
   "peerDependencies": {
