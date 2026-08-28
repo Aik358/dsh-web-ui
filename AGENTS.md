@@ -74,7 +74,7 @@ Market build order: build `market/shell` first (`npm run build` in `market/shell
 
 ## Release
 
-Releases are tag-driven by [.github/workflows/release.yml](.github/workflows/release.yml). Verify every package version against the `vX.Y.Z` tag, generate release notes with `scripts/release-notes.mjs`, and pass all gates before publishing. Do not bypass the release process by editing package versions manually.
+Releases are tag-driven by [.github/workflows/release.yml](.github/workflows/release.yml). Verify every package version against the `vX.Y.Z` tag, generate release notes with `scripts/release-notes.mjs`, and pass all gates. The npm publish lane stays behind the workflow `NPM_PUBLISH_ENABLED` switch. Do not bypass the release process by editing package versions manually.
 
 ## Instruction Layers
 

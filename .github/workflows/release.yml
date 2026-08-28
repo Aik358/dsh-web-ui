@@ -1,20 +1,30 @@
 name: Release
 
-# Tag-triggered publish pipeline: pushing a vX.Y.Z tag is the single release
+# Tag-triggered release pipeline: pushing a vX.Y.Z tag is the single release
 # switch. The workflow verifies every package version equals the tag version
-# (the tag is the version source of truth), runs the full gate, and publishes
-# all packages to npm in dependency order. A second job then re-runs the
-# aggregate mount smoke in strict npm mode (every dependency resolves from
-# the registry — the real consumer install path, verified after publish when
-# the assertion holds) and only then creates the GitHub Release.
+# (the tag is the version source of truth) and runs the full gate. The npm
+# publish lane sits behind the NPM_PUBLISH_ENABLED switch (workflow env
+# below): while it is 'false', a tag push stops at the mount smoke plus the
+# GitHub Release and nothing reaches npm.
 #
-# Requires the repository secret NPM_TOKEN (npm automation token for the
-# @linxin666 scope) to publish.
+# The lane is paused because the family tracks an unstable @deepseek-ai/*
+# alpha cohort that is not published to npm, so publishing would ship
+# packages whose dependencies cannot resolve from the registry. Set
+# NPM_PUBLISH_ENABLED to 'true' to restore the npm publish steps in
+# dependency order and the post-publish strict-registry smoke assertion.
+#
+# Publishing requires the repository secret NPM_TOKEN (npm automation token
+# for the @linxin666 scope).
 
 on:
   push:
     tags:
       - 'v*'
+
+env:
+  # Single switch for the npm publish lane. Decision record:
+  # .agents/notes/implemented/process/2026-08-28-pause-release-npm-publish-unstable-dsh-alpha.md
+  NPM_PUBLISH_ENABLED: 'false'
 
 permissions:
   contents: write
@@ -25,7 +35,7 @@ concurrency:
 
 jobs:
   publish:
-    name: Build, test, publish to npm
+    name: Build, test, gated npm publish
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -110,8 +120,8 @@ jobs:
           fi
 
       # Hand the notes to the release job (job 2): they must exist before
-      # publish (a notes failure aborts before anything reaches npm), and
-      # the release job consumes them after the post-publish mount smoke.
+      # anything downstream runs (a notes failure aborts the run), and the
+      # release job consumes them after the mount smoke.
       - name: Upload release notes artifact
         uses: actions/upload-artifact@v4
         with:
@@ -121,8 +131,10 @@ jobs:
 
       # Publish with the explicit "latest" dist-tag so that installing the
       # package without a version (or with @latest) always resolves to the
-      # newest release, never a stale earlier one.
+      # newest release, never a stale earlier one. Skipped while the npm
+      # lane is paused (NPM_PUBLISH_ENABLED: 'false').
       - name: Publish packages to npm
+        if: env.NPM_PUBLISH_ENABLED == 'true'
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
@@ -134,6 +146,7 @@ jobs:
       # carries the old browser loader id, and announces dsh.migrate so the
       # plugin-manager and Doctor can migrate existing profiles automatically.
       - name: Publish legacy aggregate package
+        if: env.NPM_PUBLISH_ENABLED == 'true'
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
@@ -141,13 +154,12 @@ jobs:
           node scripts/publish-legacy-aggregate.mjs "${{ steps.tag.outputs.version }}"
 
       # The GitHub Release is created by the verify-release job only after
-      # the post-publish mount smoke passes; a failed publish cannot be
-      # re-run for an already-published version, but a failed smoke leaves
-      # the tag without a release for inspection instead of shipping a bad
-      # consumer path silently.
+      # the mount smoke passes; a failed smoke leaves the tag without a
+      # release for inspection instead of shipping a bad consumer path
+      # silently.
 
   verify-release:
-    name: Post-publish mount smoke (npm strict) + GitHub Release
+    name: Mount smoke + GitHub Release
     needs: publish
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -190,9 +202,13 @@ jobs:
         timeout-minutes: 10
         run: pnpm exec playwright install chromium
 
-      # Strict npm mode: at this point every family dependency is published,
-      # so the auto rewrite in scripts/e2e-mount-rewrite leaves the tarball
-      # untouched and the smoke exercises the real consumer install path.
+      # The auto rewrite in scripts/e2e-mount-rewrite keeps the consumer
+      # assertion honest in both states: with the npm lane enabled every
+      # family dependency is published, so the tarball stays on the registry
+      # path (npm-strict consumer install); with the lane paused every packed
+      # version is unpublished, so each family dependency is packed from the
+      # workspace and installed as a file: tarball — the smoke then validates
+      # this tag's own builds.
       - name: Mount + headless-render smoke
         run: bash scripts/e2e-mount.sh
 
