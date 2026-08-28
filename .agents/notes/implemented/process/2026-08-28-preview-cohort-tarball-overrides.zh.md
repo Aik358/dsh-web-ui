@@ -8,7 +8,7 @@ Status: implemented
 
 ## 决策
 
-升级工作树的整个队列解析自一次性构建的 tarball：从官方源码 tag `deepseek-harness@dsh-v0.1.2-alpha.1`（commit cd5ef81）构建后逐包 `pnpm pack`，存放在仓库外的 `~/.dsh-cohorts/0.1.2-alpha.1/`，再由 `pnpm-workspace.yaml` 生成的 `overrides:` 块把每个 `@deepseek-ai/dsh-*` 名字钉到对应 tarball。清单区间写作 `^0.1.2-alpha.1`，队列发布到 npm 后删除 overrides 块即恢复常规 registry 解析。上游的两项删除在清单中如实落地：`dsh-client-runtime` 与 `dsh-host-apiproxy` 的 devDependencies 移除，`minimumReleaseAgeExclude` 钉到目标版本并删除两条死项。工具链钉在 `packageManager: pnpm@11.24.0`，因为 pnpm 11.9.0 在第三方 peer 存在时会错误解析 `file:` tarball 包的传递依赖（绕过 overrides 直查 registry 上不存在的版本）；11.24.0 对同一依赖树解析正确。`dsh-aionui-panel` 在本队列冻结：其客户端依赖已删除的包无法构建，故跳过其 `prepare` 并暂从聚合包排除，等待维护者最终定夺去留。
+升级工作树的整个队列解析自一次性构建的 tarball：从官方源码 tag `deepseek-harness@dsh-v0.1.2-alpha.1`（commit cd5ef81）构建后逐包 `pnpm pack`，存放在仓库外的 `~/.dsh-cohorts/0.1.2-alpha.1/`，再由 `pnpm-workspace.yaml` 生成的 `overrides:` 块把每个 `@deepseek-ai/dsh-*` 名字钉到对应 tarball。清单区间写作 `^0.1.2-alpha.1`，队列发布到 npm 后删除 overrides 块即恢复常规 registry 解析。上游的两项删除在清单中如实落地：`dsh-client-runtime` 与 `dsh-host-apiproxy` 的 devDependencies 移除，`minimumReleaseAgeExclude` 钉到目标版本并删除两条死项。工具链钉在 `packageManager: pnpm@11.24.0`，因为 pnpm 11.9.0 在第三方 peer 存在时会错误解析 `file:` tarball 包的传递依赖（绕过 overrides 直查 registry 上不存在的版本）；11.24.0 对同一依赖树解析正确。`dsh-aionui-panel` 按维护者决定移除：其客户端依赖已删除的包无法构建，且右侧面板早已由 dsh-better-sidebar 接管；包目录、聚合成员与 README/publish-prep 行随本次迁移一并删除。
 
 插件客户端代码对 `dsh-client-runtime/client` 的迁移：`ClientContext` 改为 cordis `Context` 的本地别名，settings scope 家族改从 `dsh-client-ui-settings/client` 导入，快照 store 引擎改从 `dsh-client-store` 导入（现已是平台模块，preset 的 RUNTIME_STORE_EXEMPTION 随之删除），sessions 改自 `dsh-api-session-controller/client`，workspaces 改自 `dsh-api-workspace-controller`，`ctx.slots` 合并点移至 `dsh-client-ui-renderer/client`。
 
@@ -18,4 +18,4 @@ Status: implemented
 
 ## 后果
 
-所有清单、lockfile 与聚合产物现在描述一个只存在于一次性 store 的队列，CI 在队列发布或 CI 增加队列构建步骤之前无法通过；该分支在此状态下不得合入 `dev`。overrides 块是回到 registry 的唯一开关。被冻结的 aionui 面板同样缺席聚合。聚合中的第三方插件停留在 SDK peer 早于本队列的版本：安装时仅有 peer 告警，在其上游适配前运行期持续损坏——这是预览版的既有外部限制，不是本次引入的回归。
+所有清单、lockfile 与聚合产物现在描述一个只存在于一次性 store 的队列，CI 在队列发布或 CI 增加队列构建步骤之前无法通过；该分支在此状态下不得合入 `dev`。overrides 块是回到 registry 的唯一开关。aionui 面板从全家桶中整体消失。聚合中的第三方插件停留在 SDK peer 早于本队列的版本：安装时仅有 peer 告警，在其上游适配前运行期持续损坏——这是预览版的既有外部限制，不是本次引入的回归。
