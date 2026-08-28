@@ -6,7 +6,7 @@
  * SettingsScope so no real settings surface is touched.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { SettingsScope, SettingsScopeSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SettingsScope, SettingsScopeSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
 import {
   WallpaperController,
   defaultWallpaperSurface,

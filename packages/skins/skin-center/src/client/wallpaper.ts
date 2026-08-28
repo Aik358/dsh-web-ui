@@ -22,7 +22,7 @@
  * 'pauseOnHidden' is set the video pauses while the window is hidden.
  * @module @linxin666/dsh-client-ui-skin-center/wallpaper
  */
-import type { SettingsScope, SettingsScopeSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SettingsScope, SettingsScopeSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
 import { setSceneBackdropActive } from './runtime/backdrop-scene.ts'
 
 /** The namespace string the Host registers (mirrors src/index.ts). */
