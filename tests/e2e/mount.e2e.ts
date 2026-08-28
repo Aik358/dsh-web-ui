@@ -8,8 +8,8 @@
  *  2. no crash markers: no `dsh-better-sidebar:` error strips, no
  *     `pageerror`, no plugin-prefixed console errors.
  *
- * aionui-panel is no longer supported: it stays installed as a transitional
- * fallback but carries no tests, gates, or e2e assertions anymore.
+ * aionui-panel is removed from the family: no tests, gates, or e2e
+ * assertions cover it anymore.
  *
  * The server is booted by `scripts/e2e-mount.sh`; the base URL arrives via
  * `DSH_E2E_URL`. Deterministic: every wait is on a DOM marker, and any crash

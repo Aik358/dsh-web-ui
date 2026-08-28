@@ -562,7 +562,7 @@ window.__ModuleLoader__.load({
 					exposed: snapshot.status === "ready",
 					writable: snapshot.writable,
 					dirty: plan.length > 0,
-					invalid: plan.some((item) => item.run === void 0),
+					invalid: plan.some((item) => item.judge === void 0),
 					saving: this.saving,
 					failed: this.failed,
 					...this.failedReason === void 0 ? {} : { failedReason: this.failedReason }
@@ -612,21 +612,25 @@ window.__ModuleLoader__.load({
 				};
 			}
 			/**
-			* Write every staged edit, then re-seed from what the Host accepted.
+			* Write every staged edit in one atomic scope mutation, then re-seed from
+			* what the Host accepted.
 			*
-			* When the scope carries the optional batch surface (the dsh-web
-			* bridge scope), every planned write rides one mutation so cross-field
-			* validate hooks (baseURL+model) judge the batch as a unit instead of
-			* deadlocking on per-field writes. Otherwise the per-field loop runs.
-			* A field lands only when the Host reports it held the staged value; a
-			* landed field's draft is dropped, a failed one stays staged for the user.
-			* @returns settlement after every write and the read-back.
+			* The whole batch rides one mutate, so cross-field validate hooks
+			* (baseURL+model) judge it as a unit: the Host either applies every write
+			* or refuses the batch. The 0.1.2 scope contract never rejects a refused
+			* mutation — the scope recovers with a fresh Host view and resolves — so
+			* resolution alone proves nothing: the outcome is judged by reading the
+			* settled snapshot back, one planned write at a time, and one missed write
+			* fails the whole save. A scope that still rejects on refusal (the dsh-web
+			* bridge scope) reports through the same failure path with its rejection
+			* message. A save that did not land keeps its drafts, so the user can
+			* correct them instead of retyping.
+			* @returns settlement after the mutation and the read-back.
 			*/
 			async save() {
 				const plan = this.plan();
-				const valid = plan.filter((item) => item.run !== void 0);
+				const valid = plan.filter((item) => item.judge !== void 0);
 				if (plan.length === 0 || this.saving || valid.length !== plan.length) return;
-				valid.map((item) => item.op);
 				const pending = /* @__PURE__ */ new Map();
 				for (const item of plan) pending.set(item.field, this.staged.get(item.field));
 				this.saving = true;
@@ -647,10 +651,10 @@ window.__ModuleLoader__.load({
 				} catch (error) {
 					failedReason = error instanceof Error ? error.message : String(error);
 				}
-				const landedAll = failedReason === void 0;
-				for (const [field, before] of pending) if (landedAll && this.staged.get(field) === before) this.staged.delete(field);
+				const landed = failedReason === void 0 && valid.every((item) => item.judge());
+				for (const [field, before] of pending) if (landed && this.staged.get(field) === before) this.staged.delete(field);
 				this.saving = false;
-				this.failed = !landedAll;
+				this.failed = !landed;
 				this.failedReason = failedReason;
 				this.publish();
 			}
@@ -672,7 +676,7 @@ window.__ModuleLoader__.load({
 								field,
 								op: "unset"
 							},
-							run: () => this.clear(field)
+							judge: () => this.landedUnset(field)
 						});
 						continue;
 					}
@@ -684,7 +688,7 @@ window.__ModuleLoader__.load({
 							field,
 							op: "unset"
 						},
-						run: void 0
+						judge: void 0
 					});
 					else if (write.kind === "clear") plan.push({
 						field,
@@ -692,7 +696,7 @@ window.__ModuleLoader__.load({
 							field,
 							op: "unset"
 						},
-						run: () => this.clear(field)
+						judge: () => this.landedUnset(field)
 					});
 					else plan.push({
 						field,
@@ -701,19 +705,25 @@ window.__ModuleLoader__.load({
 							op: "set",
 							value: write.value
 						},
-						run: () => this.store(field, write.value)
+						judge: () => this.landedSet(field, write.value)
 					});
 				}
 				return plan;
 			}
-			async clear(field) {
-				await this.scope.unset(field);
-				return !this.stored(field);
-			}
-			async store(field, value) {
-				await this.scope.set(field, value);
+			/**
+			* Read-back judgment for a planned set: the user layer must hold the
+			* intended value once the mutation has settled.
+			*/
+			landedSet(field, value) {
 				if (this.specOf(field).secret) return true;
 				return this.userLayer()?.[field] === value;
+			}
+			/**
+			* Read-back judgment for a planned unset: the field must be gone from the
+			* user layer once the mutation has settled.
+			*/
+			landedUnset(field) {
+				return !this.stored(field);
 			}
 			stage(field, edit) {
 				this.staged.set(field, edit);
