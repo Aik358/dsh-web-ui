@@ -45,6 +45,15 @@ export function buildRemoteChannelBootScript(rules: RemoteChannelRules = REMOTE_
     // all branch on connection.isLoopback). Must run before any boot entry.
     'try{if(w.__DSH_TRANSPORT__===undefined)w.__DSH_TRANSPORT__={};w.__DSH_TRANSPORT__.ownsHost=true}catch(e){}' +
     'var R=' + json + ';' +
+    // The cookieless device credential: read once, attach to every fenced
+    // call (header on fetch, device query on WS/EventSource handshakes).
+    'var dv=null;try{dv=w.sessionStorage.getItem(R.deviceKey)}catch(e){}' +
+    'function att(init){' +
+    'if(dv===null)return init;' +
+    'var h=init&&init.headers;' +
+    'if(typeof Headers!=="undefined"&&h instanceof Headers){try{h.set(R.deviceHeader,dv)}catch(e){}return init}' +
+    'if(typeof h==="object"&&h!==null){var o={};for(var k in h)o[k]=h[k];o[R.deviceHeader]=dv;return Object.assign({},init,{headers:o})}' +
+    'return init}' +
     'function sf(p){' +
     'if(p.indexOf(R.pairPrefix)===0)return false;' +
     'if(p.indexOf(R.updatePrefix)===0)return false;' +
@@ -92,7 +101,7 @@ export function buildRemoteChannelBootScript(rules: RemoteChannelRules = REMOTE_
     'var next=new URL(url);' +
     'next.pathname=rp(url.pathname);' +
     'var target=typeof input==="string"||input instanceof URL?next.toString():new Request(next,input);' +
-    'return Promise.resolve(of.call(w,target,init)).then(function(res){' +
+    'return Promise.resolve(of.call(w,target,att(init))).then(function(res){' +
     // denied() is sync-false for non-403 and a promise otherwise.
     'void Promise.resolve(denied(res)).then(signal);' +
     'return res})}' +
@@ -104,6 +113,7 @@ export function buildRemoteChannelBootScript(rules: RemoteChannelRules = REMOTE_
     'if(o!==""&&o===loc.origin&&sw(p.pathname)){' +
     'var nx=new URL(p);' +
     'nx.pathname=rp(p.pathname);' +
+    'if(dv!==null)nx.searchParams.set(R.deviceQuery,dv);' +
     'return protocols!==undefined?new OW(nx,protocols):new OW(nx)}' +
     'return protocols!==undefined?new OW(url,protocols):new OW(url)};' +
     'w.WebSocket.prototype=OW.prototype;' +
@@ -115,6 +125,7 @@ export function buildRemoteChannelBootScript(rules: RemoteChannelRules = REMOTE_
     'if(so(p)&&sf(p.pathname)){' +
     'var nx=new URL(p);' +
     'nx.pathname=rp(p.pathname);' +
+    'if(dv!==null)nx.searchParams.set(R.deviceQuery,dv);' +
     'return new OE(nx,cfg)}' +
     'return new OE(url,cfg)};' +
     'w.EventSource.prototype=OE.prototype}' +

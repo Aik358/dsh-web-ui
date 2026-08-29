@@ -42,8 +42,10 @@ interface FakeWindow {
   WebSocket: unknown
   EventSource?: unknown
   location: { origin: string; href: string; hostname: string }
+  sessionStorage: { getItem(key: string): string | null }
   [REMOTE_CHANNEL_BOOT_GLOBAL]?: RemoteChannelBootSeat
   calls: string[]
+  initSeen: Array<Record<string, any> | undefined>
   wsUrls: string[]
   response: () => Response
 }
@@ -53,11 +55,14 @@ function makeWindow(hostname = '192.168.1.20', port = '3080'): FakeWindow {
   const win: FakeWindow = {
     location: { origin, href: `${origin}/`, hostname },
     calls: [],
+    initSeen: [],
     wsUrls: [],
+    sessionStorage: { getItem: () => null },
     response: () => new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }),
-    fetch(input: unknown) {
+    fetch(input: unknown, init?: unknown) {
       const raw = typeof input === 'string' || input instanceof URL ? input.toString() : (input as Request).url
       win.calls.push(new URL(raw, win.location.href).href)
+      win.initSeen.push((init ?? undefined) as Record<string, any> | undefined)
       return Promise.resolve(win.response())
     },
     WebSocket: class {
@@ -93,6 +98,19 @@ describe('remote channel boot patch (issue #987)', () => {
     const moduleAt = rendered.indexOf('type="module"')
     expect(bootAt).toBeGreaterThan(-1)
     expect(bootAt).toBeLessThan(moduleAt)
+  })
+
+  it('attaches the cookieless device credential to gated fetches and ws handshakes', async () => {
+    const win = makeWindow()
+    win.sessionStorage = { getItem: () => 'dev-42' }
+    boot(win)
+    await win.fetch('/api/session.list', { headers: { accept: 'application/json' } })
+    expect(win.calls[0]).toContain('/remote/api/session.list')
+    const headers = win.initSeen[0]?.headers ?? {}
+    expect(headers['x-dsh-remote-device']).toBe('dev-42')
+    expect(headers.accept).toBe('application/json')
+    new (win.WebSocket as unknown as new (url: string) => void)('ws://192.168.1.20:3080/api/events.mux')
+    expect(win.wsUrls[0]).toContain('/remote/api/events.mux?device=dev-42')
   })
 
   it('does nothing on loopback origins', () => {

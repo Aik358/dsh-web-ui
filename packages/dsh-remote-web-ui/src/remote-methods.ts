@@ -46,6 +46,18 @@ export const DESKTOP_LAUNCHER_PATH = '/api/dsh-desktop-launcher'
 export const WEB_UI_SETTINGS_BRIDGE_PATH = '/api/dsh-web-ui-settings'
 
 /**
+ * The cookieless device credential: the boot patch reads the device id from
+ * the /pair-app URL, keeps it in sessionStorage, and attaches it to every
+ * gated HTTP call as this header (and to WebSocket upgrades as the `device`
+ * query parameter - WS handshakes cannot carry headers from the Web API).
+ * The channel gate accepts it exactly like the device cookie, so the mobile
+ * flow works even with browser cookies fully blocked; the cookie remains the
+ * primary credential on normal browsers.
+ */
+export const REMOTE_DEVICE_HEADER = 'x-dsh-remote-device'
+export const REMOTE_DEVICE_QUERY = 'device'
+
+/**
  * Path prefixes that stay physically local even for a paired device. A
  * paired remote desktop may use the full host API (chat, sessions,
  * settings, credentials, presets — it is a full-control credential), but it

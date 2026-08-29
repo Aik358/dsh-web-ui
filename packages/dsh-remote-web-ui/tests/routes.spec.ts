@@ -163,12 +163,12 @@ describe('/api/pair routes', () => {
     }
   })
 
-  it('/pair-accept sets the device cookie and redirects to the authenticated home', async () => {
+  it('/pair-accept lands the paired device on the cookieless app page', async () => {
     const service = makeService()
     const { port, close } = await serve(makeRoutes({
       service,
       lanAddresses: ['192.168.1.5'],
-      authenticatedHome: (origin: string) => `${origin}/?token=launch-1`,
+      indexDocument: async () => '<html><head><title>shell</title></head><body>official</body></html>',
     }))
     try {
       // The QR link is the /pair-accept entry: mint issues it directly.
@@ -176,13 +176,25 @@ describe('/api/pair routes', () => {
       expect(issued.body.url).toBe('http://192.168.1.5:3080/pair-accept?pair=tok-1')
       const accept = await call(port, 'GET', '/pair-accept?pair=tok-1', { host: '192.168.1.5:3080' })
       expect(accept.status).toBe(303)
-      expect(accept.location).toBe('http://192.168.1.5:3080/?token=launch-1')
+      expect(accept.location).toBe('http://192.168.1.5:3080/pair-app?device=tok-1')
       expect(accept.cookies).toEqual([
         'dsh_pair=tok-1; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000',
       ])
       // The paired cookie then passes the heartbeat (device is live).
       const heartbeat = await call(port, 'POST', '/api/pair/heartbeat', { host: '192.168.1.5:3080', cookie: 'dsh_pair=tok-1' })
       expect(heartbeat.status).toBe(200)
+      // The app page serves the patched official shell for a live device -
+      // no browser cookie needed, the device id rides the URL.
+      const app = await call(port, 'GET', '/pair-app?device=tok-1', { host: '192.168.1.5:3080' })
+      expect(app.status).toBe(200)
+      expect(app.raw).toContain('dsh-remote-device')
+      expect(app.raw).toContain('"tok-1"')
+      expect(app.raw).toContain('official')
+      expect(app.cookies[0]).toMatch(/^dsh_pair=tok-1;/)
+      // An unknown device cannot reach the shell.
+      const stranger = await call(port, 'GET', '/pair-app?device=unknown', { host: '192.168.1.5:3080' })
+      expect(stranger.status).toBe(200)
+      expect(stranger.raw).toContain('refresh the QR code')
       // An invalid token serves the explanation page to an unauthenticated
       // device (a bare `/` redirect would dead-end on the harness 401).
       const bad = await call(port, 'GET', '/pair-accept?pair=dead', { host: '192.168.1.5:3080' })
@@ -190,12 +202,11 @@ describe('/api/pair routes', () => {
       expect(bad.raw).toContain('配对链接已失效或已被使用')
       expect(bad.raw).toContain('refresh the QR code')
       expect(bad.cookies ?? []).toEqual([])
-      // An already-paired device re-opening a stale (invalid) link is sent
-      // on to the app (its browser credential was redeemed during the first
-      // scan).
+      // An already-paired device re-opening a stale (invalid) link goes
+      // straight to the app landing with its live device credential.
       const reOpen = await call(port, 'GET', '/pair-accept?pair=dead', { host: '192.168.1.5:3080', cookie: 'dsh_pair=tok-1' })
       expect(reOpen.status).toBe(303)
-      expect(reOpen.location).toBe('/')
+      expect(reOpen.location).toBe('http://192.168.1.5:3080/pair-app?device=tok-1')
       expect(reOpen.cookies ?? []).toEqual([])
     } finally {
       await close()
@@ -207,7 +218,7 @@ describe('/api/pair routes', () => {
     const { port, close } = await serve(makeRoutes({
       service,
       lanAddresses: ['192.168.1.5'],
-      authenticatedHome: (origin: string) => `${origin}/?token=launch-1`,
+      indexDocument: async () => '<html><head></head><body>official</body></html>',
     }))
     try {
       service.issue()
@@ -215,18 +226,37 @@ describe('/api/pair routes', () => {
       // token and sets its device cookie.
       const first = await call(port, 'GET', '/pair-accept?pair=tok-1', { host: '192.168.1.5:3080' })
       expect(first.status).toBe(303)
-      expect(first.location).toBe('http://192.168.1.5:3080/?token=launch-1')
+      expect(first.location).toBe('http://192.168.1.5:3080/pair-app?device=tok-1')
       expect(first.cookies[0]).toMatch(/^dsh_pair=tok-1;/)
       // Second context (system browser): the same link within the window
       // completes its own pairing and auth chain - no device cookie needed.
       const second = await call(port, 'GET', '/pair-accept?pair=tok-1', { host: '192.168.1.5:3080' })
       expect(second.status).toBe(303)
-      expect(second.location).toBe('http://192.168.1.5:3080/?token=launch-1')
+      expect(second.location).toBe('http://192.168.1.5:3080/pair-app?device=tok-1')
       expect(second.cookies[0]).toMatch(/^dsh_pair=tok-1;/)
+      expect(service.snapshot().deviceCount).toBe(1)
+      // The cookieless app landing works with NO cookie at all - only the
+      // device id from the URL (the phone case that started all of this).
+      const app = await call(port, 'GET', '/pair-app?device=tok-1', { host: '192.168.1.5:3080' })
+      expect(app.status).toBe(200)
+      expect(app.raw).toContain('official')
       // An expired/unknown link is truly dead: explanation page, no cookie.
       const dead = await call(port, 'GET', '/pair-accept?pair=never-was', { host: '192.168.1.5:3080' })
       expect(dead.status).toBe(200)
       expect(dead.raw).toContain('refresh the QR code')
+    } finally {
+      await close()
+    }
+  })
+
+  it('does not register /pair-app without an index provider', async () => {
+    const service = makeService()
+    const { port, close } = await serve(makeRoutes({ service, lanAddresses: ['192.168.1.5'] }))
+    try {
+      service.issue()
+      await call(port, 'GET', '/pair-accept?pair=tok-1', { host: '192.168.1.5:3080' })
+      const app = await call(port, 'GET', '/pair-app?device=tok-1', { host: '192.168.1.5:3080' })
+      expect(app.status).toBe(404)
     } finally {
       await close()
     }
