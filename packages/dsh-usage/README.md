@@ -17,6 +17,8 @@ Supported balance endpoints: DeepSeek, Moonshot (CN/international), OpenRouter, 
 
 ## Install
 
+Requires DSH 0.1.2-alpha.1 or later: the plugin is developed against the 0.1.2-alpha.1 DSH cohort and its `@deepseek-ai/*` runtime imports are provided by the host itself.
+
 In your profile (e.g. `~/.dsh/profiles/web`):
 
 ```bash

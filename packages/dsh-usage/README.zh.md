@@ -17,6 +17,8 @@ dsh Web GUI 的使用统计插件：多 provider 余额与编程套餐用量检�
 
 ## 安装
 
+要求 DSH 0.1.2-alpha.1 或更高：插件基于 0.1.2-alpha.1 DSH cohort 开发，其 `@deepseek-ai/*` 运行时导入由宿主本体提供。
+
 在 profile（如 `~/.dsh/profiles/web`）中：
 
 ```bash
