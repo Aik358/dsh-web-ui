@@ -103,6 +103,30 @@ export function publicHostOf(url: string | undefined): string | undefined {
 /** Cookie lifetime: one year; revoked sessions die at the gate regardless. */
 const COOKIE_MAX_AGE_SEC = 365 * 24 * 60 * 60
 
+/**
+ * The dead-end guard for a failed /pair-accept: an unauthenticated device
+ * redirected to bare `/` would land on the harness browser-auth 401 page
+ * ("authentication required"), which reads like a broken server. Serve a
+ * plain bilingual explanation instead; an already-paired device (live
+ * device cookie, browser credential redeemed during its first scan) keeps
+ * the old behavior and is sent on to the app.
+ */
+function pairingFailurePage(): string {
+  return [
+    '<!doctype html><html><head><meta charset="utf-8">',
+    '<meta name="viewport" content="width=device-width,initial-scale=1">',
+    '<meta name="referrer" content="no-referrer">',
+    '<title>Pairing link invalid</title></head>',
+    '<body style="font-family:system-ui,sans-serif;padding:24px;max-width:32em;margin:0 auto;line-height:1.6">',
+    '<p><strong>配对链接已失效或已被使用。</strong></p>',
+    '<p>请在桌面端打开远程控制面板，刷新二维码后重新扫码。</p>',
+    '<hr style="border:none;border-top:1px solid #ccc;margin:16px 0">',
+    '<p><strong>This pairing link is invalid or has already been used.</strong></p>',
+    '<p>Open the remote panel on the desktop, refresh the QR code, and scan again.</p>',
+    '</body></html>',
+  ].join('')
+}
+
 /** Route paths (exact matches under /api). */
 export const PAIR_PATHS = {
   issue: '/api/pair/issue',
@@ -493,8 +517,18 @@ export function makeRoutes(deps: PairRoutesDeps): WebRoute[] {
     const ua = req.headers['user-agent']
     const result = token === '' ? { ok: false as const, code: 'invalid' as const } : service.accept(token, typeof ua === 'string' ? ua : undefined)
     if (!result.ok) {
-      res.writeHead(303, { location: '/', 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' })
-      res.end()
+      // An already-paired device re-opening a consumed link is sent on to
+      // the app (its browser credential was redeemed during the first
+      // scan); everyone else gets the explanation page instead of the
+      // harness 401 dead end.
+      const deviceId = readCookie(req.headers.cookie, service.config.cookieName)
+      if (deviceId !== undefined && service.hasDevice(deviceId)) {
+        res.writeHead(303, { location: '/', 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' })
+        res.end()
+        return
+      }
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' })
+      res.end(pairingFailurePage())
       return
     }
     // Same origin the device navigated (x-forwarded-proto honors a tunnel's

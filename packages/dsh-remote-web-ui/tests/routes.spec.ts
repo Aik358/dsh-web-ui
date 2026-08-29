@@ -59,7 +59,7 @@ async function call(
   method: 'GET' | 'POST',
   path: string,
   opts: { host?: string; body?: unknown; cookie?: string; headers?: Record<string, string> } = {},
-): Promise<{ status: number; body: Record<string, unknown>; cookies: string[]; referrerPolicy: string | undefined; location: string | undefined }> {
+): Promise<{ status: number; body: Record<string, unknown>; raw: string; cookies: string[]; referrerPolicy: string | undefined; location: string | undefined }> {
   return await new Promise((resolve, reject) => {
     const payload = opts.body === undefined ? undefined : JSON.stringify(opts.body)
     const headers: Record<string, string> = { host: opts.host ?? `127.0.0.1:${String(port)}` }
@@ -81,6 +81,7 @@ async function call(
           resolve({
             status: response.statusCode ?? 0,
             body,
+            raw,
             cookies: setCookie,
             referrerPolicy: response.headers['referrer-policy'],
             location: response.headers['location'],
@@ -179,11 +180,19 @@ describe('/api/pair routes', () => {
       // The paired cookie then passes the heartbeat (device is live).
       const heartbeat = await call(port, 'POST', '/api/pair/heartbeat', { host: '192.168.1.5:3080', cookie: 'dsh_pair=tok-1' })
       expect(heartbeat.status).toBe(200)
-      // An invalid token redirects to the clean home without a cookie.
+      // An invalid token serves the explanation page to an unauthenticated
+      // device (a bare `/` redirect would dead-end on the harness 401).
       const bad = await call(port, 'GET', '/pair-accept?pair=dead', { host: '192.168.1.5:3080' })
-      expect(bad.status).toBe(303)
-      expect(bad.location).toBe('/')
+      expect(bad.status).toBe(200)
+      expect(bad.raw).toContain('配对链接已失效或已被使用')
+      expect(bad.raw).toContain('refresh the QR code')
       expect(bad.cookies ?? []).toEqual([])
+      // An already-paired device re-opening a consumed link is sent on to
+      // the app (its browser credential was redeemed during the first scan).
+      const reOpen = await call(port, 'GET', '/pair-accept?pair=dead', { host: '192.168.1.5:3080', cookie: 'dsh_pair=tok-1' })
+      expect(reOpen.status).toBe(303)
+      expect(reOpen.location).toBe('/')
+      expect(reOpen.cookies ?? []).toEqual([])
     } finally {
       await close()
     }
@@ -497,7 +506,7 @@ describe('/api/pair routes', () => {
       expect(apiLimited.status).toBe(429)
       // The page bucket is untouched: QR navigations still answer.
       const page = await call(port, 'GET', '/pair-accept?pair=dead', { host: '192.168.1.5:3080' })
-      expect(page.status).toBe(303)
+      expect(page.status).toBe(200)
       // Exhausting the page bucket afterwards does not un-limit the API.
       for (let index = 0; index < 12; index += 1) {
         await call(port, 'GET', '/pair-accept?pair=dead', { host: '192.168.1.5:3080' })
