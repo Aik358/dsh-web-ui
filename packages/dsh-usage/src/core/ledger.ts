@@ -5,7 +5,7 @@
  * @module @linxin666/dsh-usage/core/ledger
  */
 
-import { addTotals, emptyTotals, type UsageLedgerDocument, type UsageTokenTotals } from './types.ts'
+import { addTotals, emptyTotals, type UsageLedgerDocument, type UsageProviderSummary, type UsageTokenTotals } from './types.ts'
 
 /** Local-date key (`YYYY-MM-DD`) for an epoch ms timestamp. */
 export function localDateKey(ms: number): string {
@@ -57,6 +57,50 @@ export function foldUsage(
 /** Total tokens of a bucket (billed input + output; reasoning is inside output). */
 export function totalTokens(totals: Readonly<UsageTokenTotals>): number {
   return totals.inputTokens + totals.cacheReadTokens + totals.cacheWriteTokens + totals.outputTokens
+}
+
+/** How many model rows one summarized provider keeps. */
+export const SUMMARY_MODEL_CAP = 12
+
+/**
+ * Aggregate whole per-day maps (each `provider -> model -> totals`) into the
+ * per-provider/per-model summary the overview serves for one day or a range:
+ * disjoint bucket sums per provider, per-model rows heaviest first, and the
+ * grand total. Pure: reads its inputs, allocates fresh buckets.
+ */
+export function summarizeDays(days: ReadonlyArray<Record<string, Record<string, UsageTokenTotals>>>): {
+  totals: UsageTokenTotals
+  providers: UsageProviderSummary[]
+} {
+  const merged = new Map<string, Map<string, UsageTokenTotals>>()
+  for (const day of days) {
+    for (const [provider, models] of Object.entries(day)) {
+      if (!isSafeBucketKey(provider) || typeof models !== 'object' || models === null) continue
+      let modelMap = merged.get(provider)
+      if (modelMap === undefined) {
+        modelMap = new Map()
+        merged.set(provider, modelMap)
+      }
+      for (const [model, totals] of Object.entries(models)) {
+        if (typeof totals !== 'object' || totals === null) continue
+        const bucket = modelMap.get(model) ?? emptyTotals()
+        addTotals(bucket, totals)
+        modelMap.set(model, bucket)
+      }
+    }
+  }
+  const providers: UsageProviderSummary[] = []
+  const totals = emptyTotals()
+  for (const [provider, modelMap] of merged) {
+    const providerTotals = emptyTotals()
+    const modelRows = [...modelMap].map(([model, modelTotals]) => ({ model, totals: modelTotals }))
+    for (const row of modelRows) addTotals(providerTotals, row.totals)
+    modelRows.sort((a, b) => totalTokens(b.totals) - totalTokens(a.totals))
+    providers.push({ provider, totals: providerTotals, models: modelRows.slice(0, SUMMARY_MODEL_CAP) })
+  }
+  providers.sort((a, b) => totalTokens(b.totals) - totalTokens(a.totals))
+  for (const row of providers) addTotals(totals, row.totals)
+  return { totals, providers }
 }
 
 /** All local-date keys in the ledger, ascending. */

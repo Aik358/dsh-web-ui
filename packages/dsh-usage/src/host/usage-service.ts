@@ -17,7 +17,7 @@ import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 import { dshHome } from '../dsh-home.ts'
 import { adapterFor, providerErrorMessage } from '../core/adapters.ts'
 import type { BalanceParse, PlanParse } from '../core/adapters.ts'
-import { createLedgerDocument, deserializeLedger, foldUsage, ledgerDayKeys, localDateKey, pruneLedger, totalTokens } from '../core/ledger.ts'
+import { createLedgerDocument, deserializeLedger, foldUsage, ledgerDayKeys, localDateKey, pruneLedger, summarizeDays } from '../core/ledger.ts'
 import type { BalanceView, CredentialKind, PlanView, ProviderSnapshotState, ProviderSnapshotView, UsageLedgerDocument, UsageOverviewView, UsageTokenTotals } from '../core/types.ts'
 import { emptyTotals } from '../core/types.ts'
 
@@ -27,7 +27,10 @@ export const USAGE_ANNOUNCE_SOURCE = 'dsh-usage'
 /** Per-route credential fact the probes run against. */
 interface ResolvedCredential {
   kind: CredentialKind
+  /** The probe secret: an API key, or an OAuth access token for oauth-aware adapters. */
   key?: string
+  /** Provider account id riding a dedicated header, when the credential carries one. */
+  accountId?: string
 }
 
 /** One live LLM provider route the service knows about. */
@@ -231,6 +234,8 @@ export class UsageService {
         displayName: route.displayName || adapter?.displayName || route.id,
         credential: snapshot?.credential ?? 'none',
         supported: adapter !== undefined && (adapter.balance !== undefined || adapter.plan !== undefined),
+        ...(adapter?.balance !== undefined ? { balanceSupported: true } : {}),
+        ...(adapter?.plan !== undefined ? { planSupported: true } : {}),
         ...(snapshot?.balance !== undefined ? { balance: snapshot.balance } : {}),
         ...(snapshot?.plan !== undefined ? { plan: snapshot.plan } : {}),
         ...(error !== undefined ? { error } : {}),
@@ -239,6 +244,7 @@ export class UsageService {
     }
     providers.sort((a, b) => Number(b.supported) - Number(a.supported) || a.displayName.localeCompare(b.displayName))
     const days = ledgerDayKeys(this.ledger).slice(-TREND_DAYS)
+    const range = summarizeDays(days.map((key) => this.ledger.days[key] ?? {}))
     return {
       updatedAt: Date.now(),
       providers,
@@ -249,6 +255,12 @@ export class UsageService {
           const summary = this.daySummary(date)
           return { date, totals: summary.totals }
         }),
+        range: {
+          from: days[0] ?? todayKey,
+          to: days[days.length - 1] ?? todayKey,
+          totals: range.totals,
+          providers: range.providers,
+        },
       },
     }
   }
@@ -256,30 +268,7 @@ export class UsageService {
   /** One local day aggregated per provider. */
   private daySummary(dateKey: string): UsageOverviewView['usage']['today'] {
     const day = this.ledger.days[dateKey] ?? {}
-    const providers = Object.entries(day).map(([provider, models]) => {
-      const totals = emptyTotals()
-      const modelRows = Object.entries(models).map(([model, modelTotals]) => ({ model, totals: modelTotals }))
-      for (const row of modelRows) {
-        totals.inputTokens += row.totals.inputTokens
-        totals.outputTokens += row.totals.outputTokens
-        totals.cacheReadTokens += row.totals.cacheReadTokens
-        totals.cacheWriteTokens += row.totals.cacheWriteTokens
-        totals.reasoningTokens += row.totals.reasoningTokens
-        totals.calls += row.totals.calls
-      }
-      modelRows.sort((a, b) => totalTokens(b.totals) - totalTokens(a.totals))
-      return { provider, totals, models: modelRows.slice(0, 12) }
-    })
-    providers.sort((a, b) => totalTokens(b.totals) - totalTokens(a.totals))
-    const totals = emptyTotals()
-    for (const row of providers) {
-      totals.inputTokens += row.totals.inputTokens
-      totals.outputTokens += row.totals.outputTokens
-      totals.cacheReadTokens += row.totals.cacheReadTokens
-      totals.cacheWriteTokens += row.totals.cacheWriteTokens
-      totals.reasoningTokens += row.totals.reasoningTokens
-      totals.calls += row.totals.calls
-    }
+    const { totals, providers } = summarizeDays([day])
     return { date: dateKey, totals, providers }
   }
 
@@ -520,7 +509,7 @@ export class UsageService {
       const half = adapter[kind]
       if (half === undefined) return undefined
       try {
-        const spec = half.build({ apiKey: credential.key as string })
+        const spec = half.build({ apiKey: credential.key as string, ...(credential.accountId !== undefined ? { accountId: credential.accountId } : {}) })
         const response = await fetch(spec.url, { headers: spec.headers, signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) })
         const body: unknown = await response.json().catch(() => undefined)
         if (!response.ok) throw new Error(providerErrorMessage(response.status, body))
@@ -556,12 +545,14 @@ export class UsageService {
   /**
    * Resolve the credential backing one route: pi-ai credential records
    * first, then the profile's apiKeyEnv reference, then the DeepSeek
-   * official adapter's env reference. OAuth grants resolve to a kind with
-   * no key (this plugin does not spend third-party OAuth budgets).
+   * official adapter's env reference. OAuth grants hand their stored access
+   * token to the oauth-aware adapters (Codex plan quota); a stale token
+   * fails its probe with a 401 and refreshes the next time the harness
+   * itself runs that provider.
    */
   private async resolveCredential(provider: string): Promise<ResolvedCredential> {
     const credentials = service<{
-      readRecord(key: unknown): Promise<{ kind: string; key?: string; env?: Record<string, string> } | undefined>
+      readRecord(key: unknown): Promise<{ kind: string; key?: string; env?: Record<string, string>; payload?: unknown } | undefined>
       resolve(ref: unknown): Promise<{ value: string } | undefined>
     }>(this.ctx, 'credentials')
     if (credentials === undefined) return { kind: 'none' }
@@ -570,7 +561,14 @@ export class UsageService {
       if (record?.kind === 'api-key' && typeof record.key === 'string' && record.key !== '') {
         return { kind: 'api-key', key: record.key }
       }
-      if (record?.kind === 'grant') return { kind: 'oauth' }
+      if (record?.kind === 'grant' && typeof record.payload === 'object' && record.payload !== null) {
+        // pi-ai stores its OAuth credential verbatim: { type: 'oauth', access, refresh, expires, ... }.
+        const payload = record.payload as Record<string, unknown>
+        const access = typeof payload.access === 'string' && payload.access !== '' ? payload.access : undefined
+        const accountId = typeof payload.chatgpt_account_id === 'string' && payload.chatgpt_account_id !== '' ? payload.chatgpt_account_id : undefined
+        if (access !== undefined) return { kind: 'oauth', key: access, ...(accountId !== undefined ? { accountId } : {}) }
+        return { kind: 'oauth' }
+      }
     } catch {
       // Invalid record ids read as absent.
     }

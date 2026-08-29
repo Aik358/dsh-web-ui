@@ -7,12 +7,12 @@
  * @module @linxin666/dsh-usage/client/UsageSectionCard
  */
 
-import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react'
 import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { UsageStoreInstance } from './usage-store.ts'
 import { t } from './locales.ts'
 import styles from './usage.module.css'
-import type { ProviderSnapshotView, UsageTokenTotals } from '../core/types.ts'
+import type { ProviderSnapshotView, UsageOverviewView, UsageProviderSummary, UsageTokenTotals } from '../core/types.ts'
 
 /** The settings fields this section edits (immediate-apply semantics). */
 export interface UsageSettings {
@@ -159,10 +159,6 @@ export function UsageSectionCard(props: UsageSectionProps): ReactNode {
   }, [poll])
 
   const snapshot = ui.snapshot
-  const trendMax = useMemo(() => {
-    if (snapshot === null) return 0
-    return Math.max(1, ...snapshot.usage.days.map((day) => day.totals.inputTokens + day.totals.outputTokens + day.totals.cacheReadTokens + day.totals.cacheWriteTokens))
-  }, [snapshot])
 
   const onRefresh = (): void => {
     setRefreshing(true)
@@ -183,7 +179,10 @@ export function UsageSectionCard(props: UsageSectionProps): ReactNode {
 
   const current = snapshot.current
   const currentProvider = snapshot.providers.find((provider) => provider.provider === current.provider)
-  const planProviders = snapshot.providers.filter((provider) => provider.plan !== undefined || (provider.supported && provider.credential !== 'none' && provider.credential !== 'oauth'))
+  // Plans tab: only routes with a real coding-plan/subscription adapter
+  // (planSupported; an older host without the flag falls back to "has a plan
+  // fact"). Balance-only providers (DeepSeek, ZenMux, ...) never appear here.
+  const planProviders = snapshot.providers.filter((provider) => provider.planSupported === true || (provider.planSupported === undefined && provider.plan !== undefined))
 
   return (
     <div className={styles.section} data-dsh-plugin="usage">
@@ -234,11 +233,13 @@ export function UsageSectionCard(props: UsageSectionProps): ReactNode {
 
           <div className={styles.card} data-dsh-part="balance-card">
             <span className={styles.cardTitle}>{t('usage.balance')}</span>
-            {snapshot.providers.filter((provider) => provider.supported).length === 0
-              ? <span className={styles.muted}>{t('usage.balance.unsupported')}</span>
-              : snapshot.providers.filter((provider) => provider.supported).map((provider) => (
+            {(() => {
+              const rows = snapshot.providers.filter((provider) => provider.balanceSupported === true || (provider.balanceSupported === undefined && provider.supported))
+              if (rows.length === 0) return <span className={styles.muted}>{t('usage.balance.unsupported')}</span>
+              return rows.map((provider) => (
                 <ProviderRow key={provider.provider} provider={provider} current={current.provider} />
-              ))}
+              ))
+            })()}
             {snapshot.providers.some((provider) => provider.error !== undefined) && (
               <span className={styles.errorLine}>
                 {snapshot.providers.filter((provider) => provider.error !== undefined).map((provider) => `${provider.displayName}: ${t('usage.provider.error', { error: provider.error ?? '' })}`).join('；')}
@@ -246,28 +247,7 @@ export function UsageSectionCard(props: UsageSectionProps): ReactNode {
             )}
           </div>
 
-          {snapshot.usage.days.length > 0 && (
-            <div className={styles.card} data-dsh-part="trend-card">
-              <span className={styles.cardTitle}>{t('usage.trend')}</span>
-              <div className={styles.trend}>
-                {snapshot.usage.days.map((day, index) => {
-                  const total = day.totals.inputTokens + day.totals.outputTokens + day.totals.cacheReadTokens + day.totals.cacheWriteTokens
-                  return (
-                    <div
-                      key={day.date}
-                      className={index === snapshot.usage.days.length - 1 ? `${styles.trendBar} ${styles.trendBarToday}` : styles.trendBar}
-                      style={{ height: `${Math.max(3, Math.round((total / trendMax) * 100))}%` }}
-                      title={`${day.date}: ${formatTokens(total)}`}
-                    />
-                  )
-                })}
-              </div>
-              <div className={styles.trendAxis}>
-                <span>{snapshot.usage.days[0]?.date.slice(5)}</span>
-                <span>{snapshot.usage.days[snapshot.usage.days.length - 1]?.date.slice(5)}</span>
-              </div>
-            </div>
-          )}
+          <RangeCard range={snapshot.usage.range} providers={snapshot.providers} currentProvider={current.provider} />
 
           <SettingsRow settings={settings} snapshot={settingsSnapshot.status === 'ready' ? settingsSnapshot : undefined} value={settingsValue} />
         </>
@@ -275,42 +255,114 @@ export function UsageSectionCard(props: UsageSectionProps): ReactNode {
 
       {tab === 'plans' && (
         planProviders.length === 0
-          ? <div className={styles.card}><span className={styles.muted}>{t('usage.plan.noPlan')}</span></div>
-          : planProviders.map((provider) => <PlanCard key={provider.provider} provider={provider} />)
+          ? <div className={styles.card}><span className={styles.muted}>{t('usage.plan.noneConfigured')}</span></div>
+          : planProviders.map((provider) => <PlanCard key={provider.provider} provider={provider} current={current.provider} />)
       )}
     </div>
   )
 }
 
-function PlanCard(props: { provider: ProviderSnapshotView }): ReactNode {
-  const { provider } = props
+/** How many model sub-bars render under one provider bar. */
+const CHART_MODEL_CAP = 3
+
+/**
+ * The 近 30 天 card: horizontal bars per provider over the trend window,
+ * each with its heaviest models as nested sub-bars. Window totals come from
+ * the host's aggregated `usage.range` (an older host without it renders no
+ * card instead of a wrong one).
+ */
+function RangeCard(props: { range?: UsageOverviewView['usage']['range']; providers: ProviderSnapshotView[]; currentProvider?: string }): ReactNode {
+  const { range, providers, currentProvider } = props
+  if (range === undefined) return null
+  const grandTotal = range.totals.inputTokens + range.totals.outputTokens + range.totals.cacheReadTokens + range.totals.cacheWriteTokens
+  const maxProvider = Math.max(1, ...range.providers.map((row) => totalOf(row.totals)))
+  const nameOf = (id: string): string => providers.find((provider) => provider.provider === id)?.displayName ?? id
+  return (
+    <div className={styles.card} data-dsh-part="trend-card">
+      <span className={styles.cardTitle}>{t('usage.trend')}</span>
+      {range.providers.length === 0 || grandTotal === 0
+        ? <span className={styles.muted}>{t('usage.noData')}</span>
+        : <div className={styles.chart} data-dsh-part="usage-chart">
+            {range.providers.map((row) => (
+              <ChartProviderRow key={row.provider} row={row} name={nameOf(row.provider)} max={maxProvider} current={currentProvider === row.provider} />
+            ))}
+            <span className={styles.trendAxis}>
+              <span>{range.from.slice(5)}</span>
+              <span>{range.to.slice(5)}</span>
+            </span>
+          </div>}
+    </div>
+  )
+}
+
+function ChartProviderRow(props: { row: UsageProviderSummary; name: string; max: number; current: boolean }): ReactNode {
+  const { row, name, max, current } = props
+  const total = totalOf(row.totals)
+  const maxModel = Math.max(1, ...row.models.slice(0, CHART_MODEL_CAP).map((model) => totalOf(model.totals)))
+  return (
+    <div className={styles.chartProvider}>
+      <span className={styles.chartHead}>
+        <span className={styles.providerName}>
+          {name}
+          {current && <span className={styles.currentBadge}>{t('usage.current')}</span>}
+        </span>
+        <span className={styles.chartTokens}>{formatTokens(total)} · {t('usage.calls', { n: row.totals.calls })}</span>
+      </span>
+      <span className={styles.chartBar}>
+        <span className={styles.chartFill} style={{ width: `${Math.max(2, Math.round((total / max) * 100))}%` }} />
+      </span>
+      {row.models.slice(0, CHART_MODEL_CAP).map((model) => {
+        const modelTotal = totalOf(model.totals)
+        return (
+          <span key={model.model} className={styles.chartModel} title={`${row.provider} · ${model.model}: ${formatTokens(modelTotal)}`}>
+            <span className={styles.chartModelName}>{model.model}</span>
+            <span className={styles.chartModelBar}>
+              <span className={styles.chartModelFill} style={{ width: `${Math.max(3, Math.round((modelTotal / maxModel) * 100))}%` }} />
+            </span>
+            <span className={styles.chartTokens}>{formatTokens(modelTotal)}</span>
+          </span>
+        )
+      })}
+    </div>
+  )
+}
+
+function totalOf(totals: UsageTokenTotals): number {
+  return totals.inputTokens + totals.cacheReadTokens + totals.cacheWriteTokens + totals.outputTokens
+}
+
+function PlanCard(props: { provider: ProviderSnapshotView; current?: string }): ReactNode {
+  const { provider, current } = props
   return (
     <div className={`${styles.card} ${styles.planCard}`} data-dsh-part="plan-card">
       <div className={styles.planHead}>
         <span className={styles.planName}>
           {provider.displayName}
+          {current === provider.provider && <span className={styles.currentBadge}>{t('usage.current')}</span>}
           {provider.plan?.planName !== undefined ? ` · ${provider.plan.planName}` : ''}
         </span>
       </div>
       {provider.error !== undefined && <span className={styles.errorLine}>{t('usage.provider.error', { error: provider.error })}</span>}
-      {provider.plan === undefined || provider.plan.windows.length === 0
-        ? <span className={styles.muted}>{t('usage.plan.noPlan')}</span>
-        : provider.plan.windows.map((window) => (
-          <div key={window.key} className={styles.windowRow} data-dsh-part="plan-window">
-            <span className={styles.windowLabel}>
-              <span>{window.name ?? t(`usage.plan.windows.${window.key}`)}</span>
-              <span>{window.percent !== undefined ? `${window.percent >= 10 ? Math.round(window.percent) : window.percent.toFixed(1)}%` : ''}</span>
-            </span>
-            {window.percent !== undefined && (
-              <span className={styles.bar}>
-                <span className={toneClass(window.percent)} style={{ width: `${Math.min(100, Math.max(0, window.percent))}%`, display: 'block' }} />
+      {provider.credential === 'none' && provider.plan === undefined
+        ? <span className={styles.muted}>{t('usage.balance.noCredential')}</span>
+        : provider.plan === undefined || provider.plan.windows.length === 0
+          ? <span className={styles.muted}>{t('usage.plan.noPlan')}</span>
+          : provider.plan.windows.map((window) => (
+            <div key={window.key} className={styles.windowRow} data-dsh-part="plan-window">
+              <span className={styles.windowLabel}>
+                <span>{window.name ?? t(`usage.plan.windows.${window.key}`)}</span>
+                <span>{window.percent !== undefined ? `${window.percent >= 10 ? Math.round(window.percent) : window.percent.toFixed(1)}%` : ''}</span>
               </span>
-            )}
-            {window.resetsAt !== undefined && (
-              <span className={styles.resetLine}>{t('usage.plan.reset', { date: new Date(window.resetsAt).toLocaleString() })}</span>
-            )}
-          </div>
-        ))}
+              {window.percent !== undefined && (
+                <span className={styles.bar}>
+                  <span className={toneClass(window.percent)} style={{ width: `${Math.min(100, Math.max(0, window.percent))}%`, display: 'block' }} />
+                </span>
+              )}
+              {window.resetsAt !== undefined && (
+                <span className={styles.resetLine}>{t('usage.plan.reset', { date: new Date(window.resetsAt).toLocaleString() })}</span>
+              )}
+            </div>
+          ))}
     </div>
   )
 }

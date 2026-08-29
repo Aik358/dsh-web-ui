@@ -115,7 +115,7 @@ family / 插件区域：
 | `today-card` | usage | 今日用量统计卡；`[data-dsh-part="today-card"]` |
 | `provider-list` / `provider-row` | usage | 今日分 provider 用量列表 / 余额行；卡片内行容器 |
 | `balance-card` | usage | 各 provider 余额卡；`[data-dsh-part="balance-card"]` |
-| `trend-card` | usage | 30 天趋势卡；`[data-dsh-part="trend-card"]` |
+| `trend-card` / `usage-chart` | usage | 近 30 天卡 / 其中的提供方-模型条形图；`[data-dsh-part="trend-card"]` 内 `[data-dsh-part="usage-chart"]` |
 | `settings-row` | usage | 插件设置行；`[data-dsh-part="settings-row"]` |
 | `plan-card` / `plan-window` | usage | 套餐卡 / 套餐窗口行（个人套餐页签）；`[data-dsh-part="plan-card"]` 内窗口行 |
 

@@ -18,8 +18,10 @@ export interface ProbeSpec {
 
 /** Inputs an adapter may use to build a probe. */
 export interface AdapterProbeContext {
-  /** Resolved credential value (the raw key; env refs are resolved upstream). */
+  /** Resolved credential value: a raw API key, or an OAuth access token for the oauth-aware adapters. */
   apiKey: string
+  /** Provider account id riding a dedicated header, when the credential carries one (Codex). */
+  accountId?: string
 }
 
 /** A parsed balance fact. */
@@ -334,6 +336,63 @@ const ZENMUX: ProviderAdapter = {
 }
 
 /**
+ * OpenAI Codex (ChatGPT subscription) quota over the OAuth access token the
+ * pi-ai grant stores — the one plan adapter whose credential is an OAuth
+ * token rather than an API key. A 401 here means the stored access token has
+ * expired; it refreshes when the harness next runs a Codex request, so the
+ * error line tells the user to use Codex once and refresh.
+ */
+const OPENAI_CODEX: ProviderAdapter = {
+  ids: ['openai-codex'],
+  displayName: 'Codex (ChatGPT 订阅)',
+  plan: {
+    build: ({ apiKey, accountId }) => ({
+      url: 'https://chatgpt.com/backend-api/wham/usage',
+      headers: {
+        authorization: `Bearer ${apiKey}`,
+        'user-agent': 'codex-cli',
+        accept: 'application/json',
+        ...(accountId !== undefined ? { 'chatgpt-account-id': accountId } : {}),
+      },
+    }),
+    parse: (status, body) => {
+      if (status !== 200 || typeof body !== 'object' || body === null) return undefined
+      const rateLimit = (body as Record<string, unknown>).rate_limit
+      if (typeof rateLimit !== 'object' || rateLimit === null) return undefined
+      const windows: PlanWindowView[] = []
+      const rows = (rateLimit as Record<string, unknown>).primary_window !== undefined || (rateLimit as Record<string, unknown>).secondary_window !== undefined
+        ? [(rateLimit as Record<string, unknown>).primary_window, (rateLimit as Record<string, unknown>).secondary_window]
+        : []
+      for (const entry of rows) {
+        if (typeof entry !== 'object' || entry === null) continue
+        const row = entry as Record<string, unknown>
+        const percent = toNum(row.used_percent)
+        if (percent === undefined) continue
+        const seconds = toNum(row.limit_window_seconds)
+        windows.push({
+          key: codexWindowKey(seconds),
+          percent: Math.max(0, Math.min(100, percent)),
+          // reset_at is unix seconds; toIso scales sub-millisecond-epoch values.
+          resetsAt: toIso(row.reset_at),
+        })
+      }
+      if (windows.length === 0) return undefined
+      return { windows }
+    },
+  },
+}
+
+/** Map a Codex window length in seconds onto the shared window key vocabulary. */
+function codexWindowKey(seconds: number | undefined): string {
+  if (seconds === undefined) return 'window'
+  if (seconds === 18000) return '5h'
+  if (seconds === 604800) return 'week'
+  if (seconds === 2_592_000) return 'month'
+  const hours = seconds / 3600
+  return hours >= 24 ? `${Math.round(hours / 24)}_day` : `${Math.round(hours)}_hour`
+}
+
+/**
  * The adapter registry, in no particular order. Route keys come from the
  * pi-ai provider catalog plus the routes this deployment observed in user
  * configuration (`zenmux`).
@@ -348,6 +407,7 @@ export const PROVIDER_ADAPTERS: readonly ProviderAdapter[] = [
   OPENCODE_GO,
   minimaxPlan('api.minimaxi.com', ['minimax-cn']),
   minimaxPlan('api.minimax.io', ['minimax']),
+  OPENAI_CODEX,
   OPENROUTER,
   siliconFlow('api.siliconflow.cn', ['siliconflow', 'siliconflow-cn'], 'CNY'),
   siliconFlow('api.siliconflow.com', ['siliconflow-intl'], 'USD'),

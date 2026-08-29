@@ -168,23 +168,82 @@
   flex: none;
 }
 
-.trend {
+/* 近 30 天提供方/模型条形图：provider 行主导（条宽按窗口内最大 provider
+   归一），模型子行缩进细条（行内归一）。 */
+.chart {
   display: flex;
-  align-items: flex-end;
-  gap: 3px;
-  height: 56px;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.trendBar {
-  flex: 1 1 0;
-  min-width: 4px;
-  border-radius: 3px 3px 0 0;
-  background: color-mix(in srgb, currentColor 30%, transparent);
-  min-height: 2px;
+.chartProvider {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.trendBarToday {
-  background: color-mix(in srgb, currentColor 65%, transparent);
+.chartHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.chartTokens {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.65;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.chartBar {
+  display: block;
+  height: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  overflow: hidden;
+}
+
+.chartFill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 55%, transparent);
+  transition: width 300ms ease;
+}
+
+.chartModel {
+  display: grid;
+  grid-template-columns: minmax(80px, 180px) 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding-left: 14px;
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+.chartModelName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.8;
+}
+
+.chartModelBar {
+  display: block;
+  height: 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+  overflow: hidden;
+}
+
+.chartModelFill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 35%, transparent);
+  transition: width 300ms ease;
 }
 
 .trendAxis {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  createLedgerDocument, deserializeLedger, foldUsage, ledgerDayKeys, localDateKey, pruneLedger, totalTokens,
+  createLedgerDocument, deserializeLedger, foldUsage, ledgerDayKeys, localDateKey, pruneLedger, summarizeDays, totalTokens,
 } from '../src/core/ledger.ts'
 import { emptyTotals } from '../src/core/types.ts'
 
@@ -93,5 +93,29 @@ describe('ledgerDayKeys + totalTokens', () => {
     doc.days['2026-08-27'] = {}
     expect(ledgerDayKeys(doc)).toEqual(['2026-08-27', '2026-08-29'])
     expect(totalTokens({ ...emptyTotals(), inputTokens: 1, cacheReadTokens: 2, cacheWriteTokens: 3, outputTokens: 4 })).toBe(10)
+  })
+})
+
+describe('summarizeDays', () => {
+  const day = (provider: string, model: string, inputTokens: number, outputTokens = 0, calls = 1) => ({
+    [provider]: { [model]: { ...emptyTotals(), inputTokens, outputTokens, calls } },
+  })
+
+  it('merges multiple days per provider and model, heaviest first', () => {
+    const { totals, providers } = summarizeDays([day('kimi-coding', 'k2', 100), day('kimi-coding', 'k2', 50), day('kimi-coding', 'k1', 10), day('deepseek', 'v4', 7)])
+    expect(totals.inputTokens).toBe(167)
+    expect(totals.calls).toBe(4)
+    expect(providers.map((row) => row.provider)).toEqual(['kimi-coding', 'deepseek'])
+    expect(providers[0]?.models.map((model) => model.model)).toEqual(['k2', 'k1'])
+    expect(providers[0]?.models[0]?.totals.inputTokens).toBe(150)
+  })
+
+  it('skips unsafe provider keys and malformed entries', () => {
+    // JSON.parse is the only way an own '__proto__' key exists — exactly the
+    // untrusted shape the guard exists for.
+    const hostile = JSON.parse('{"__proto__": {"x": {"inputTokens": 999}}, "ok": {"m": {"inputTokens": 1, "calls": 1}}}')
+    const { totals, providers } = summarizeDays([hostile])
+    expect(providers.map((row) => row.provider)).toEqual(['ok'])
+    expect(totals.inputTokens).toBe(1)
   })
 })
