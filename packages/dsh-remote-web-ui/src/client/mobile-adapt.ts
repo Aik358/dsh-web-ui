@@ -161,12 +161,14 @@ const ADAPT_CSS: readonly string[] = [
   // list keys on the L2 semantic roots (data-dsh-plugin, ownership stays
   // with the declaring plugin), so official class churn cannot resurrect
   // them. These are render suppressions: the client bundles still load.
+  // The pet stays visible: it is a global floating surface (fixed-position,
+  // pointer-drag repositionable, tap to interact) that needs no room in the
+  // app layout — a user can drag it clear of whatever it covers.
   `body.${ACTIVE_CLASS} [class$=\"_detailsCol\"]{display:none !important}`,
   `body.${ACTIVE_CLASS} [data-dsh-plugin=\"ssh\"],`,
   `body.${ACTIVE_CLASS} [data-dsh-plugin=\"skill-explorer\"],`,
   `body.${ACTIVE_CLASS} [data-dsh-plugin=\"task-board\"],`,
   `body.${ACTIVE_CLASS} [data-dsh-plugin=\"git-graph\"],`,
-  `body.${ACTIVE_CLASS} [data-dsh-plugin=\"pet\"],`,
   `body.${ACTIVE_CLASS} [data-dsh-plugin=\"perf\"],`,
   `body.${ACTIVE_CLASS} [data-dsh-plugin=\"usage\"]{display:none !important}`,
   // v68: settings modal on mobile — the official panel is a fixed 800px

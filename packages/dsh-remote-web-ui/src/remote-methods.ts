@@ -18,10 +18,17 @@ export const REMOTE_PREFIX = '/remote'
 /** Connection-plugin method prefix under the gated channel. */
 export const REMOTE_API_PREFIX = `${REMOTE_PREFIX}/api`
 
-/** WebSocket event-stream paths served by the channel (client rewrites to these). */
+/**
+ * The gated mirrors of the official client WebSocket paths. On the pinned
+ * 0.1.2-alpha.1 line the client opens ONE persistent stream socket — the
+ * Typert gateway mux at `/api/remote.mux` — and every Remote stream
+ * (workspace follow, session feed, ...) rides it. If that socket is not
+ * rewritten onto the gated channel the phone's streams die at the connection
+ * fence and the UI shows an empty workspace/session mirror, so the mux is
+ * the one path that must never be missing here.
+ */
 export const REMOTE_API_PATHS = {
-  mux: `${REMOTE_API_PREFIX}/events.mux`,
-  host: `${REMOTE_API_PREFIX}/events.host`,
+  mux: `${REMOTE_API_PREFIX}/remote.mux`,
 } as const
 
 /**
@@ -30,7 +37,6 @@ export const REMOTE_API_PATHS = {
  */
 export const REMOTE_UPGRADE_PATHS = [
   REMOTE_API_PATHS.mux,
-  REMOTE_API_PATHS.host,
   `${REMOTE_PREFIX}/sidebar/ws/terminal`,
   `${REMOTE_PREFIX}/sidebar/ws/agent-terminals`,
   `${REMOTE_API_PREFIX}/dsh-ssh/terminal`,

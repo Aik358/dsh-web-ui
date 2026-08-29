@@ -14,7 +14,7 @@ import { shouldRewriteFetchPath, shouldRewriteWsPath } from '../src/client/remot
 
 const PATH_MATRIX = [
   '/api/session.list',
-  '/api/events.mux',
+  '/api/remote.mux',
   '/api/pair/accept',
   '/api/update/status',
   '/api/dsh-desktop-launcher/shutdown',
@@ -29,11 +29,11 @@ const PATH_MATRIX = [
 ]
 
 const WS_MATRIX = [
-  '/api/events.mux',
-  '/api/events.host',
+  '/api/remote.mux',
   '/sidebar/ws/terminal',
   '/sidebar/ws/agent-terminals',
   '/api/dsh-ssh/terminal',
+  '/api/events.mux',
   '/api/session.list',
 ]
 
@@ -88,7 +88,9 @@ describe('remote channel boot patch (issue #987)', () => {
     const script = buildRemoteChannelBootScript()
     expect(script).not.toContain('</script')
     expect(script).toContain('/api/pair/')
-    expect(script).toContain('/api/events.mux')
+    // The gateway stream mux must be embedded: the workspace/session streams
+    // ride that one socket.
+    expect(script).toContain('/api/remote.mux')
   })
 
   it('renders into the head ahead of the module scripts (parse-time install)', () => {
@@ -109,8 +111,8 @@ describe('remote channel boot patch (issue #987)', () => {
     const headers = win.initSeen[0]?.headers ?? {}
     expect(headers['x-dsh-remote-device']).toBe('dev-42')
     expect(headers.accept).toBe('application/json')
-    new (win.WebSocket as unknown as new (url: string) => void)('ws://192.168.1.20:3080/api/events.mux')
-    expect(win.wsUrls[0]).toContain('/remote/api/events.mux?device=dev-42')
+    new (win.WebSocket as unknown as new (url: string) => void)('ws://192.168.1.20:3080/api/remote.mux')
+    expect(win.wsUrls[0]).toContain('/remote/api/remote.mux?device=dev-42')
   })
 
   it('does nothing on loopback origins', () => {

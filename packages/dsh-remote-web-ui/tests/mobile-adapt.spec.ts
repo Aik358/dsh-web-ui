@@ -85,6 +85,11 @@ describe('startMobileAdapt', () => {
     expect(tag?.textContent).toContain('font-size:16px')
     expect(tag?.textContent).toContain('grid-template-columns:0 minmax(0,1fr) 0')
     expect(meta.getAttribute('content')).toContain('viewport-fit=cover')
+    // The desktop-only suppressors stay, but the pet is NOT hidden: it is a
+    // draggable floating surface that works on touch (regression for the
+    // missing pet on the phone mirror).
+    expect(tag?.textContent).toContain('data-dsh-plugin="usage"')
+    expect(tag?.textContent).not.toContain('data-dsh-plugin="pet"')
     // Back to desktop: the layer reverts cleanly, viewport meta included.
     media.portrait = false
     adapt?.evaluate()
