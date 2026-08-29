@@ -25,6 +25,10 @@ export interface RemoteAdaptGlobal {
   toggleSidebar: (() => void) | null
   /** Wired by the plugin apply once ctx.layout is live. */
   closeDetails: (() => void) | null
+  /** Plugin master switch: false reverts the layer, true re-evaluates. */
+  setEnabled(on: boolean): void
+  /** Replays a pending closeDetails once the layout face is wired (the first apply ran before the wiring). */
+  flushCloseDetails(): void
 }
 
 /** Storage key for the manual desktop opt-out. */
@@ -196,9 +200,14 @@ export function startMobileAdapt(): void {
   let whaleObserver: MutationObserver | null = null
   let whaleTimer: number | null = null
   let whaleSuppressClick = false
+  let whaleShown = false
   let drag: { x: number; y: number; left: number; top: number; moved: boolean } | null = null
   let swipeTouch: { x: number; y: number; id: number } | null = null
   let lastComposerTap = 0
+  // Plugin master switch: the module-scope layer installs before any config
+  // is readable, so the plugin apply() flips this through setEnabled() once
+  // the settings snapshot settles (disabled plugin = no injected surface).
+  let adaptEnabled = true
 
   function apply(): void {
     if (active) return
@@ -226,7 +235,7 @@ export function startMobileAdapt(): void {
     // React builds nodes with attributes before inserting them, so
     // attribute observers miss the initial collapsed state — a light
     // interval is the reliable sync.
-    if (whaleTimer === null) whaleTimer = window.setInterval(syncWhale, 600)
+    setWhaleTimer(true)
     seatHeaderActions()
   }
 
@@ -244,7 +253,14 @@ export function startMobileAdapt(): void {
       savedViewportContent = null
     }
     if (whaleEl !== null) whaleEl.style.display = 'none'
-    if (whaleTimer !== null) {
+    setWhaleTimer(false)
+  }
+
+  /** Start/stop the 600ms sync tick; a no-op when already in the asked state. */
+  function setWhaleTimer(on: boolean): void {
+    if (on && whaleTimer === null && active) {
+      whaleTimer = window.setInterval(syncWhale, 600)
+    } else if (!on && whaleTimer !== null) {
       window.clearInterval(whaleTimer)
       whaleTimer = null
     }
@@ -323,8 +339,13 @@ export function startMobileAdapt(): void {
       pos = JSON.parse(window.localStorage.getItem(WHALE_POS_KEY) ?? 'null') as { x?: unknown; y?: unknown } | null
     } catch {}
     if (pos !== null && typeof pos.x === 'number' && typeof pos.y === 'number') {
-      whaleEl.style.left = `${pos.x}px`
-      whaleEl.style.top = `${pos.y}px`
+      // Clamp to the current viewport: a position saved on a larger screen
+      // (resize, split-screen, rotation) must not park the whale — the only
+      // portrait sidebar entry — out of reach.
+      const x = Math.min(Math.max(4, pos.x), window.innerWidth - 38)
+      const y = Math.min(Math.max(4, pos.y), window.innerHeight - 38)
+      whaleEl.style.left = `${x}px`
+      whaleEl.style.top = `${y}px`
     }
   }
 
@@ -335,7 +356,9 @@ export function startMobileAdapt(): void {
   function disableRowDrag(): void {
     if (!active) return
     const rows = document.querySelectorAll('[class$="_sidebarCol"] [class$="_sessionRow"], [class$="_sidebarCol"] [class$="_projectRow"]')
-    for (const row of rows) row.setAttribute('draggable', 'false')
+    for (const row of rows) {
+      if (row.getAttribute('draggable') !== 'false') row.setAttribute('draggable', 'false')
+    }
   }
 
   function syncWhale(): void {
@@ -347,8 +370,12 @@ export function startMobileAdapt(): void {
     const collapsed = document.querySelector('[class$="_frame"][data-sidebar-collapsed]') !== null
     const overlayUp = document.querySelector('[class$="_overlay"]') !== null
     const show = collapsed && !overlayUp
-    if (show && whaleEl.style.display !== '') applyWhalePos()
+    // Restore on every hidden-to-shown transition — including the very
+    // first show on a fresh page load, where the inline display is still
+    // '' and a CSS-read guard would never fire.
+    if (show && !whaleShown) applyWhalePos()
     whaleEl.style.display = show ? '' : 'none'
+    whaleShown = show
     document.body.classList.toggle(RAIL_HIDDEN_CLASS, collapsed)
     disableRowDrag()
     seatHeaderActions()
@@ -431,6 +458,10 @@ export function startMobileAdapt(): void {
   }
 
   function evaluate(): void {
+    if (!adaptEnabled) {
+      revert()
+      return
+    }
     if (isMobilePortrait()) {
       apply()
       ensureWhaleObserver()
@@ -441,6 +472,9 @@ export function startMobileAdapt(): void {
   evaluate()
   window.addEventListener('orientationchange', evaluate)
   window.addEventListener('resize', evaluate)
+  // The 600ms tick is a page-lifetime wake source; pause it while the page
+  // is hidden (backgrounded phone tab) and resume on return.
+  document.addEventListener('visibilitychange', () => { setWhaleTimer(document.visibilityState !== 'hidden') })
 
   // v51: Enter only inserts a newline on mobile (send goes through the send
   // button). Captured at document level so the official Enter-to-send
@@ -451,7 +485,10 @@ export function startMobileAdapt(): void {
     const t = e.target
     if (!(t instanceof HTMLElement)) return
     if (t.closest('[class$="_input"]') === null) return
-    if (e.isComposing) return
+    // keyCode 229 is the classic IME-confirm signal (Safari fires
+    // compositionend before the Enter keydown) — never treat it as a
+    // plain newline.
+    if (e.isComposing || e.keyCode === 229) return
     e.preventDefault()
     e.stopPropagation()
     try { document.execCommand('insertText', false, '\n') } catch {}
@@ -677,6 +714,22 @@ export function startMobileAdapt(): void {
   }
 
   // The plugin apply() wires toggleSidebar/closeDetails to ctx.layout once
-  // it is live.
-  w.__dshRemoteAdapt = { evaluate, toggleSidebar: null, closeDetails: null }
+  // it is live, and flips the master switch when the settings snapshot
+  // settles.
+  w.__dshRemoteAdapt = {
+    evaluate,
+    toggleSidebar: null,
+    closeDetails: null,
+    setEnabled(on: boolean): void {
+      adaptEnabled = on
+      if (on) evaluate()
+      else revert()
+    },
+    flushCloseDetails(): void {
+      // The first apply() ran before any wiring existed, so its
+      // closeDetails call was a no-op; replay it once the layout face is
+      // live so a restored details panel cannot sit hidden-uncloseable.
+      if (active) w.__dshRemoteAdapt?.closeDetails?.()
+    },
+  }
 }

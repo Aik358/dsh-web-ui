@@ -14,7 +14,8 @@ dsh-remote-web-ui 此前自带一套移动端界面：独立的 `/m/` 界面（�
 - **控制面保持物理本地。** `/remote` 仍拒绝 `/api/pair/*`、`/api/update/*`、`/api/plugin-manager/*` 与 `/api/dsh-desktop-launcher/*`。全家桶设置桥（`/api/dsh-web-ui-settings`）对配对设备重新开放——设置完全对等正是目的。过时的点号 `LOOPBACK_ONLY_METHODS` 表（rc 线遗留，契约 pin 早已挂起）删除。
 - **二维码入口是顶层路由 `/pair-accept`。** 局域网设备在配对代码能跑之前，会先撞上 harness 的浏览器认证门（按 authority 绑定的会话 cookie），而认证门的 token 重定向会丢弃查询参数。该路由设置设备 cookie 后 303 到 `connection.authenticatedUrl(origin)`——官方的启动令牌接缝——一次导航同时越过认证门与配对门：`/pair-accept → /?token=<launch> → /`。`authenticatedUrl` 要求绝对 URL，路由传入请求 origin（对隧道尊重 `x-forwarded-proto`）。
 - **移动端插件范围。** 适配层激活时，右侧详情列与面向桌面的工具界面（SSH 终端、技能中心、任务看板、git graph、宠物、性能引擎、使用统计）一律隐藏——以 L2 语义根（data-dsh-plugin）为键，归属由声明方插件负责——并且激活时经官方 ctx.layout.closeDetails() 关闭详情面板。这些是渲染抑制：客户端 bundle 仍会加载（roster 组合属于官方 web app，非本插件可控）。
-- **局域网绑定开关与静态受管块。** 设置卡片向 profile `cordis.patch.yml` 写入受管块，固定 webserver 绑定（开 = 0.0.0.0，关 = 127.0.0.1）及官方行的端口与压缩键。同 id 补丁行按整行替换 config，块必须完整；且本线用户补丁层无法可靠求值依赖 `webStartup` 的 `!!js` 表达式（在 webStartup 服务挂载前就解析，热加载时端口为 undefined、冷启动直接拒绝配置），所以写入静态值。插件每次启动重断言该块——CLI 旗标（`--host`、`--port`）通过重写块来获胜——卡片展示运行中的绑定、防火墙摘要（Windows netsh；Linux firewalld/ufw/iptables；其他平台不受管）与 `pendingRestart` 标志。CLI 对 `--host 0.0.0.0` 的拒绝保持原样：刻意的局域网暴露只经此配置层发生。
+- **局域网绑定开关与静态受管块。** 设置卡片向 profile `cordis.patch.yml` 写入受管块，固定 webserver 绑定（开 = 0.0.0.0，关 = 127.0.0.1）及官方行的端口与压缩键。同 id 补丁行按整行替换 config，块必须完整；且本线用户补丁层无法可靠求值依赖 `webStartup` 的 `!!js` 表达式（在 webStartup 服务挂载前就解析，热加载时端口为 undefined、冷启动直接拒绝配置），所以写入静态值。插件每次启动重断言该块——CLI 旗标（`--host`、`--port`）通过重写块来获胜——卡片展示运行中的绑定、防火墙摘要（Windows netsh；Linux firewalld/ufw/iptables；其他平台不受管）与 `pendingRestart` 标志（与生效期望绑定比较，旗标管理的绑定不会被永久标记）。CLI 对 `--host 0.0.0.0` 的拒绝保持原样：刻意的局域网暴露只经此配置层发生。
+- **同日审查轮。** 后续强化笔记（[审查驱动的强化轮](../bug-fix/2026-08-29-remote-control-review-fixes.zh.md)）为本设计补齐通道的内部浏览器凭据（否则本线上被转发的 `/api` 再发起请求会 401）、如实陈述直连 `/api` 的配对缺口，并修复审查发现的 lan-bind/防火墙卫生缺陷。
 
 ## 备选方案
 

@@ -28,6 +28,7 @@ import type { WebRoute, WebUpgradeRoute } from '@deepseek-ai/dsh-host-webserver'
 import type { PairingService } from './pairing.ts'
 import { readCookie } from './gate.ts'
 import { writeJson } from './http.ts'
+import type { InnerAuth } from './inner-auth.ts'
 import { proxyLoopbackHttp, proxyLoopbackUpgrade } from './loopback-proxy.ts'
 import {
   REMOTE_PREFIX,
@@ -74,6 +75,13 @@ export interface RemoteApiDeps {
    * edit takes effect without a restart. Defaults to true.
    */
   requirePairingForLan?: boolean | (() => boolean)
+  /**
+   * The process's inner browser-auth credential attached to re-issued
+   * requests (the connection plugin's /api route enforces that cookie and
+   * the pairing gate above already ran). Undefined keeps the previous
+   * cookie-less behavior — the inner route then answers 401 on this cohort.
+   */
+  auth?: InnerAuth
 }
 
 /** One SDK-shaped error envelope (keeps the desktop client's parse path intact). */
@@ -154,7 +162,7 @@ export function makeRemoteApiRoutes(deps: RemoteApiDeps): WebRoute[] {
       return
     }
 
-    proxyLoopbackHttp(req, res, port, `${inner}${url.search}`)
+    proxyLoopbackHttp(req, res, port, `${inner}${url.search}`, deps.auth)
   }
 
   return [{ kind: 'prefix', path: REMOTE_PREFIX, handler }]
@@ -202,7 +210,16 @@ export function makeRemoteApiUpgradeRoutes(deps: RemoteApiDeps): WebUpgradeRoute
       socket.destroy()
       return
     }
-    proxyLoopbackUpgrade(req, socket, head, port, inner)
+    // The inner handshake needs the browser-auth credential (the gateway
+    // event-stream route enforces it); resolving it is async, so the
+    // handshake bytes are written once it settles. A missing credential
+    // proceeds as before — the gateway route then refuses.
+    void Promise.resolve(deps.auth?.ready())
+      .catch(() => undefined)
+      .then((cookie) => {
+        if (socket.destroyed) return
+        proxyLoopbackUpgrade(req, socket, head, port, inner, typeof cookie === 'string' ? cookie : undefined)
+      })
   }
 
   return REMOTE_UPGRADE_PATHS.map((path) => ({

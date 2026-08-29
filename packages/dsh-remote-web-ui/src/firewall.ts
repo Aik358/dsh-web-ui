@@ -54,7 +54,14 @@ export interface FirewallBackend {
 }
 
 function netshBackend(run: CommandRunner): FirewallBackend {
-  const show = (): boolean => run('netsh', ['advfirewall', 'firewall', 'show', 'rule', `name=${FIREWALL_RULE_NAME}`]).ok
+  // `show rule name=` exits 0 even when nothing matches (the localized "no
+  // rules match" note), so exit-code-only probes always report the rule as
+  // present. The verbose listing echoes the full rule name — the one
+  // locale-independent field — and is matched literally instead.
+  const show = (): boolean => {
+    const result = run('netsh', ['advfirewall', 'firewall', 'show', 'rule', `name=${FIREWALL_RULE_NAME}`, 'verbose'])
+    return result.ok && result.out.includes(FIREWALL_RULE_NAME)
+  }
   return {
     label: 'netsh',
     ruleExists: show,
@@ -91,7 +98,9 @@ function ufwBackend(run: CommandRunner): FirewallBackend {
     label: 'ufw',
     ruleExists: (port) => {
       const result = run('ufw', ['status'])
-      return result.ok && new RegExp(`${String(port)}/tcp\\s+ALLOW`, 'i').test(result.out)
+      // Anchored so a superset port's row (1443/tcp) cannot satisfy the
+      // probe for a shorter one (443/tcp).
+      return result.ok && new RegExp(`(^|\\s)${String(port)}/tcp\\s+ALLOW`, 'i').test(result.out)
     },
     addRule: (port) => run('ufw', ['allow', `${String(port)}/tcp`]).ok,
     removeRule: (port) => run('ufw', ['delete', 'allow', `${String(port)}/tcp`]).ok,
@@ -166,6 +175,7 @@ export interface FirewallSummary {
  * backends follow the same recreate pattern).
  */
 export function ensureFirewallRule(port: number): boolean {
+  invalidateFirewallSummary()
   const backend = firewallBackend()
   if (backend === undefined) return true
   backend.removeRule(port)
@@ -173,14 +183,44 @@ export function ensureFirewallRule(port: number): boolean {
 }
 
 export function removeFirewallRule(port: number): boolean {
+  invalidateFirewallSummary()
   const backend = firewallBackend()
   if (backend === undefined) return true
   return backend.removeRule(port)
 }
 
 /** Human-readable firewall state for the status endpoint. */
-export function firewallSummary(port: number, lanEnabled: boolean): FirewallSummary {
-  const backend = firewallBackend()
+export function computeFirewallSummary(
+  port: number,
+  lanEnabled: boolean,
+  backend: FirewallBackend | undefined = firewallBackend(),
+): FirewallSummary {
   if (backend === undefined) return { ok: true, managed: false }
   return { ok: lanEnabled ? backend.ruleExists(port) : !backend.ruleExists(port), managed: true, note: backend.label }
+}
+
+/** How long a firewallSummary answer is reused before the backend is probed again. */
+export const FIREWALL_SUMMARY_TTL_MS = 30_000
+
+let summaryCache: { key: string; at: number; value: FirewallSummary } | undefined
+
+/** Forget the cached summary (rule mutations call this). */
+export function invalidateFirewallSummary(): void {
+  summaryCache = undefined
+}
+
+/**
+ * The settings card polls this every ten seconds; the probes are blocking
+ * spawnSync subprocesses on managed platforms, so short-TTL memoization
+ * keeps one poll from freezing the host event loop per request.
+ */
+export function firewallSummary(port: number, lanEnabled: boolean): FirewallSummary {
+  const key = `${String(port)}|${lanEnabled ? '1' : '0'}`
+  const now = Date.now()
+  if (summaryCache !== undefined && summaryCache.key === key && now - summaryCache.at < FIREWALL_SUMMARY_TTL_MS) {
+    return summaryCache.value
+  }
+  const value = computeFirewallSummary(port, lanEnabled)
+  summaryCache = { key, at: now, value }
+  return value
 }

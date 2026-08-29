@@ -1,9 +1,9 @@
 /** The managed lan-bind patch block: parse, strip, and write semantics. */
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { LAN_BIND_BLOCK_BEGIN, LAN_BIND_BLOCK_END, lanBindState, managedBlock, managedBindOf, stripManagedBlock, writeLanBind } from '../src/lan-bind.ts'
+import { LAN_BIND_BLOCK_BEGIN, LAN_BIND_BLOCK_END, lanBindState, managedBlock, managedBindOf, profilePatchFile, stripManagedBlock, writeLanBind } from '../src/lan-bind.ts'
 
 const tempDirs: string[] = []
 
@@ -68,5 +68,36 @@ describe('writeLanBind / lanBindState', () => {
   it('reports a missing file as untouched', () => {
     const home = tempHome()
     expect(lanBindState('web', home)).toEqual({ blockPresent: false })
+  })
+
+  it('refuses profiles that escape the profiles directory', () => {
+    const home = tempHome()
+    expect(() => writeLanBind('0.0.0.0', 3080, '../elsewhere', home)).toThrow(/unsafe lan-bind profile/)
+    expect(() => writeLanBind('0.0.0.0', 3080, 'a/b', home)).toThrow(/unsafe lan-bind profile/)
+    expect(() => writeLanBind('0.0.0.0', 3080, '..', home)).toThrow(/unsafe lan-bind profile/)
+    expect(() => profilePatchFile('../../elsewhere', home)).toThrow(/unsafe lan-bind profile/)
+  })
+
+  it('truncates an unterminated block instead of stacking a second webserver row', () => {
+    const home = tempHome()
+    const patch = join(home, 'profiles', 'web', 'cordis.patch.yml')
+    mkdirSync(join(home, 'profiles', 'web'), { recursive: true })
+    // A hand-truncated file: BEGIN present, END missing.
+    writeFileSync(patch, '- id: keep\n' + `${LAN_BIND_BLOCK_BEGIN}\n- id: webserver\n  config:\n    host: '0.0.0.0'\n`)   
+    writeLanBind('127.0.0.1', 3191, 'web', home)
+    const after = readFileSync(patch, 'utf8')
+    expect(managedBindOf(after)).toEqual({ host: '127.0.0.1', port: 3191 })
+    expect(after.split(LAN_BIND_BLOCK_BEGIN)).toHaveLength(2)
+    expect(after.split('- id: webserver')).toHaveLength(2)
+    expect(after).toContain('- id: keep')
+  })
+
+  it('preserves the original file permissions instead of resetting to umask', () => {
+    const home = tempHome()
+    const patch = join(home, 'profiles', 'web', 'cordis.patch.yml')
+    mkdirSync(join(home, 'profiles', 'web'), { recursive: true })
+    writeFileSync(patch, '- id: a\n', { mode: 0o600 })
+    writeLanBind('0.0.0.0', 3080, 'web', home)
+    expect(statSync(patch).mode & 0o777).toBe(0o600)
   })
 })

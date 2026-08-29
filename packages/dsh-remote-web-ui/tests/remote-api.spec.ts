@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest'
 import type { AddressInfo } from 'node:net'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import { PairingService } from '../src/pairing.ts'
+import { createInnerAuth } from '../src/inner-auth.ts'
 import {
   LOCAL_ONLY_PREFIXES,
   innerPathOf,
@@ -475,6 +476,87 @@ describe('remote desktop channel (/remote)', () => {
       expect(body.error.message).toBe('upstream request failed')
     } finally {
       await close()
+    }
+  })
+
+  it('attaches the self-redeemed inner browser credential to proxied calls', async () => {
+    const service = makeService()
+    const cookie = pairedCookie(service)
+    // The upstream stand-in enforces browser auth exactly like the harness:
+    // the launch-token exchange mints a dsh-auth cookie, and the RPC route
+    // demands it (authority-bound — the device cookie can never satisfy it).
+    const upstream = await startUpstream((req, hits) => {
+      if (req.url === '/?token=launch-1') {
+        return { status: 303, headers: { 'set-cookie': 'dsh-auth-test=v1.1; Path=/; HttpOnly; SameSite=Strict' }, body: '' }
+      }
+      if (req.url === '/api/session.list') {
+        const current = hits[hits.length - 1]
+        return current.cookie?.startsWith('dsh-auth-test=') === true
+          ? { status: 200, body: JSON.stringify({ type: 'server-response', rpcId: 'rpc-auth', result: { ok: true } }) }
+          : { status: 401, body: 'unauthorized' }
+      }
+      return { status: 404, body: 'no' }
+    })
+    const auth = createInnerAuth(() => `http://127.0.0.1:${String(upstream.port)}/?token=launch-1`)
+    const { port, close } = await serve(makeRemoteApiRoutes({ service, port: upstream.port, auth }))
+    try {
+      const result = await call(port, 'POST', '/remote/api/session.list', {
+        body: ENVELOPE('rpc-auth', 'session.list', {}),
+        cookie,
+      })
+      expect(result.status).toBe(200)
+      expect(JSON.parse(result.body).result.ok).toBe(true)
+      // Redemption + RPC: the device cookie is dropped, the inner
+      // browser-auth cookie is what arrives upstream.
+      const [redemption, rpc] = upstream.hits
+      expect(redemption.url).toBe('/?token=launch-1')
+      expect(rpc.cookie).toBe('dsh-auth-test=v1.1')
+      expect(rpc.host).toBe(`127.0.0.1:${String(upstream.port)}`)
+    } finally {
+      await close()
+      await upstream.close()
+    }
+  })
+
+  it('invalidates the inner credential after an upstream 401 and re-redeems', async () => {
+    const service = makeService()
+    const cookie = pairedCookie(service)
+    let redemptions = 0
+    const upstream = await startUpstream((req, hits) => {
+      if (req.url === '/?token=launch-1') {
+        redemptions += 1
+        return { status: 303, headers: { 'set-cookie': `dsh-auth-test=v1.${String(redemptions)}; Path=/` }, body: '' }
+      }
+      if (req.url === '/api/session.list') {
+        // Only the SECOND mint is valid: the cached first credential must
+        // be dropped after the 401 so the retry carries the fresh one.
+        const current = hits[hits.length - 1]
+        return current.cookie === 'dsh-auth-test=v1.2'
+          ? { status: 200, body: JSON.stringify({ type: 'server-response', rpcId: 'rpc-refresh', result: { ok: true } }) }
+          : { status: 401, body: 'unauthorized' }
+      }
+      return { status: 404, body: 'no' }
+    })
+    const auth = createInnerAuth(() => `http://127.0.0.1:${String(upstream.port)}/?token=launch-1`)
+    const { port, close } = await serve(makeRemoteApiRoutes({ service, port: upstream.port, auth }))
+    try {
+      const stale = await call(port, 'POST', '/remote/api/session.list', {
+        body: ENVELOPE('rpc-stale', 'session.list', {}),
+        cookie,
+      })
+      expect(stale.status).toBe(401)
+      const fresh = await call(port, 'POST', '/remote/api/session.list', {
+        body: ENVELOPE('rpc-refresh', 'session.list', {}),
+        cookie,
+      })
+      expect(fresh.status).toBe(200)
+      expect(redemptions).toBe(2)
+      expect(upstream.hits.map(hit => hit.url)).toEqual([
+        '/?token=launch-1', '/api/session.list', '/?token=launch-1', '/api/session.list',
+      ])
+    } finally {
+      await close()
+      await upstream.close()
     }
   })
 })

@@ -1,6 +1,6 @@
 /** Firewall backend detection and summary semantics with a fake runner. */
 import { describe, expect, it } from 'vitest'
-import { detectFirewallBackend, type CommandRunner, type ToolResult } from '../src/firewall.ts'
+import { computeFirewallSummary, detectFirewallBackend, FIREWALL_RULE_NAME, type CommandRunner, type FirewallBackend, type ToolResult } from '../src/firewall.ts'
 
 /** A runner scripted per command prefix. */
 function fakeRunner(responses: Record<string, ToolResult>): CommandRunner {
@@ -57,7 +57,7 @@ describe('rule maintenance (netsh shape)', () => {
     const run: CommandRunner = (cmd, args) => {
       const key = [cmd, ...args].join(' ')
       calls.push(key)
-      if (key.includes('show rule')) return { ok: exists, out: '', err: '' }
+      if (key.includes('show rule')) return { ok: true, out: exists ? `Rule Name:                            ${FIREWALL_RULE_NAME}` : 'No rules match the specified criteria.', err: '' }
       if (key.includes('delete rule')) {
         exists = false
         return { ok: true, out: '', err: '' }
@@ -75,5 +75,42 @@ describe('rule maintenance (netsh shape)', () => {
     expect(backend?.ruleExists(3080)).toBe(true)
     expect(backend?.removeRule(3080)).toBe(true)
     expect(exists).toBe(false)
+  })
+
+  it('reports the rule absent when netsh answers the localized no-match note with exit 0', () => {
+    const run: CommandRunner = () => ({ ok: true, out: 'No rules match the specified criteria.', err: '' })
+    const backend = detectFirewallBackend('win32', run)
+    expect(backend?.ruleExists(3080)).toBe(false)
+  })
+})
+
+describe('ufw rule probe', () => {
+  const ufwBackendWith = (statusOutput: string): FirewallBackend => detectFirewallBackend('linux', fakeRunner({
+    'firewall-cmd --state': { ok: false, out: '', err: 'not running' },
+    ufw: { ok: true, out: statusOutput, err: '' },
+  }))!
+
+  it('anchors the port match so a superset port cannot satisfy the probe', () => {
+    const backend = ufwBackendWith('Status: active\n\n1443/tcp                     ALLOW       Anywhere\n')
+    expect(backend.ruleExists(443)).toBe(false)
+    expect(backend.ruleExists(1443)).toBe(true)
+  })
+})
+
+describe('computeFirewallSummary', () => {
+  it('reflects the rule state against the LAN toggle with an injected backend', () => {
+    const backend: FirewallBackend = {
+      label: 'test',
+      ruleExists: (port) => port === 3080,
+      addRule: () => true,
+      removeRule: () => true,
+    }
+    expect(computeFirewallSummary(3080, true, backend)).toEqual({ ok: true, managed: true, note: 'test' })
+    expect(computeFirewallSummary(3080, false, backend)).toEqual({ ok: false, managed: true, note: 'test' })
+    expect(computeFirewallSummary(3191, true, backend)).toEqual({ ok: false, managed: true, note: 'test' })
+  })
+
+  it('reports unmanaged platforms as ok', () => {
+    expect(computeFirewallSummary(3080, true, undefined)).toEqual({ ok: true, managed: false })
   })
 })

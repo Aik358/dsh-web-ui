@@ -30,7 +30,9 @@ import { makeRemoteApiRoutes, makeRemoteApiUpgradeRoutes } from './remote-api.ts
 import { claimPostureKey, postureTargets, probePosture, releasePostureKey } from './posture.ts'
 import { lanIPv4Addresses } from './lan.ts'
 import { ensureFirewallRule, firewallSummary, removeFirewallRule } from './firewall.ts'
-import { lanBindState, writeLanBind, type LanBindHost } from './lan-bind.ts'
+import { lanBindState, writeLanBind } from './lan-bind.ts'
+import { desiredBindHost, desiredBindPort, firewallActionNeeded, pendingRestartOf, type AppliedFirewallState, type StartupFacts } from './lan-bind-plan.ts'
+import { createInnerAuth } from './inner-auth.ts'
 import { TunnelManager, type TunnelInfo } from './tunnel.ts'
 import {
   checkUpdates,
@@ -55,6 +57,12 @@ declare module '@deepseek-ai/cordis' {
      * fires this per /api request before bridging to the API proxy on
      * deployments that carry the pairing/revocation seam; call `next()` to
      * delegate, return false (without calling it) to veto with 403.
+     *
+     * Cohort note (0.1.2-alpha.1): the official runtime ships NO emitter
+     * for this event, so the listener below never fires there and direct
+     * /api stays under the harness fence + browser auth. It is wired anyway
+     * so cohort lines that do carry the seam get pairing enforcement on
+     * direct /api without a plugin change.
      */
     'api/gate'(
       this: Context,
@@ -96,9 +104,14 @@ export interface Config {
   /**
    * When true (default), a desktop Web GUI opened at a non-loopback origin
    * rides the gated `/remote/api` channel and must carry a live paired-device
-   * cookie — the QR is the only way into remote desktop, and stop() cuts
-   * paired devices off. Set false to keep the desktop on plain `/api`
-   * (only useful when that origin is already trusted for `/api`).
+   * cookie — the QR is the only way into remote desktop, and stop()/revoke()
+   * cut the /remote channel and the pairing cookie off immediately. Scope
+   * note for this cohort: direct /api is governed by the harness fence +
+   * browser-auth cookie (the api/gate seam has no emitter on 0.1.2-alpha.1),
+   * so a harness browser credential a device has already redeemed is not
+   * invalidated by stop() — see the README security model. Set false to keep
+   * the desktop on plain `/api` (only useful when that origin is already
+   * trusted for `/api`).
    */
   requirePairingForLan?: boolean
   /**
@@ -131,14 +144,19 @@ export interface Config {
    * the bind default to 0.0.0.0 (an explicit --host flag still wins), false
    * pins it back to 127.0.0.1 — and maintains the matching host firewall
    * rule (Windows netsh; Linux firewalld/ufw/iptables; other platforms
-   * report the firewall as unmanaged). The patch hot-reloads, so the rebind
-   * applies without a restart. While the toggle has never been set
-   * (undefined), the plugin does not touch the patch file at all.
+   * report the firewall as unmanaged). The block takes effect when the
+   * process next applies the profile — the live patch watcher recomposes on
+   * some profile shapes, otherwise on the next start — and the settings
+   * card reports the divergence (pendingRestart) instead of guessing.
+   * While the toggle has never been set (undefined), the plugin does not
+   * touch the patch file at all.
    */
   lanBind?: boolean
   /**
    * The profile whose cordis.patch.yml the LAN bind toggle manages.
-   * Defaults to the DSH_PROFILE environment variable, then "web".
+   * Defaults to the DSH_PROFILE environment variable, then "web". Must be
+   * a single safe path segment (the DSH_PROFILE env fallback bypasses this
+   * schema, so the path builder asserts containment independently).
    */
   profile?: string
   /** Master switch for the plugin (browser half + host pairing surfaces). */
@@ -156,7 +174,7 @@ export const Config: z<Config> = z.object({
   devicesFile: z.string(),
   autoTunnel: z.boolean().default(false),
   lanBind: z.boolean(),
-  profile: z.string().min(1),
+  profile: z.string().pattern(/^[A-Za-z0-9][A-Za-z0-9._-]*$/),
   enabled: z.boolean().default(true),
 })
 
@@ -264,7 +282,7 @@ function applyImpl(ctx: Context, config?: Config): void {
 
   // ── auto tunnel ─────────────────────────────────────────────────────────
   // The minted public URL becomes the QR base (and the pairing fence's
-  // trusted host). Phone /api traffic rides the plugin's own /m/api channel,
+  // trusted host). Phone /api traffic rides the plugin's own /remote channel,
   // which is NOT subject to the connection trust fence — so no fence
   // mutation is needed here (a distributable plugin must not change the
   // harness's connection plugin).
@@ -394,32 +412,57 @@ function applyImpl(ctx: Context, config?: Config): void {
   // rebind (the patch watcher recomposes the process) and a fresh toggle
   // round are both reflected without a restart.
   let lastKnownPort: number | undefined
+  let lastFirewallApplied: AppliedFirewallState | undefined
   const lanBindStatus = (): Record<string, unknown> => {
     const resolvedNow = resolve()
-    const state = lanBindState(resolvedNow.profile)
+    let state: { blockPresent: boolean; host?: string; port?: number }
+    try {
+      state = lanBindState(resolvedNow.profile)
+    } catch {
+      // An unsafe profile value must not take the whole status endpoint down.
+      state = { blockPresent: false }
+    }
     const lanOn = state.host === '0.0.0.0'
     const port = Number.isFinite(ctx.webServer.port) ? ctx.webServer.port : lastKnownPort
     if (Number.isFinite(ctx.webServer.port)) lastKnownPort = ctx.webServer.port
+    const startup = ctx.get('webStartup') as StartupFacts | undefined
+    const desiredHost = resolvedNow.lanBind === undefined
+      ? undefined
+      : desiredBindHost(resolvedNow.lanBind === true, startup?.host)
     return {
       profile: resolvedNow.profile,
       setting: resolvedNow.lanBind ?? null,
       blockHost: state.host ?? null,
       bindHost: ctx.webServer.host,
       port,
-      lanUrls: ctx.webServer.host === '0.0.0.0'
+      lanUrls: ctx.webServer.host === '0.0.0.0' && port !== undefined
         ? lanIPv4Addresses().map(address => `http://${address}:${String(port)}`)
         : [],
       firewall: port !== undefined ? firewallSummary(port, lanOn) : { ok: true, managed: false },
       platform: process.platform,
       // The running bind does not follow the block on every deployment (the
       // live patch watcher is profile-shape dependent): flag the divergence
-      // so the card can ask for a restart instead of looking broken.
-      pendingRestart: resolvedNow.lanBind !== undefined && state.host !== null && (
-        (resolvedNow.lanBind && ctx.webServer.host !== '0.0.0.0') ||
-        (!resolvedNow.lanBind && ctx.webServer.host !== '127.0.0.1')
-      ),
+      // so the card can ask for a restart instead of looking broken. The
+      // comparison uses the effective desired host (a CLI --host wins over
+      // the toggle), not the raw toggle.
+      pendingRestart: pendingRestartOf(resolvedNow.lanBind, desiredHost, ctx.webServer.host),
     }
   }
+  // The process's inner browser credential: the proxied /api re-issues to
+  // 127.0.0.1, where the connection route enforces the harness browser-auth
+  // cookie (authority-bound; no loopback exemption on this cohort), so a
+  // device's own cookie can never satisfy the inner check. The plugin
+  // redeems its own launch token once and attaches the cookie to inner
+  // requests; the credential is only ever exercised behind the pairing gate
+  // in remote-api.ts.
+  const innerAuth = createInnerAuth(() => {
+    if (!Number.isFinite(ctx.webServer.port)) return undefined
+    try {
+      return (ctx.connection as { authenticatedUrl?: (base: string) => string }).authenticatedUrl?.(`http://127.0.0.1:${String(ctx.webServer.port)}/`)
+    } catch {
+      return undefined
+    }
+  })
   const routes = [
     ...makeRoutes({
       service,
@@ -445,6 +488,7 @@ function applyImpl(ctx: Context, config?: Config): void {
       service,
       port: ctx.webServer.port,
       requirePairingForLan: () => resolve().requirePairingForLan,
+      auth: innerAuth,
     }),
     ...updateRoutes,
   ]
@@ -452,6 +496,7 @@ function applyImpl(ctx: Context, config?: Config): void {
     service,
     port: ctx.webServer.port,
     requirePairingForLan: () => resolve().requirePairingForLan,
+    auth: innerAuth,
   })
   const gate = makeGateListener(service, () => resolve().requirePairingForLan, () => resolve().enabled)
   ctx.effect(() => ctx.on('api/gate', gate), 'remote-web-ui: api gate')
@@ -508,6 +553,14 @@ function applyImpl(ctx: Context, config?: Config): void {
     const urls = service.lanAddresses.map(ip => `http://${ip}:${String(ctx.webServer.port)}`).join(' , ')
     console.log(`remote-web-ui: the paired Web GUI is reachable on LAN at ${urls}`)
   }
+  // Cohort honesty (see the README security model): the pairing gate covers
+  // the plugin's own /remote channel; direct /api from LAN origins is
+  // governed by the harness fence + browser-auth cookie, and this cohort's
+  // api/gate seam has no emitter — so stop()/revoke() cannot invalidate a
+  // browser credential a device has already redeemed.
+  if (ctx.webServer.host === '0.0.0.0') {
+    console.warn('remote-web-ui: LAN-exposed bind — pairing gates the /remote channel; direct /api stays under the harness fence + browser auth (stop() does not revoke an already-redeemed browser credential)')
+  }
 
   const sync = (): void => {
     const value = resolve()
@@ -519,31 +572,40 @@ function applyImpl(ctx: Context, config?: Config): void {
     // the re-assert at every boot keeps it in sync with both the toggle and
     // the flags.
     if (value.lanBind !== undefined) {
-      const startup = ctx.get('webStartup') as { host?: string; port?: number } | undefined
-      const toggleHost: LanBindHost = value.lanBind ? '0.0.0.0' : '127.0.0.1'
-      const desiredHost = startup?.host !== undefined && (startup.host === '0.0.0.0' || startup.host === '127.0.0.1')
-        ? startup.host
-        : toggleHost
-      const desiredPort = startup?.port ?? (Number.isFinite(ctx.webServer.port) ? ctx.webServer.port : undefined)
+      const startup = ctx.get('webStartup') as StartupFacts | undefined
+      const desiredHost = desiredBindHost(value.lanBind === true, startup?.host)
+      const desiredPort = desiredBindPort(startup?.port, Number.isFinite(ctx.webServer.port) ? ctx.webServer.port : undefined)
       if (desiredPort === undefined) {
         console.error('remote-web-ui: cannot assert the lan-bind block — the web server port is not known yet')
-      }
-      const current = lanBindState(value.profile)
-      if (desiredPort !== undefined && (current.host !== desiredHost || current.port !== desiredPort)) {
+      } else {
         try {
-          writeLanBind(desiredHost, desiredPort, value.profile)
-          console.log(`remote-web-ui: lan-bind block written for profile ${value.profile} (${desiredHost}:${String(desiredPort)}); it takes effect on the next dsh web start`)
+          const current = lanBindState(value.profile)
+          if (current.host !== desiredHost || current.port !== desiredPort) {
+            writeLanBind(desiredHost, desiredPort, value.profile)
+            console.log(`remote-web-ui: lan-bind block written for profile ${value.profile} (${desiredHost}:${String(desiredPort)}); it takes effect when the profile next applies (the card reports pendingRestart until the running bind follows)`)
+          }
         } catch (error) {
           console.error(`remote-web-ui: failed to write the lan-bind block: ${error instanceof Error ? error.message : String(error)}`)
         }
       }
       // Keep the firewall rule aligned with the toggle (managed platforms
-      // only; see firewall.ts). The port is the live bind port.
-      const ruleOk = value.lanBind
-        ? ensureFirewallRule(ctx.webServer.port)
-        : removeFirewallRule(ctx.webServer.port)
-      if (!ruleOk) {
-        console.error('remote-web-ui: the host firewall rule could not be updated (admin rights required on managed platforms)')
+      // only; see firewall.ts). The probes and rule rewrites are blocking
+      // subprocesses, so they run only when the desired state actually moved
+      // — not on every unrelated settings save. The port is the live bind
+      // port; without it there is nothing to align yet.
+      const livePort = Number.isFinite(ctx.webServer.port) ? ctx.webServer.port : undefined
+      if (livePort === undefined) {
+        console.error('remote-web-ui: cannot align the host firewall rule — the web server port is not known yet')
+      } else {
+        const nextFirewall: AppliedFirewallState = { enabled: value.lanBind === true, port: livePort }
+        if (firewallActionNeeded(lastFirewallApplied, nextFirewall)) {
+          const ruleOk = nextFirewall.enabled ? ensureFirewallRule(nextFirewall.port) : removeFirewallRule(nextFirewall.port)
+          if (ruleOk) {
+            lastFirewallApplied = nextFirewall
+          } else {
+            console.error('remote-web-ui: the host firewall rule could not be updated (admin rights required on managed platforms)')
+          }
+        }
       }
     }
     // The auto tunnel owns the public base while enabled: the minted URL

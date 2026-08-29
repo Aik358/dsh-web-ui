@@ -165,6 +165,19 @@ export function apply(ctx: ClientContext): void {
       : snapshot.status === 'unavailable'
   }
 
+  // Master switch for the adaptation layer: the module-scope install runs
+  // before any config is readable, so flip it once the settings snapshot is
+  // bound and on every later change (disabled plugin = no injected surface).
+  // Also replay the pending closeDetails: the first portrait apply ran
+  // before the layout face was wired, so its closeDetails was a no-op and a
+  // restored details panel would otherwise sit hidden until landscape.
+  const syncAdaptEnabled = (): void => {
+    ;(window as unknown as { __dshRemoteAdapt?: RemoteAdaptGlobal }).__dshRemoteAdapt?.setEnabled?.(enabled())
+  }
+  settingsScope.subscribe(syncAdaptEnabled)
+  syncAdaptEnabled()
+  adapt?.flushCloseDetails?.()
+
   // Sidebar foot entry: the sidebar foot seat is `sidebar.footer.action` in
   // the 0.1.2 shell composition (the legacy `sidebar.remote` seat is gone
   // upstream). The pairing link is origin-agnostic, so the entry needs no

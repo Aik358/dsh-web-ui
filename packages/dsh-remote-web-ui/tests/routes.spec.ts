@@ -5,7 +5,7 @@ import type { AddressInfo } from 'node:net'
 import type { Server } from 'node:http'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import { PairingService } from '../src/pairing.ts'
-import { makeRoutes } from '../src/routes.ts'
+import { acceptLimitKey, makeRoutes, PAIR_PATHS } from '../src/routes.ts'
 
 function makeService(): PairingService {
   const service = new PairingService({
@@ -446,6 +446,80 @@ describe('/api/pair routes', () => {
     } finally {
       await close()
     }
+  })
+
+  it('serves the loopback-only lan-bind status endpoint and hides it without a provider', async () => {
+    const service = makeService()
+    const calls: string[] = []
+    const { port, close } = await serve(makeRoutes({
+      service,
+      lanAddresses: ['192.168.1.5'],
+      lanBindStatus: () => {
+        calls.push('read')
+        return { profile: 'web', setting: true, blockHost: '0.0.0.0', bindHost: '0.0.0.0', port, lanUrls: [], firewall: { ok: true, managed: false }, platform: 'darwin', pendingRestart: false }
+      },
+    }))
+    try {
+      // Loopback reads the live facts; the read count pins the per-request
+      // (uncached) contract the card's 10s poll relies on.
+      const ok = await call(port, 'GET', PAIR_PATHS.lanBind, {})
+      expect(ok.status).toBe(200)
+      expect(ok.body).toMatchObject({ ok: true, profile: 'web', blockHost: '0.0.0.0', bindHost: '0.0.0.0' })
+      expect(calls).toHaveLength(1)
+      // A LAN origin is refused: the endpoint exposes host/network facts.
+      const lan = await call(port, 'GET', PAIR_PATHS.lanBind, { host: '192.168.1.5:3080' })
+      expect(lan.status).toBe(403)
+      // POST is not the contract.
+      const wrongMethod = await call(port, 'POST', PAIR_PATHS.lanBind, { body: {} })
+      expect(wrongMethod.status).toBe(405)
+    } finally {
+      await close()
+    }
+    // Without the provider the route is not registered at all.
+    const bare = await serve(makeRoutes({ service: makeService(), lanAddresses: ['192.168.1.5'] }))
+    try {
+      const missing = await call(bare.port, 'GET', PAIR_PATHS.lanBind, {})
+      expect(missing.status).toBe(404)
+    } finally {
+      await bare.close()
+    }
+  })
+
+  it('counts the accept page and the accept API in separate rate-limit buckets', async () => {
+    const service = makeService()
+    const { port, close } = await serve(makeRoutes({ service, lanAddresses: ['192.168.1.5'] }))
+    try {
+      // Exhaust the API bucket with token-guessing POSTs.
+      for (let index = 0; index < 11; index += 1) {
+        await call(port, 'POST', '/api/pair/accept', { host: '192.168.1.5:3080', body: { token: 'nope' } })
+      }
+      const apiLimited = await call(port, 'POST', '/api/pair/accept', { host: '192.168.1.5:3080', body: { token: 'nope' } })
+      expect(apiLimited.status).toBe(429)
+      // The page bucket is untouched: QR navigations still answer.
+      const page = await call(port, 'GET', '/pair-accept?pair=dead', { host: '192.168.1.5:3080' })
+      expect(page.status).toBe(303)
+      // Exhausting the page bucket afterwards does not un-limit the API.
+      for (let index = 0; index < 12; index += 1) {
+        await call(port, 'GET', '/pair-accept?pair=dead', { host: '192.168.1.5:3080' })
+      }
+      const pageLimited = await call(port, 'GET', '/pair-accept?pair=dead', { host: '192.168.1.5:3080' })
+      expect(pageLimited.status).toBe(429)
+      const apiStillLimited = await call(port, 'POST', '/api/pair/accept', { host: '192.168.1.5:3080', body: { token: 'nope' } })
+      expect(apiStillLimited.status).toBe(429)
+    } finally {
+      await close()
+    }
+  })
+
+  it('keys the rate limiter: XFF partitions only for loopback peers', () => {
+    // Tunnel edge (loopback peer): the XFF hop separates buckets.
+    expect(acceptLimitKey('127.0.0.1', '203.0.113.9', 'api')).toBe('api|127.0.0.1|203.0.113.9')
+    expect(acceptLimitKey('::ffff:127.0.0.1', '203.0.113.9', 'page')).toBe('page|::ffff:127.0.0.1|203.0.113.9')
+    // Direct LAN peer: a rotatable header must not mint fresh buckets.
+    expect(acceptLimitKey('192.168.1.50', '203.0.113.9', 'api')).toBe('api|192.168.1.50')
+    expect(acceptLimitKey('192.168.1.50', undefined, 'api')).toBe('api|192.168.1.50')
+    // Missing/blank XFF collapses onto the socket bucket.
+    expect(acceptLimitKey('127.0.0.1', '', 'api')).toBe('api|127.0.0.1')
   })
 
   it('revokes one device from loopback and refuses LAN revoke', async () => {

@@ -3,15 +3,19 @@
  * under /api: the webserver matches exact paths before the connection
  * plugin's /api prefix, so these handlers own the full response lifecycle
  * and apply their own trust fence (loopback-only for control endpoints;
- * loopback-or-LAN for the phone-facing accept/heartbeat/status). The
- * cookie set on accept is the device identity the api/gate listener checks
- * on every other /api request.
+ * loopback-or-LAN for the phone-facing accept/heartbeat/status). The cookie
+ * set on accept is the device identity the plugin's own surfaces enforce:
+ * the /remote channel gate and the api/gate listener. Note that on the
+ * 0.1.2-alpha.1 cohort nothing emits api/gate — direct /api is governed by
+ * the harness fence + browser auth — while the /remote channel always
+ * enforces the pairing cookie itself.
  */
 
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import { z, type ZodType } from 'zod'
 import { UnknownLanAddressError, type PairingService, type PairingSnapshot } from './pairing.ts'
+import { isLoopbackAddress } from './loopback.ts'
 import { isLoopbackClient, readCookie } from './gate.ts'
 import { readJsonBody, writeJson } from './http.ts'
 
@@ -62,6 +66,22 @@ export function isTrustedApiRequest(request: IncomingMessage, trustedHosts: read
 
 /** Cap on pairing request bodies (tokens and workspace ids are tiny). */
 const MAX_BODY_BYTES = 4096
+
+/**
+ * The rate-limit bucket key for one accept attempt (pure; unit-tested).
+ * The first client-visible XFF hop separates buckets behind the auto-tunnel
+ * (every internet client arrives from 127.0.0.1 there) — but only for
+ * loopback peers, since a direct LAN client can rotate the header freely.
+ * @param socketIp - the socket peer address.
+ * @param forwarded - the first XFF hop, already trimmed, if any.
+ * @param bucket - page (GET /pair-accept) vs api (POST /api/pair/accept).
+ */
+export function acceptLimitKey(socketIp: string, forwarded: string | undefined, bucket: 'page' | 'api'): string {
+  if (isLoopbackAddress(socketIp) && forwarded !== undefined && forwarded !== '') {
+    return `${bucket}|${socketIp}|${forwarded}`
+  }
+  return `${bucket}|${socketIp}`
+}
 
 /**
  * The host authority of a configured public base URL, e.g. `foo.trycloudflare.com`
@@ -241,17 +261,20 @@ export function makeRoutes(deps: PairRoutesDeps): WebRoute[] {
   const acceptAttempts = new Map<string, { count: number; windowStart: number }>()
   const ACCEPT_MAX_ATTEMPTS = 10
   const ACCEPT_WINDOW_MS = 30_000
-  const rateLimitAccept = (req: IncomingMessage): boolean => {
+  /**
+   * @param bucket - the POST /api/pair/accept and the GET /pair-accept flows
+   *   count separately: a QR re-scan (page navigation) must not consume a
+   *   brute-force budget that belongs to token guessing (and vice versa).
+   */
+  const rateLimitAccept = (req: IncomingMessage, bucket: 'page' | 'api'): boolean => {
     const socketIp = (req.socket as { remoteAddress?: string } | undefined)?.remoteAddress ?? 'unknown'
-    // Behind the auto-tunnel every internet client arrives from 127.0.0.1,
-    // so a single shared bucket would let one attacker keep the legitimate
-    // owner rate-limited. Partition the availability bucket by the first
-    // client-visible XFF hop (set by the tunnel edge): XFF is untrusted for
-    // authentication and only separates buckets, it never grants access.
+    // XFF is honored only for loopback peers (the tunnel edge); see
+    // acceptLimitKey. It is untrusted for authentication and never grants
+    // access.
     const forwarded = typeof req.headers['x-forwarded-for'] === 'string'
       ? (req.headers['x-forwarded-for'].split(',')[0] ?? '').trim()
       : undefined
-    const ip = forwarded === undefined || forwarded === '' ? socketIp : socketIp + '|' + forwarded
+    const ip = acceptLimitKey(socketIp, forwarded, bucket)
     const nowMs = Date.now()
     // The map lives as long as the plugin: prune expired windows once the
     // table grows past a modest size so distinct source IPs (LAN clients,
@@ -323,7 +346,7 @@ export function makeRoutes(deps: PairRoutesDeps): WebRoute[] {
       writeJson(res, 403, { ok: false, code: 'forbidden' })
       return
     }
-    if (rateLimitAccept(req)) {
+    if (rateLimitAccept(req, 'api')) {
       writeJson(res, 429, { ok: false, code: 'rate-limited' })
       return
     }
@@ -460,7 +483,7 @@ export function makeRoutes(deps: PairRoutesDeps): WebRoute[] {
       res.end('forbidden')
       return
     }
-    if (rateLimitAccept(req)) {
+    if (rateLimitAccept(req, 'page')) {
       res.writeHead(429, { 'content-type': 'text/plain; charset=utf-8' })
       res.end('rate limited')
       return

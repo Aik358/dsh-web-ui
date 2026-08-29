@@ -37,6 +37,19 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
+/**
+ * A fresh module instance: startMobileAdapt is a page-lifetime singleton
+ * guarded by a window flag, and its closure keeps DOM references that
+ * beforeEach's body wipe detaches — new-layer tests reset both.
+ */
+async function freshStart(): Promise<() => void> {
+  delete (window as unknown as Record<string, unknown>).__dshRemoteAdaptInstalled
+  delete (window as unknown as Record<string, unknown>).__dshRemoteAdapt
+  vi.resetModules()
+  const mod = await import('../src/client/mobile-adapt.ts')
+  return mod.startMobileAdapt
+}
+
 describe('startMobileAdapt', () => {
   it('installs the global and stays inert on a desktop viewport', () => {
     media.portrait = false
@@ -56,6 +69,12 @@ describe('startMobileAdapt', () => {
     media.portrait = true
     media.coarse = true
     setWidth(390)
+    // A pre-existing viewport meta is what the layer mutates (appends
+    // viewport-fit=cover for the safe-area insets) and restores on revert.
+    const meta = document.createElement('meta')
+    meta.name = 'viewport'
+    meta.content = 'width=device-width, initial-scale=1'
+    document.head.appendChild(meta)
     startMobileAdapt()
     const adapt = (window as unknown as { __dshRemoteAdapt?: { evaluate: () => void } }).__dshRemoteAdapt
     adapt?.evaluate()
@@ -65,17 +84,79 @@ describe('startMobileAdapt', () => {
     // 16px input rule (iOS focus zoom) and the collapsed-rail pin ride along.
     expect(tag?.textContent).toContain('font-size:16px')
     expect(tag?.textContent).toContain('grid-template-columns:0 minmax(0,1fr) 0')
-    // viewport-fit=cover enables the safe-area insets.
-    const meta = document.createElement('meta')
-    meta.name = 'viewport'
-    meta.content = 'width=device-width, initial-scale=1'
-    document.head.appendChild(meta)
-    expect(meta.getAttribute('content')).not.toContain('viewport-fit')
-    // Back to desktop: the layer reverts cleanly.
+    expect(meta.getAttribute('content')).toContain('viewport-fit=cover')
+    // Back to desktop: the layer reverts cleanly, viewport meta included.
     media.portrait = false
     adapt?.evaluate()
     expect(document.body.classList.contains('dsh-remote-portrait')).toBe(false)
     expect(document.querySelector('style[data-plugin-css="dsh-remote-web-ui/mobile-adapt.css"]')).toBeNull()
+    expect(meta.getAttribute('content')).not.toContain('viewport-fit')
+  })
+
+  it('clamps a restored whale position back into the viewport', async () => {
+    media.portrait = true
+    media.coarse = true
+    setWidth(390)
+    vi.stubGlobal('innerHeight', 700)
+    // This jsdom build's localStorage lacks working methods; a stub also
+    // keeps the dragged position isolated from other tests.
+    const store: Record<string, string> = { 'dsh-remote-whale-pos': JSON.stringify({ x: 5000, y: 4000 }) }
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => store[key] ?? null,
+      setItem: (key: string, value: string) => { store[key] = value },
+      removeItem: (key: string) => { delete store[key] },
+    })
+    // The whale is shown only while the official sidebar is collapsed.
+    const frame = document.createElement('div')
+    frame.className = 'app_frame'
+    frame.setAttribute('data-sidebar-collapsed', '')
+    document.body.appendChild(frame)
+    const start = await freshStart()
+    start()
+    const whale = document.getElementById('dshRemoteWhale') as HTMLElement | null
+    expect(whale).not.toBeNull()
+    expect(parseFloat(whale?.style.left ?? 'NaN')).toBeLessThanOrEqual(390 - 38)
+    expect(parseFloat(whale?.style.top ?? 'NaN')).toBeLessThanOrEqual(700 - 38)
+  })
+
+  it('Enter inserts a newline but an IME-confirm Enter (keyCode 229) does not', async () => {
+    media.portrait = true
+    media.coarse = true
+    setWidth(390)
+    const start = await freshStart()
+    start()
+    const execCommand = vi.fn()
+    ;(document as unknown as { execCommand: unknown }).execCommand = execCommand
+    const target = document.createElement('textarea')
+    target.className = 'chat_input'
+    document.body.appendChild(target)
+    const press = (keyCode: number | undefined, isComposing = false): boolean => {
+      const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+      Object.defineProperty(event, 'keyCode', { value: keyCode })
+      Object.defineProperty(event, 'isComposing', { value: isComposing })
+      target.dispatchEvent(event)
+      return event.defaultPrevented
+    }
+    expect(press(13)).toBe(true)
+    expect(execCommand).toHaveBeenCalledWith('insertText', false, '\n')
+    execCommand.mockClear()
+    expect(press(229)).toBe(false)
+    expect(press(13, true)).toBe(false)
+    expect(execCommand).not.toHaveBeenCalled()
+  })
+
+  it('setEnabled(false) reverts the layer; true re-applies it', async () => {
+    media.portrait = true
+    media.coarse = true
+    setWidth(390)
+    const start = await freshStart()
+    start()
+    const adapt = (window as unknown as { __dshRemoteAdapt?: { setEnabled: (on: boolean) => void } }).__dshRemoteAdapt
+    adapt?.setEnabled(false)
+    expect(document.body.classList.contains('dsh-remote-portrait')).toBe(false)
+    expect(document.querySelector('style[data-plugin-css="dsh-remote-web-ui/mobile-adapt.css"]')).toBeNull()
+    adapt?.setEnabled(true)
+    expect(document.body.classList.contains('dsh-remote-portrait')).toBe(true)
   })
 
   it('the manual opt-out keeps the layer off', () => {

@@ -19,9 +19,12 @@
  * the dsh-LAN reference implementation (MIT).
  */
 
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
+import { dirname, join, resolve, sep } from 'node:path'
 import { dshHome } from './dsh-home.ts'
+
+/** Profile names safe to interpolate into the patch path: one path segment, no traversal. */
+const PROFILE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
 
 export const LAN_BIND_BLOCK_BEGIN = '# --- remote-web-ui lan-bind block (managed - do not edit) ---'
 export const LAN_BIND_BLOCK_END = '# --- end remote-web-ui lan-bind block ---'
@@ -29,9 +32,23 @@ export const LAN_BIND_BLOCK_END = '# --- end remote-web-ui lan-bind block ---'
 /** The two bind hosts the managed block pins. */
 export type LanBindHost = '0.0.0.0' | '127.0.0.1'
 
-/** The absolute path of the profile patch file this toggle manages. */
+/**
+ * The absolute path of the profile patch file this toggle manages. The value
+ * is config-controlled (and the DSH_PROFILE env fallback bypasses schema
+ * validation entirely), so the path is guarded twice: the profile must be a
+ * single safe path segment, and the resolved file must stay under the
+ * profiles directory.
+ */
 export function profilePatchFile(profile: string, home: string = dshHome()): string {
-  return join(home, 'profiles', profile, 'cordis.patch.yml')
+  if (!PROFILE_PATTERN.test(profile)) {
+    throw new Error(`remote-web-ui: unsafe lan-bind profile ${JSON.stringify(profile)}`)
+  }
+  const file = resolve(join(home, 'profiles', profile, 'cordis.patch.yml'))
+  const root = resolve(join(home, 'profiles')) + sep
+  if (!file.startsWith(root)) {
+    throw new Error(`remote-web-ui: lan-bind profile ${JSON.stringify(profile)} escapes the profiles directory`)
+  }
+  return file
 }
 
 function readPatchContent(file: string): string {
@@ -107,14 +124,22 @@ export function lanBindState(profile: string, home: string = dshHome()): { block
 
 /**
  * Write (or rewrite) the managed block with the given bind. The rest of the
- * patch file is preserved; the block is rewritten atomically (temp file +
- * rename) so a crash never leaves a torn patch behind.
+ * patch file is preserved; the block is rewritten atomically (unique temp
+ * file + rename, so concurrent writers can never rename a half-written
+ * file) with the original file's permissions preserved. A hand-truncated
+ * unterminated block (BEGIN marker without END, which stripManagedBlock
+ * cannot match) is truncated at its BEGIN marker first so the rewrite can
+ * never stack a second webserver row onto the orphan.
  */
 export function writeLanBind(host: LanBindHost, port: number, profile: string, home: string = dshHome()): void {
   const file = profilePatchFile(profile, home)
-  const content = `${stripManagedBlock(readPatchContent(file)).trimEnd()}\n\n${managedBlock(host, port)}`
+  const stripped = stripManagedBlock(readPatchContent(file))
+  const orphanBegin = stripped.indexOf(LAN_BIND_BLOCK_BEGIN)
+  const base = (orphanBegin === -1 ? stripped : stripped.slice(0, orphanBegin)).trimEnd()
+  const content = `${base}\n\n${managedBlock(host, port)}`
+  const mode = existsSync(file) ? statSync(file).mode & 0o777 : 0o600
   mkdirSync(dirname(file), { recursive: true })
-  const temp = `${file}.remote-web-ui-tmp`
-  writeFileSync(temp, content)
+  const temp = `${file}.remote-web-ui-tmp-${process.pid.toString(36)}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+  writeFileSync(temp, content, { mode })
   renameSync(temp, file)
 }
