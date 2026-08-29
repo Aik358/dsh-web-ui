@@ -8,7 +8,7 @@ The root README badge row presented the ecosystem's own metrics (release, stars,
 
 ## Decision
 
-The root README pair (README.md, README.en.md) carries one more badge in the same centered row: a static shields.io badge reading `DSH | 0.1.1-rc.2` (slate label segment, indigo value segment, flat-square) linking to the npm package `@deepseek-ai/dsh`, placed between the users badge and the license badge. The displayed value is the newest DSH release the current SDK cohort is verified against; it equals the cohort pinned across pnpm-workspace.yaml, shared/package.json, and every package's devDependencies, and at ship time equals the latest npm `@deepseek-ai/dsh` (0.1.1-rc.2). The version is bumped by hand inside the SDK-cohort upgrade flow, which already revalidates the whole family against the target release. The badge is presentation, not a machine-checked contract: `dsh.engines.dsh` in packages/dsh-web-all/package.json stays the machine-readable compatibility floor.
+The root README pair (README.md, README.en.md) carries one more badge in the same centered row: a static shields.io badge reading `DSH | 0.1.2-alpha.1` (slate label segment, indigo value segment, flat-square) linking to the npm package `@deepseek-ai/dsh`, placed between the users badge and the license badge. The displayed value is the newest DSH release the current SDK cohort is verified against; it equals the cohort pinned across pnpm-workspace.yaml, shared/package.json, and every package's devDependencies — and since the 0.1.2-alpha.1 source-built preview it can sit ahead of the npm registry, whose `@deepseek-ai/dsh` latest remains 0.1.1-rc.2 until the cohort publishes. The version is bumped by hand inside the SDK-cohort upgrade flow, which already revalidates the whole family against the target release. The badge is presentation, not a machine-checked contract: `dsh.engines.dsh` in packages/dsh-web-all/package.json stays the machine-readable compatibility floor.
 
 ## Alternatives considered
 
@@ -20,5 +20,5 @@ The root README pair (README.md, README.en.md) carries one more badge in the sam
 
 - The badge row states DSH compatibility at a glance in both languages; the value trails a cohort upgrade by exactly one manual edit, and the README pair is edited together per the i18n contract.
 - If a DSH release ships before the upgrade flow runs, the badge understates compatibility (it shows the older verified version) instead of claiming untested support; no red state exists by design.
-- Verification: shields returns the badge with HTTP 200 rendering label DSH and value 0.1.1-rc.2; the npm registry's latest `@deepseek-ai/dsh` equals 0.1.1-rc.2.
+- Verification: shields returns the badge with HTTP 200 rendering label DSH and value 0.1.2--alpha.1 (re-verified 2026-08-29 with the cohort bump); the npm registry's latest `@deepseek-ai/dsh` remains 0.1.1-rc.2 until the preview cohort publishes.
 - Related: [npm badge endpoint](../feature/2026-08-24-npm-badge-endpoint.md) (badge infrastructure precedent and its no-extra-moving-parts rationale), [banner social refresh](2026-08-24-banner-social-refresh.md) (badge-row ownership in the root README).
