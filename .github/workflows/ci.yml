@@ -62,6 +62,9 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      - name: Shared host copy consistency
+        run: pnpm sync-shared:check
+
       - name: Skin center consistency
         run: pnpm skin-center:check
 

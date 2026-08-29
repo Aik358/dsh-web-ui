@@ -51,8 +51,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json && tsdown",
     "watch": "tsdown --watch",
+    "prepare": "tsc -p tsconfig.build.json && tsdown",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json --pretty false"
   },
   "dependencies": {
     "schemastery": "^3.18.0"
