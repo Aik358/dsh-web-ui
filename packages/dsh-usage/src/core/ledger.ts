@@ -21,8 +21,19 @@ export function createLedgerDocument(): UsageLedgerDocument {
 }
 
 /**
+ * Bucket keys come from untrusted directions (persisted JSON, provider and
+ * model ids out of session events), so they must never collide with
+ * `Object.prototype` plumbing: assigning `day['__proto__']` or reading
+ * `day['constructor']` would pollute every object in the host process.
+ */
+function isSafeBucketKey(key: string): boolean {
+  return key !== '__proto__' && key !== 'constructor' && key !== 'prototype'
+}
+
+/**
  * Fold one usage report into the ledger in place. `provider` is the route key
- * and `model` the provider-owned model id the step ran under.
+ * and `model` the provider-owned model id the step ran under. Reports keyed
+ * by prototype-plumbing names are dropped.
  */
 export function foldUsage(
   doc: UsageLedgerDocument,
@@ -31,6 +42,7 @@ export function foldUsage(
   model: string,
   usage: Readonly<UsageTokenTotals>,
 ): void {
+  if (!isSafeBucketKey(provider) || !isSafeBucketKey(model)) return
   if (usage.calls <= 0 && usage.inputTokens + usage.outputTokens + usage.cacheReadTokens + usage.cacheWriteTokens <= 0) return
   const dayKey = localDateKey(atMs)
   const day = doc.days[dayKey] ?? {}
@@ -96,11 +108,16 @@ export function deserializeLedger(value: unknown): UsageLedgerDocument {
   if (typeof days !== 'object' || days === null) return doc
   for (const [dateKey, providers] of Object.entries(days as Record<string, unknown>)) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey) || typeof providers !== 'object' || providers === null) continue
+    // Round-trip the date key: an impossible date (9999-99-99) parses to NaN
+    // and a rollover (2026-02-30) lands on another day; both would otherwise
+    // fold into a bogus, never-pruned bucket.
+    const atMs = new Date(dateKey + 'T12:00:00').getTime()
+    if (!Number.isFinite(atMs) || localDateKey(atMs) !== dateKey) continue
     for (const [provider, models] of Object.entries(providers as Record<string, unknown>)) {
       if (typeof models !== 'object' || models === null) continue
       for (const [model, totals] of Object.entries(models as Record<string, unknown>)) {
         const revived = reviveTotals(totals)
-        if (revived !== undefined) foldUsage(doc, new Date(dateKey + 'T12:00:00').getTime(), provider, model, revived)
+        if (revived !== undefined) foldUsage(doc, atMs, provider, model, revived)
       }
     }
   }

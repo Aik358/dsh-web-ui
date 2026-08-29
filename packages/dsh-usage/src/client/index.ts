@@ -27,8 +27,14 @@ interface UsageHttpApi {
   refresh(): Promise<UsageOverviewView>
 }
 
+/** Hard ceiling for one usage API call; a stalled host must not pile up requests. */
+const USAGE_FETCH_TIMEOUT_MS = 20_000
+
 async function usageFetch<T>(path: string, method: 'GET' | 'POST'): Promise<T> {
-  const response = await fetch(path, method === 'POST' ? { method: 'POST' } : {})
+  const response = await fetch(path, {
+    ...(method === 'POST' ? { method: 'POST' } : {}),
+    signal: AbortSignal.timeout(USAGE_FETCH_TIMEOUT_MS),
+  })
   if (!response.ok) throw new Error('usage ' + path + ' failed: ' + response.status)
   return (await response.json()) as T
 }
@@ -97,11 +103,14 @@ export function apply(ctx: ClientContext): void {
       store.actions.setState('error', 'usage.overview transport error')
     })
   }
+  // The refresh response is authoritative: it reflects the completed probe
+  // cycle, so it applies even when a faster section poll already bumped the
+  // sequence past it (the poll's pre-cycle snapshot is the stale one).
   const refresh = (): void => {
     const seq = pollSeq + 1
     pollSeq = seq
     usageApi.refresh().then((snapshot) => {
-      if (seq !== pollSeq) return
+      pollSeq = seq
       store.actions.setSnapshot(snapshot)
     }, () => {
       if (seq !== pollSeq) return

@@ -44,31 +44,42 @@ export function resolveConfig(config?: Config): ResolvedConfig {
 export const apply = mountOnce('@linxin666/dsh-usage', (ctx: Context, config?: Config): void => {
   let source: () => Config = () => config ?? {}
   let service: UsageService | undefined
+  let pendingStop: Promise<void> | undefined
   let disposeRoutes: (() => void) | undefined
 
   const rearm = (): void => {
     const value = resolveConfig(source())
     if (!value.enabled) {
-      service?.stop()
+      pendingStop = service?.stop()
       service = undefined
       disposeRoutes?.()
       disposeRoutes = undefined
       return
     }
     if (service === undefined) {
-      service = new UsageService(ctx, value)
-      service.start()
-      const disposers = [makeUsageOverviewRoute(service), makeUsageRefreshRoute(service)]
-        .map((route) => ctx.webServer.register(route))
-      disposeRoutes = () => {
-        for (const dispose of disposers) {
-          try {
-            dispose()
-          } catch {
-            // Route fiber already gone during shutdown.
+      const next = new UsageService(ctx, value)
+      service = next
+      const begin = (): void => {
+        // A disable may have landed while the predecessor's final flush was
+        // still pending; only start if this instance is still the live one.
+        if (service !== next) return
+        next.start()
+        const disposers = [makeUsageOverviewRoute(next), makeUsageRefreshRoute(next)]
+          .map((route) => ctx.webServer.register(route))
+        disposeRoutes = () => {
+          for (const dispose of disposers) {
+            try {
+              dispose()
+            } catch {
+              // Route fiber already gone during shutdown.
+            }
           }
         }
       }
+      // Serialize the start behind a just-stopped predecessor: its final
+      // ledger flush must land on disk before this instance loads the file.
+      if (pendingStop !== undefined) pendingStop.then(begin, begin)
+      else begin()
     } else {
       service.applyOptions(value)
     }
@@ -83,7 +94,7 @@ export const apply = mountOnce('@linxin666/dsh-usage', (ctx: Context, config?: C
     rearm()
     return () => {
       disposeRoutes?.()
-      service?.stop()
+      void service?.stop()
       service = undefined
     }
   }, 'dsh-usage: runtime')

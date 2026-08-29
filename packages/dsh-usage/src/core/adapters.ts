@@ -79,8 +79,13 @@ function toIso(value: unknown): string | undefined {
   }
   const text = str(value)
   if (text === undefined) return undefined
+  // Epoch instants also arrive as strings ("1756428000"); route them through
+  // the numeric branch instead of letting Date() reject them.
+  if (/^\d+$/.test(text)) return toIso(Number(text))
   const date = new Date(text)
-  return Number.isNaN(date.getTime()) ? text : date.toISOString()
+  // The contract is "normalized ISO 8601, else undefined": returning the raw
+  // text would render as "Invalid Date" downstream.
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString()
 }
 
 /** Used-percent helper guarding zero/absent limits. */

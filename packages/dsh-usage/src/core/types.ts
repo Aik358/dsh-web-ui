@@ -125,3 +125,16 @@ export interface UsageOverviewView {
     days: UsageDaySummary[]
   }
 }
+
+/**
+ * Host-side snapshot state: the wire view plus one error slot per probed
+ * fact. A probe half only clears its own slot, so a plan success can no
+ * longer mask a failing balance probe (and vice versa); the overview
+ * collapses them into the single wire `error` line, balance first.
+ */
+export interface ProviderSnapshotState extends ProviderSnapshotView {
+  /** Last balance-probe failure; cleared on the next balance success. */
+  balanceError?: string
+  /** Last plan-probe failure; cleared on the next plan success. */
+  planError?: string
+}

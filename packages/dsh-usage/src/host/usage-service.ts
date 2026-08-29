@@ -7,7 +7,7 @@
  * @module @linxin666/dsh-usage/host/usage-service
  */
 
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { mkdir, open, readFile, rename, unlink } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { credentialKey, credentialRef } from '@deepseek-ai/dsh-credentials'
@@ -18,7 +18,7 @@ import { dshHome } from '../dsh-home.ts'
 import { adapterFor, providerErrorMessage } from '../core/adapters.ts'
 import type { BalanceParse, PlanParse } from '../core/adapters.ts'
 import { createLedgerDocument, deserializeLedger, foldUsage, ledgerDayKeys, localDateKey, pruneLedger, totalTokens } from '../core/ledger.ts'
-import type { BalanceView, CredentialKind, PlanView, ProviderSnapshotView, UsageLedgerDocument, UsageOverviewView, UsageTokenTotals } from '../core/types.ts'
+import type { BalanceView, CredentialKind, PlanView, ProviderSnapshotState, ProviderSnapshotView, UsageLedgerDocument, UsageOverviewView, UsageTokenTotals } from '../core/types.ts'
 import { emptyTotals } from '../core/types.ts'
 
 /** Source tag the plugin stamps onto pet announcements. */
@@ -69,6 +69,39 @@ export function planTone(percent: number): 'ok' | 'warn' | 'low' {
   return 'ok'
 }
 
+/**
+ * Build the raw pet announce payload for one provider snapshot, or
+ * undefined when nothing worth announcing exists. Pure: every payload this
+ * returns satisfies the pet's `parseAnnouncement` contract — plan
+ * announcements require a numeric percent, so percent-less windows never
+ * announce (the pet validator would silently drop them).
+ */
+export function buildAnnouncement(
+  snapshot: Pick<ProviderSnapshotView, 'displayName' | 'balance' | 'plan'>,
+): Record<string, unknown> | undefined {
+  if (snapshot.balance !== undefined) {
+    return {
+      kind: 'balance',
+      title: snapshot.displayName,
+      amount: formatMoney(snapshot.balance.currency, snapshot.balance.totalBalance),
+      tone: 'ok',
+    }
+  }
+  if (snapshot.plan === undefined) return undefined
+  const window = snapshot.plan.windows
+    .filter((entry) => typeof entry.percent === 'number')
+    .sort((a, b) => (b.percent ?? 0) - (a.percent ?? 0))[0]
+  if (window === undefined || window.percent === undefined) return undefined
+  return {
+    kind: 'plan',
+    title: snapshot.displayName,
+    percent: window.percent,
+    ...(window.resetsAt !== undefined ? { resetAt: window.resetsAt } : {}),
+    ...(snapshot.plan.planName !== undefined ? { note: snapshot.plan.planName } : {}),
+    tone: planTone(window.percent),
+  }
+}
+
 /** Best-effort typed service read: absent services resolve to undefined at runtime. */
 function service<T>(ctx: Context, name: string): T | undefined {
   try {
@@ -78,11 +111,27 @@ function service<T>(ctx: Context, name: string): T | undefined {
   }
 }
 
-/** Atomic JSON write through a temp file + rename. */
+/**
+ * Atomic JSON write through a unique temp file + fsync + rename. The temp
+ * name is per-call so two overlapping flushes can never interleave into one
+ * temp file, and the fsync closes the rename-lands-but-bytes-are-not-durable
+ * window.
+ */
 async function writeJsonAtomic(path: string, value: unknown): Promise<void> {
-  const temp = path + '.tmp'
-  await writeFile(temp, JSON.stringify(value, null, 1), 'utf8')
-  await rename(temp, path)
+  const temp = `${path}.${process.pid}.${Date.now()}.tmp`
+  try {
+    const handle = await open(temp, 'w')
+    try {
+      await handle.writeFile(JSON.stringify(value, null, 1), 'utf8')
+      await handle.sync()
+    } finally {
+      await handle.close()
+    }
+    await rename(temp, path)
+  } catch (error) {
+    await unlink(temp).catch(() => {})
+    throw error
+  }
 }
 
 /**
@@ -108,7 +157,7 @@ export class UsageService {
   private readonly snapshotsPath: string
 
   private ledger: UsageLedgerDocument = createLedgerDocument()
-  private readonly snapshots = new Map<string, ProviderSnapshotView>()
+  private readonly snapshots = new Map<string, ProviderSnapshotState>()
   /** Per-live-session route attribution (WeakMap: disposed sessions age out). */
   private readonly sessionRoutes = new WeakMap<Session, { provider: string; model: string }>()
   /** The most recent route seen this boot; the pet bubble follows it. */
@@ -118,8 +167,16 @@ export class UsageService {
   private pollTimer: ReturnType<typeof setTimeout> | undefined
   private flushTimer: ReturnType<typeof setTimeout> | undefined
   private pollInFlight = false
+  /** The running poll cycle; manual refresh joins it instead of no-oping. */
+  private pollPromise: Promise<void> | undefined
+  /** Serialized ledger flushes: overlapping debounce/stop flushes queue, never interleave. */
+  private flushChain: Promise<void> = Promise.resolve()
+  /** True once loadPersisted finished; nothing may overwrite the files before that. */
+  private loaded = false
   private disposed = false
   private lastSignature: string | undefined
+  /** Last prune guard: once per local day, and whenever retention shrinks. */
+  private lastPrune: { dayKey: string; retainDays: number } | undefined
 
   constructor(ctx: Context, options: UsageServiceOptions) {
     this.ctx = ctx
@@ -136,21 +193,26 @@ export class UsageService {
     this.rearmPoll(2_000)
   }
 
-  /** Stop timers and flush pending ledger writes. */
-  stop(): void {
+  /**
+   * Stop timers and flush pending ledger writes. The returned promise
+   * resolves after the final flush lands, so a successor instance (quick
+   * disable → enable) can serialize its first load behind it.
+   */
+  stop(): Promise<void> {
     this.disposed = true
     if (this.pollTimer !== undefined) clearTimeout(this.pollTimer)
     if (this.flushTimer !== undefined) clearTimeout(this.flushTimer)
     this.sessionListenerDisposer?.()
-    void this.flushLedger()
+    return this.flushLedger()
   }
 
-  /** Re-apply options live (settings change); the poll cycle picks them up. */
+  /** Re-apply options live (settings change); retention shrink prunes now. */
   applyOptions(options: UsageServiceOptions): void {
     this.options = options
+    this.pruneIfNeeded()
   }
 
-  /** Force one poll now (manual refresh route). */
+  /** Force one poll now (manual refresh route); joins an in-flight cycle. */
   async refresh(): Promise<void> {
     await this.pollNow()
   }
@@ -163,6 +225,7 @@ export class UsageService {
     for (const route of routes) {
       const adapter = adapterFor(route.id)
       const snapshot = this.snapshots.get(route.id)
+      const error = snapshot?.balanceError ?? snapshot?.planError
       providers.push({
         provider: route.id,
         displayName: route.displayName || adapter?.displayName || route.id,
@@ -170,7 +233,7 @@ export class UsageService {
         supported: adapter !== undefined && (adapter.balance !== undefined || adapter.plan !== undefined),
         ...(snapshot?.balance !== undefined ? { balance: snapshot.balance } : {}),
         ...(snapshot?.plan !== undefined ? { plan: snapshot.plan } : {}),
-        ...(snapshot?.error !== undefined ? { error: snapshot.error } : {}),
+        ...(error !== undefined ? { error } : {}),
         ...(snapshot?.updatedAt !== undefined ? { updatedAt: snapshot.updatedAt } : {}),
       })
     }
@@ -274,11 +337,22 @@ export class UsageService {
         readFile(this.snapshotsPath, 'utf8').catch(() => undefined),
       ])
       if (rawLedger !== undefined) {
-        this.ledger = deserializeLedger(JSON.parse(rawLedger))
+        const loaded = deserializeLedger(JSON.parse(rawLedger))
+        // Merge into (never replace) the live document: folds that landed
+        // during the read window must survive the load.
+        for (const [dayKey, providers] of Object.entries(loaded.days)) {
+          const atMs = new Date(dayKey + 'T12:00:00').getTime()
+          for (const [provider, models] of Object.entries(providers)) {
+            for (const [model, totals] of Object.entries(models)) {
+              foldUsage(this.ledger, atMs, provider, model, totals)
+            }
+          }
+        }
         pruneLedger(this.ledger, localDateKey(Date.now()), this.options.retainDays)
+        this.lastPrune = { dayKey: localDateKey(Date.now()), retainDays: this.options.retainDays }
       }
       if (rawSnapshots !== undefined) {
-        const parsed = JSON.parse(rawSnapshots) as { providers?: Record<string, ProviderSnapshotView> }
+        const parsed = JSON.parse(rawSnapshots) as { providers?: Record<string, ProviderSnapshotState> }
         if (typeof parsed === 'object' && parsed !== null && typeof parsed.providers === 'object' && parsed.providers !== null) {
           for (const [provider, snapshot] of Object.entries(parsed.providers)) {
             if (typeof snapshot === 'object' && snapshot !== null && typeof snapshot.provider === 'string') {
@@ -289,6 +363,9 @@ export class UsageService {
       }
     } catch {
       // Corrupt or unreadable state starts fresh; the next flush rewrites it.
+    } finally {
+      // Only now may flushes overwrite the persisted files.
+      this.loaded = true
     }
   }
 
@@ -300,7 +377,22 @@ export class UsageService {
     }, FLUSH_DEBOUNCE_MS)
   }
 
-  private async flushLedger(): Promise<void> {
+  /**
+   * Queue one ledger flush behind the previous one. Debounce and stop-time
+   * flushes serialize here, so two `writeJsonAtomic` calls can never run
+   * concurrently on the same path.
+   */
+  private flushLedger(): Promise<void> {
+    const next = this.flushChain.then(() => this.writeLedgerOnce())
+    this.flushChain = next.catch(() => {})
+    return next
+  }
+
+  private async writeLedgerOnce(): Promise<void> {
+    // Never overwrite the persisted file before it has been loaded: a flush
+    // racing the load window would otherwise clobber history with a partial
+    // document.
+    if (!this.loaded) return
     try {
       await mkdir(dirname(this.ledgerPath), { recursive: true })
       await writeJsonAtomic(this.ledgerPath, this.ledger)
@@ -309,7 +401,21 @@ export class UsageService {
     }
   }
 
+  /**
+   * Prune days past retention. Runs at most once per local day and whenever
+   * `retainDays` shrinks — not only at startup, so long-lived processes and
+   * live settings changes both honor retention.
+   */
+  private pruneIfNeeded(): void {
+    const todayKey = localDateKey(Date.now())
+    if (this.lastPrune?.dayKey === todayKey && this.lastPrune.retainDays === this.options.retainDays) return
+    const pruned = pruneLedger(this.ledger, todayKey, this.options.retainDays)
+    this.lastPrune = { dayKey: todayKey, retainDays: this.options.retainDays }
+    if (pruned > 0) this.scheduleFlush()
+  }
+
   private async persistSnapshots(): Promise<void> {
+    if (!this.loaded) return
     try {
       await mkdir(dirname(this.snapshotsPath), { recursive: true })
       await writeJsonAtomic(this.snapshotsPath, { version: 1, providers: Object.fromEntries(this.snapshots) })
@@ -331,27 +437,42 @@ export class UsageService {
     }, delayMs)
   }
 
-  /** One poll cycle: enumerate routes, resolve credentials, probe, announce. */
-  async pollNow(): Promise<void> {
-    if (this.pollInFlight || this.disposed) return
+  /**
+   * One poll cycle: enumerate routes, resolve credentials, probe, announce.
+   * A call while a cycle is already running joins that cycle instead of
+   * returning immediately, so a manual refresh always waits for real probes.
+   */
+  pollNow(): Promise<void> {
+    if (this.pollInFlight) return this.pollPromise ?? Promise.resolve()
+    if (this.disposed) return Promise.resolve()
     this.pollInFlight = true
-    try {
-      const routes = this.listProviderRoutes()
-      const seen = new Set<string>()
-      for (const route of routes) {
-        seen.add(route.id)
-        const adapter = adapterFor(route.id)
-        if (adapter === undefined || (adapter.balance === undefined && adapter.plan === undefined)) continue
-        await this.probeRoute(route, adapter)
+    const cycle = (async () => {
+      try {
+        this.pruneIfNeeded()
+        const routes = this.listProviderRoutes()
+        const seen = new Set<string>()
+        for (const route of routes) {
+          // Probes serialize at up to 2 × PROBE_TIMEOUT_MS per route; bail
+          // out of a cycle that outlived the service.
+          if (this.disposed) return
+          seen.add(route.id)
+          const adapter = adapterFor(route.id)
+          if (adapter === undefined || (adapter.balance === undefined && adapter.plan === undefined)) continue
+          await this.probeRoute(route, adapter)
+        }
+        for (const id of [...this.snapshots.keys()]) {
+          if (!seen.has(id)) this.snapshots.delete(id)
+        }
+        if (this.disposed) return
+        await this.persistSnapshots()
+        this.announceCurrent()
+      } finally {
+        this.pollInFlight = false
+        this.pollPromise = undefined
       }
-      for (const id of [...this.snapshots.keys()]) {
-        if (!seen.has(id)) this.snapshots.delete(id)
-      }
-      await this.persistSnapshots()
-      this.announceCurrent()
-    } finally {
-      this.pollInFlight = false
-    }
+    })()
+    this.pollPromise = cycle
+    return cycle
   }
 
   private listProviderRoutes(): ProviderRoute[] {
@@ -375,23 +496,26 @@ export class UsageService {
   private async probeRoute(route: ProviderRoute, adapter: NonNullable<ReturnType<typeof adapterFor>>): Promise<void> {
     const credential = await this.resolveCredential(route.id)
     const previous = this.snapshots.get(route.id)
-    const snapshot: ProviderSnapshotView = {
+    if (credential.key === undefined) {
+      // Nothing to probe with (oauth grant, no credential): retained facts
+      // would never refresh again, so the row resets to its credential
+      // state instead of presenting stale data as current.
+      this.snapshots.set(route.id, {
+        provider: route.id,
+        displayName: route.displayName || adapter.displayName,
+        credential: credential.kind,
+        supported: true,
+        updatedAt: Date.now(),
+      })
+      return
+    }
+    const snapshot: ProviderSnapshotState = {
       provider: route.id,
       displayName: route.displayName || adapter.displayName,
       credential: credential.kind,
       supported: true,
-      ...(previous?.balance !== undefined ? { balance: previous.balance } : {}),
-      ...(previous?.plan !== undefined ? { plan: previous.plan } : {}),
       updatedAt: Date.now(),
     }
-    if (credential.key === undefined) {
-      // Nothing to probe with (oauth grant, no credential): keep any previous
-      // facts visible and stay quiet about it.
-      snapshot.error = undefined
-      this.snapshots.set(route.id, snapshot)
-      return
-    }
-    let probed = false
     const runProbe = async (kind: 'balance' | 'plan'): Promise<BalanceView | PlanView | undefined> => {
       const half = adapter[kind]
       if (half === undefined) return undefined
@@ -402,7 +526,6 @@ export class UsageService {
         if (!response.ok) throw new Error(providerErrorMessage(response.status, body))
         const parsed = half.parse(response.status, body)
         if (parsed === undefined) throw new Error('unrecognized response shape')
-        probed = true
         const updatedAt = Date.now()
         if (kind === 'balance') {
           const fact = parsed as BalanceParse
@@ -411,20 +534,22 @@ export class UsageService {
         const plan = parsed as PlanParse
         return { planName: plan.planName, windows: plan.windows, updatedAt }
       } catch (error) {
-        snapshot.error = error instanceof Error ? error.message.slice(0, 200) : String(error)
+        // Per-fact error slot: a success in the other probe half can no
+        // longer clear this failure (and a stale fact always carries the
+        // error line explaining why it is stale).
+        const message = error instanceof Error ? error.message.slice(0, 200) : String(error)
+        if (kind === 'balance') snapshot.balanceError = message
+        else snapshot.planError = message
         return undefined
       }
     }
     const balance = await runProbe('balance')
-    // A failed probe keeps the previous fact visible (stale but useful), with
-    // the error line explaining why it is stale.
+    // A failed probe keeps the previous fact visible (stale but useful).
     if (balance !== undefined) snapshot.balance = balance as BalanceView
+    else if (previous?.balance !== undefined) snapshot.balance = previous.balance
     const plan = await runProbe('plan')
     if (plan !== undefined) snapshot.plan = plan as PlanView
-    if (probed) snapshot.error = undefined
-    if (snapshot.balance === undefined && snapshot.plan === undefined && snapshot.error === undefined) {
-      snapshot.error = 'no credential configured'
-    }
+    else if (previous?.plan !== undefined) snapshot.plan = previous.plan
     this.snapshots.set(route.id, snapshot)
   }
 
@@ -481,47 +606,30 @@ export class UsageService {
   /**
    * Announce the current provider's balance or plan usage to the pet. In
    * `change` mode only meaningful value changes re-announce; `off` skips.
+   * Fully guarded: a malformed snapshot or a failing pet service must never
+   * break the poll loop, and a disposed service never announces.
    */
   private announceCurrent(): void {
-    if (this.options.bubbleMode === 'off') return
-    let provider = this.current.provider
-    if (provider === undefined) {
-      const fallback = readNamespace(this.ctx, 'agent-default-model') as { provider?: string; model?: string } | undefined
-      if (fallback?.provider !== undefined) {
-        provider = fallback.provider
-        this.current = { provider: fallback.provider, model: fallback.model, source: 'default' }
-      } else {
-        return
-      }
-    }
-    const snapshot = this.snapshots.get(provider)
-    if (snapshot === undefined) return
-    let announcement: Record<string, unknown> | undefined
-    if (snapshot.balance !== undefined) {
-      announcement = {
-        kind: 'balance',
-        title: snapshot.displayName,
-        amount: formatMoney(snapshot.balance.currency, snapshot.balance.totalBalance),
-        tone: 'ok',
-      }
-    } else if (snapshot.plan !== undefined && snapshot.plan.windows.length > 0) {
-      const window = [...snapshot.plan.windows].sort((a, b) => (b.percent ?? 0) - (a.percent ?? 0))[0]
-      announcement = {
-        kind: 'plan',
-        title: snapshot.displayName,
-        ...(window.percent !== undefined ? { percent: window.percent } : {}),
-        ...(window.resetsAt !== undefined ? { resetAt: window.resetsAt } : {}),
-        ...(snapshot.plan.planName !== undefined ? { note: snapshot.plan.planName } : {}),
-        tone: window.percent !== undefined ? planTone(window.percent) : 'ok',
-      }
-    } else {
-      return
-    }
-    const signature = JSON.stringify(announcement)
-    if (this.options.bubbleMode === 'change' && signature === this.lastSignature) return
-    this.lastSignature = signature
-    const pet = service<{ announce(input: Record<string, unknown>): void }>(this.ctx, 'pet')
+    if (this.disposed || this.options.bubbleMode === 'off') return
     try {
+      let provider = this.current.provider
+      if (provider === undefined) {
+        const fallback = readNamespace(this.ctx, 'agent-default-model') as { provider?: string; model?: string } | undefined
+        if (fallback?.provider !== undefined) {
+          provider = fallback.provider
+          this.current = { provider: fallback.provider, model: fallback.model, source: 'default' }
+        } else {
+          return
+        }
+      }
+      const snapshot = this.snapshots.get(provider)
+      if (snapshot === undefined) return
+      const announcement = buildAnnouncement(snapshot)
+      if (announcement === undefined) return
+      const signature = JSON.stringify(announcement)
+      if (this.options.bubbleMode === 'change' && signature === this.lastSignature) return
+      this.lastSignature = signature
+      const pet = service<{ announce(input: Record<string, unknown>): void }>(this.ctx, 'pet')
       pet?.announce({ source: USAGE_ANNOUNCE_SOURCE, ttlMs: undefined, ...announcement })
     } catch {
       // A missing or failing pet service must never break the poll loop.
