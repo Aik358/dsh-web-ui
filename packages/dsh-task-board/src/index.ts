@@ -16,6 +16,8 @@ import type {} from '@deepseek-ai/dsh-api-gateway'
 import type {} from '@deepseek-ai/dsh-workspace'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import { TaskBoardHostService } from './host-service.ts'
+import { TASK_PERMISSIONS, type TaskPermission } from './core/tasks.ts'
+import { DEFAULT_SESSION_PERMISSION } from './core/handover.ts'
 import { makeTaskBoardRoutes } from './host-routes.ts'
 import { mountOnce } from './mount-once.ts'
 
@@ -53,6 +55,12 @@ export interface Config {
   trustedProxyHosts?: string[]
   /** Environment variable whose value the authenticated proxy injects upstream. */
   proxyTokenEnv?: string
+  /**
+   * The deployment's session-default permission. A card whose effective
+   * permission (handover bundle or pin) is above this value requires a human
+   * confirmation before it may run; cron refuses unconfirmed cards.
+   */
+  sessionDefaultPermission?: TaskPermission
 }
 
 export const Config: z<Config> = z.object({
@@ -61,6 +69,7 @@ export const Config: z<Config> = z.object({
   preventIdleSleep: z.boolean().default(false),
   trustedProxyHosts: z.array(z.string()).default([]),
   proxyTokenEnv: z.string().min(1).default(DEFAULT_PROXY_TOKEN_ENV),
+  sessionDefaultPermission: z.union(TASK_PERMISSIONS).default(DEFAULT_SESSION_PERMISSION),
 })
 
 /** Resolve proxy access without ever placing the token value in plugin config. */
@@ -92,6 +101,7 @@ export const apply = mountOnce('@linxin666/dsh-client-ui-task-board', applyImpl)
 function applyImpl(ctx: Context, config?: Config): void {
   const host = new TaskBoardHostService(ctx.typertGateway, {
     workspaceRegistry: ctx.workspaceRegistry,
+    sessionDefaultPermission: config?.sessionDefaultPermission ?? DEFAULT_SESSION_PERMISSION,
     commandDispatcher: {
       async execute(sessionId, line, signal) {
         const agent = ctx.agents.get(sessionId)
