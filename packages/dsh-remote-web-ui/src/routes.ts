@@ -517,34 +517,15 @@ export function makeRoutes(deps: PairRoutesDeps): WebRoute[] {
     const ua = req.headers['user-agent']
     const result = token === '' ? { ok: false as const, code: 'invalid' as const } : service.accept(token, typeof ua === 'string' ? ua : undefined)
     if (!result.ok) {
+      // accept() now refuses only expired/unknown/stopped tokens: a consumed
+      // token stays re-usable until its expiry or replacement, so a mobile
+      // flow that split across cookie contexts (camera preview, in-app
+      // browser, system browser) can re-pair from the same link. A failure
+      // here means the link is truly dead: an already-paired device is sent
+      // on to the app, everyone else gets the bilingual explanation page
+      // instead of the harness 401 dead end.
       const deviceId = readCookie(req.headers.cookie, service.config.cookieName)
-      const liveDevice = deviceId !== undefined && service.hasDevice(deviceId)
-      // Prefetch/double-open recovery: mobile browsers and QR scanners
-      // routinely fetch the link once before the real navigation, and the
-      // first GET consumes the one-time token while setting this device's
-      // cookie. A second GET of a `used` token from a device that is
-      // already live IS the same device completing its own pairing - send
-      // it through the auth chain instead of failing it.
-      if (result.code === 'used' && liveDevice) {
-        const proto = req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http'
-        const origin = `http://${req.headers.host ?? '127.0.0.1'}`
-        const originUrl = proto === 'https' ? origin.replace('http://', 'https://') : origin
-        const home = deps.authenticatedHome?.(originUrl) ?? '/'
-        res.writeHead(303, {
-          location: home,
-          'cache-control': 'no-store',
-          'referrer-policy': 'no-referrer',
-          'set-cookie': [
-            `${service.config.cookieName}=${deviceId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${String(COOKIE_MAX_AGE_SEC)}`,
-          ],
-        })
-        res.end()
-        return
-      }
-      if (liveDevice) {
-        // An already-paired device re-opening a stale link is sent on to
-        // the app (its browser credential was redeemed during the first
-        // scan).
+      if (deviceId !== undefined && service.hasDevice(deviceId)) {
         res.writeHead(303, { location: '/', 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' })
         res.end()
         return

@@ -146,10 +146,13 @@ describe('/api/pair routes', () => {
       expect(accepted.cookies).toEqual([
         'dsh_pair=tok-1; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000',
       ])
-      // The same token is one-time: reuse is refused.
+      // The same token stays usable within its window (mobile flows split
+      // across cookie contexts): a second accept re-pairs and re-issues the
+      // device cookie.
       const reused = await call(port, 'POST', '/api/pair/accept', { host: '192.168.1.5:3080', body: { token: 'tok-1' } })
-      expect(reused.status).toBe(409)
-      expect(reused.body.code).toBe('used')
+      expect(reused.status).toBe(200)
+      expect(reused.body).toEqual({ ok: true, deviceId: 'tok-1' })
+      expect(reused.cookies[0]).toMatch(/^dsh_pair=tok-1; Path=\//)
       // The paired cookie heartbeats and reports status.
       const heartbeat = await call(port, 'POST', '/api/pair/heartbeat', { host: '192.168.1.5:3080', cookie: 'dsh_pair=tok-1' })
       expect(heartbeat.status).toBe(200)
@@ -199,7 +202,7 @@ describe('/api/pair routes', () => {
     }
   })
 
-  it('completes the auth chain when a prefetch consumed the token (used + live device cookie)', async () => {
+  it('re-pairs from the same link in a second context (consumed token stays valid within the window)', async () => {
     const service = makeService()
     const { port, close } = await serve(makeRoutes({
       service,
@@ -208,23 +211,22 @@ describe('/api/pair routes', () => {
     }))
     try {
       service.issue()
-      // First GET (the prefetch): consumes the one-time token and sets the
-      // device cookie.
+      // First context (camera preview / in-app browser): consumes the
+      // token and sets its device cookie.
       const first = await call(port, 'GET', '/pair-accept?pair=tok-1', { host: '192.168.1.5:3080' })
       expect(first.status).toBe(303)
+      expect(first.location).toBe('http://192.168.1.5:3080/?token=launch-1')
       expect(first.cookies[0]).toMatch(/^dsh_pair=tok-1;/)
-      // Second GET (the real navigation, same browser): the token reads
-      // `used`, but this device completed its own pairing - finish the
-      // chain with the launch-token redirect instead of failing it.
-      const second = await call(port, 'GET', '/pair-accept?pair=tok-1', { host: '192.168.1.5:3080', cookie: 'dsh_pair=tok-1' })
+      // Second context (system browser): the same link within the window
+      // completes its own pairing and auth chain - no device cookie needed.
+      const second = await call(port, 'GET', '/pair-accept?pair=tok-1', { host: '192.168.1.5:3080' })
       expect(second.status).toBe(303)
       expect(second.location).toBe('http://192.168.1.5:3080/?token=launch-1')
       expect(second.cookies[0]).toMatch(/^dsh_pair=tok-1;/)
-      // A different (unknown) device cookie does NOT get the recovery: it
-      // is not the device that consumed the token.
-      const stranger = await call(port, 'GET', '/pair-accept?pair=tok-1', { host: '192.168.1.5:3080', cookie: 'dsh_pair=unknown-device' })
-      expect(stranger.status).toBe(200)
-      expect(stranger.raw).toContain('refresh the QR code')
+      // An expired/unknown link is truly dead: explanation page, no cookie.
+      const dead = await call(port, 'GET', '/pair-accept?pair=never-was', { host: '192.168.1.5:3080' })
+      expect(dead.status).toBe(200)
+      expect(dead.raw).toContain('refresh the QR code')
     } finally {
       await close()
     }
