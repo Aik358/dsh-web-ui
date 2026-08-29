@@ -93,6 +93,8 @@ export const PAIR_PATHS = {
   status: '/api/pair/status',
   events: '/api/pair/events',
   lanBind: '/api/pair/lan-bind',
+  /** Top-level accept-and-redirect entry the QR link points at. */
+  acceptPage: '/pair-accept',
 } as const
 
 /**
@@ -195,6 +197,14 @@ export interface PairRoutesDeps {
    * The route is loopback-only; undefined drops it (tests).
    */
   lanBindStatus?: () => Record<string, unknown>
+  /**
+   * The authenticated home URL (the connection service's launch-token URL)
+   * for the given request origin. The /pair-accept entry redirects there
+   * after setting the device cookie, so a LAN device clears BOTH the
+   * browser-auth gate and the pairing gate in one navigation. Undefined
+   * falls back to '/'.
+   */
+  authenticatedHome?: (origin: string) => string
 }
 
 /**
@@ -211,10 +221,13 @@ export function makeRoutes(deps: PairRoutesDeps): WebRoute[] {
 
   /** Loopback-only fence: the desktop panel's control endpoints. */
   const loopbackFence = (req: IncomingMessage): boolean => isTrustedApiRequest(req, [])
-  /** Phone-facing fence: loopback, the derived LAN literals, or the configured public host. */
+  /** Phone-facing fence: loopback, the service's live LAN literals, or the configured public host. */
   const lanFence = (req: IncomingMessage): boolean => {
     const publicHost = publicHostOf(service.publicBaseUrl)
-    return isTrustedApiRequest(req, publicHost === undefined ? lanAddresses : [...lanAddresses, publicHost])
+    // The service's LAN bases re-read per request: a hot rebind (the lan-bind
+    // toggle) updates them mid-process, and the fence must follow.
+    const bases = service.lanAddresses
+    return isTrustedApiRequest(req, publicHost === undefined ? bases : [...bases, publicHost])
   }
 
   const requireMethod = (req: IncomingMessage, res: ServerResponse, method: string): boolean => {
@@ -283,7 +296,7 @@ export function makeRoutes(deps: PairRoutesDeps): WebRoute[] {
       if (base === undefined) throw new Error('remote-web-ui: base unavailable')
       writeJson(res, 200, {
         ok: true,
-        url: `${base}/?pair=${token}`,
+        url: `${base}/pair-accept?pair=${token}`,
         token,
         expiresAt,
         // Every constructible base, so a multi-homed panel can switch the
@@ -432,6 +445,52 @@ export function makeRoutes(deps: PairRoutesDeps): WebRoute[] {
     writeJson(res, 200, { ok: true, ...(deps.lanBindStatus?.() ?? {}) })
   }
 
+  /**
+   * The QR entry: navigate here with ?pair=<token>. Sets the device cookie,
+   * then redirects to the authenticated home (the connection service's
+   * launch-token URL), so a LAN device that has never seen this authority
+   * clears the browser-auth gate and boots the paired official UI in one
+   * chain: /pair-accept → /?token=<launch> → /. A device that is already
+   * authenticated (or loopback) skips straight through the same way.
+   */
+  const handleAcceptPage = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+    if (!requireMethod(req, res, 'GET')) return
+    if (!lanFence(req)) {
+      res.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' })
+      res.end('forbidden')
+      return
+    }
+    if (rateLimitAccept(req)) {
+      res.writeHead(429, { 'content-type': 'text/plain; charset=utf-8' })
+      res.end('rate limited')
+      return
+    }
+    const url = new URL(req.url ?? '/', 'http://pair.invalid')
+    const token = url.searchParams.get('pair') ?? ''
+    const ua = req.headers['user-agent']
+    const result = token === '' ? { ok: false as const, code: 'invalid' as const } : service.accept(token, typeof ua === 'string' ? ua : undefined)
+    if (!result.ok) {
+      res.writeHead(303, { location: '/', 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' })
+      res.end()
+      return
+    }
+    // Same origin the device navigated (x-forwarded-proto honors a tunnel's
+    // https edge); authenticatedUrl rewrites it into the launch-token URL.
+    const proto = req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http'
+    const origin = `http://${req.headers.host ?? '127.0.0.1'}`
+    const originUrl = proto === 'https' ? origin.replace('http://', 'https://') : origin
+    const home = deps.authenticatedHome?.(originUrl) ?? '/'
+    res.writeHead(303, {
+      location: home,
+      'cache-control': 'no-store',
+      'referrer-policy': 'no-referrer',
+      'set-cookie': [
+        `${service.config.cookieName}=${result.deviceId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${String(COOKIE_MAX_AGE_SEC)}`,
+      ],
+    })
+    res.end()
+  }
+
   const routes: WebRoute[] = [
     { kind: 'exact', path: PAIR_PATHS.issue, handler: handleIssue },
     { kind: 'exact', path: PAIR_PATHS.accept, handler: handleAccept },
@@ -444,5 +503,6 @@ export function makeRoutes(deps: PairRoutesDeps): WebRoute[] {
   if (deps.lanBindStatus !== undefined) {
     routes.push({ kind: 'exact', path: PAIR_PATHS.lanBind, handler: handleLanBind })
   }
+  routes.push({ kind: 'exact', path: PAIR_PATHS.acceptPage, handler: handleAcceptPage })
   return routes
 }

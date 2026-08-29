@@ -18,6 +18,9 @@ import z from 'schemastery'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import type {} from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-commands'
+// Type-only: pulls the host-side Context merge (ctx.connection, whose
+// authenticatedUrl the /pair-accept redirect consumes).
+import type {} from '@deepseek-ai/dsh-client-connection'
 import { DEFAULT_IDLE_EXPIRE_MS, PairingService, type PairingConfig } from './pairing.ts'
 import { dshHome } from './dsh-home.ts'
 import { isPairedDeviceRequest, makeGateListener } from './gate.ts'
@@ -66,7 +69,7 @@ declare module '@deepseek-ai/cordis' {
 export const name = 'remote-web-ui'
 
 /** Services required before the pairing surfaces can mount. */
-export const inject = ['webServer', 'typertGateway']
+export const inject = ['webServer', 'typertGateway', 'connection']
 
 /**
  * Settings namespace of the remote-control capability — the section the web
@@ -291,11 +294,18 @@ function applyImpl(ctx: Context, config?: Config): void {
   // sampling stance. The QR can only advertise addresses the fence accepts;
   // every interface gets its own base URL so a multi-homed machine can pick
   // the network the phone can actually reach.
-  const lanBases = ctx.webServer.host === '0.0.0.0'
-    ? lanIPv4Addresses().map(address => ({ address, base: `http://${address}:${String(ctx.webServer.port)}` }))
-    : []
-  service.setLanBases(lanBases)
-  const lanAddresses = lanBases.map(entry => entry.address)
+  // A recompose pass can hand the plugin a webServer whose facts have not
+  // settled yet (host unset, port undefined); deriving LAN bases from that
+  // would advertise :undefined links or clear a working set, so the bases
+  // only update when both facts are readable.
+  const bindKnown = (ctx.webServer.host === '0.0.0.0' || ctx.webServer.host === '127.0.0.1')
+    && Number.isFinite(ctx.webServer.port)
+  if (bindKnown) {
+    const lanBases = ctx.webServer.host === '0.0.0.0'
+      ? lanIPv4Addresses().map(address => ({ address, base: `http://${address}:${String(ctx.webServer.port)}` }))
+      : []
+    service.setLanBases(lanBases)
+  }
 
   // Push a committed settings section into the service and gate. The service
   // config object is read per operation (token mint, touch, sweep), and the
@@ -383,11 +393,13 @@ function applyImpl(ctx: Context, config?: Config): void {
   // LAN-bind facts for the settings card, re-read per request so a hot
   // rebind (the patch watcher recomposes the process) and a fresh toggle
   // round are both reflected without a restart.
+  let lastKnownPort: number | undefined
   const lanBindStatus = (): Record<string, unknown> => {
     const resolvedNow = resolve()
     const state = lanBindState(resolvedNow.profile)
     const lanOn = state.host === '0.0.0.0'
-    const port = ctx.webServer.port
+    const port = Number.isFinite(ctx.webServer.port) ? ctx.webServer.port : lastKnownPort
+    if (Number.isFinite(ctx.webServer.port)) lastKnownPort = ctx.webServer.port
     return {
       profile: resolvedNow.profile,
       setting: resolvedNow.lanBind ?? null,
@@ -397,16 +409,32 @@ function applyImpl(ctx: Context, config?: Config): void {
       lanUrls: ctx.webServer.host === '0.0.0.0'
         ? lanIPv4Addresses().map(address => `http://${address}:${String(port)}`)
         : [],
-      firewall: firewallSummary(port, lanOn),
+      firewall: port !== undefined ? firewallSummary(port, lanOn) : { ok: true, managed: false },
       platform: process.platform,
+      // The running bind does not follow the block on every deployment (the
+      // live patch watcher is profile-shape dependent): flag the divergence
+      // so the card can ask for a restart instead of looking broken.
+      pendingRestart: resolvedNow.lanBind !== undefined && state.host !== null && (
+        (resolvedNow.lanBind && ctx.webServer.host !== '0.0.0.0') ||
+        (!resolvedNow.lanBind && ctx.webServer.host !== '127.0.0.1')
+      ),
     }
   }
   const routes = [
     ...makeRoutes({
       service,
-      lanAddresses,
+      lanAddresses: service.lanAddresses,
       requirePairingForLan: () => resolve().requirePairingForLan,
       lanBindStatus,
+      // The QR entry redirects the pairing device through the connection
+      // service's launch-token URL so it clears the browser-auth gate.
+      authenticatedHome: (origin: string) => {
+        try {
+          return (ctx.connection as { authenticatedUrl?: (base: string) => string }).authenticatedUrl?.(origin) ?? '/'
+        } catch {
+          return '/'
+        }
+      },
     }),
     // The remote desktop channel: policy-gated `/remote` prefix that
     // re-issues fenced paths to loopback (see remote-api.ts). The live
@@ -476,8 +504,8 @@ function applyImpl(ctx: Context, config?: Config): void {
     return isPairedDeviceRequest(service, request)
   })
 
-  if (lanAddresses.length > 0) {
-    const urls = lanAddresses.map(ip => `http://${ip}:${String(ctx.webServer.port)}`).join(' , ')
+  if (service.lanAddresses.length > 0) {
+    const urls = service.lanAddresses.map(ip => `http://${ip}:${String(ctx.webServer.port)}`).join(' , ')
     console.log(`remote-web-ui: the paired Web GUI is reachable on LAN at ${urls}`)
   }
 
@@ -485,16 +513,26 @@ function applyImpl(ctx: Context, config?: Config): void {
     const value = resolve()
     service.config = pairingConfigOf(value)
     // LAN bind toggle: only write the managed patch block once the user has
-    // flipped it (undefined = untouched, never write). The desired host must
-    // differ from the on-disk block before writing, so unrelated settings
-    // edits do not churn the patch file (each write trips a hot reload).
+    // flipped it (undefined = untouched, never write). Desired host/port come
+    // from the CLI flags when given (flags win), else from the toggle and
+    // the currently bound port. The block takes effect on the next start, so
+    // the re-assert at every boot keeps it in sync with both the toggle and
+    // the flags.
     if (value.lanBind !== undefined) {
-      const desiredHost: LanBindHost = value.lanBind ? '0.0.0.0' : '127.0.0.1'
+      const startup = ctx.get('webStartup') as { host?: string; port?: number } | undefined
+      const toggleHost: LanBindHost = value.lanBind ? '0.0.0.0' : '127.0.0.1'
+      const desiredHost = startup?.host !== undefined && (startup.host === '0.0.0.0' || startup.host === '127.0.0.1')
+        ? startup.host
+        : toggleHost
+      const desiredPort = startup?.port ?? (Number.isFinite(ctx.webServer.port) ? ctx.webServer.port : undefined)
+      if (desiredPort === undefined) {
+        console.error('remote-web-ui: cannot assert the lan-bind block — the web server port is not known yet')
+      }
       const current = lanBindState(value.profile)
-      if (current.host !== desiredHost) {
+      if (desiredPort !== undefined && (current.host !== desiredHost || current.port !== desiredPort)) {
         try {
-          writeLanBind(desiredHost, value.profile)
-          console.log(`remote-web-ui: lan-bind block written for profile ${value.profile} (host default ${desiredHost}); the patch hot-reloads`)
+          writeLanBind(desiredHost, desiredPort, value.profile)
+          console.log(`remote-web-ui: lan-bind block written for profile ${value.profile} (${desiredHost}:${String(desiredPort)}); it takes effect on the next dsh web start`)
         } catch (error) {
           console.error(`remote-web-ui: failed to write the lan-bind block: ${error instanceof Error ? error.message : String(error)}`)
         }

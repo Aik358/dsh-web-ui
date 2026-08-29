@@ -195,6 +195,8 @@ export interface LanBindFrame {
   lanUrls: string[]
   firewall: { ok: boolean; managed: boolean; note?: string }
   platform: string
+  /** true when the running bind has not caught up with the toggle yet. */
+  pendingRestart?: boolean
 }
 
 /** Read the LAN-bind facts (loopback-only endpoint). */

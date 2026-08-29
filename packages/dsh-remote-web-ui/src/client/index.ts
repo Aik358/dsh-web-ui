@@ -129,16 +129,25 @@ export function apply(ctx: ClientContext): void {
     }
   }, 'remote-web-ui: dictionaries')
 
-  // The mobile adapt's whale button expands the collapsed sidebar through
-  // the official layout service (ctx.layout.toggleSidebar flips the panel
-  // state; the narrow-viewport semantics open the drawer).
-  const layout = ctx.get('layout') as { toggleSidebar?: () => void } | undefined
+  // The mobile adapt's whale button expands the collapsed sidebar and the
+  // activation closes the details panel — both through the official layout
+  // service (ctx.layout.toggleSidebar / closeDetails flip the panel state;
+  // the narrow-viewport semantics open the drawer).
+  const layout = ctx.get('layout') as { toggleSidebar?: () => void; closeDetails?: () => void } | undefined
   const adapt = (window as unknown as { __dshRemoteAdapt?: RemoteAdaptGlobal }).__dshRemoteAdapt
-  if (layout !== undefined && typeof layout.toggleSidebar === 'function' && adapt !== undefined) {
-    adapt.toggleSidebar = () => {
-      layout.toggleSidebar?.()
+  if (layout !== undefined && adapt !== undefined) {
+    if (typeof layout.toggleSidebar === 'function') {
+      adapt.toggleSidebar = () => {
+        layout.toggleSidebar?.()
+      }
     }
-  } else if (adapt !== undefined) {
+    if (typeof layout.closeDetails === 'function') {
+      adapt.closeDetails = () => {
+        layout.closeDetails?.()
+      }
+    }
+  }
+  if (adapt !== undefined && adapt.toggleSidebar === null) {
     // Layout face unavailable (older composition): fall back to clicking the
     // official rail toggle when it exists.
     adapt.toggleSidebar = () => {

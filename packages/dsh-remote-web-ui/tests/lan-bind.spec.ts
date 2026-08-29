@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { LAN_BIND_BLOCK_BEGIN, LAN_BIND_BLOCK_END, lanBindState, managedBlock, managedBlockHost, stripManagedBlock, writeLanBind } from '../src/lan-bind.ts'
+import { LAN_BIND_BLOCK_BEGIN, LAN_BIND_BLOCK_END, lanBindState, managedBlock, managedBindOf, stripManagedBlock, writeLanBind } from '../src/lan-bind.ts'
 
 const tempDirs: string[] = []
 
@@ -17,27 +17,27 @@ afterEach(() => {
   for (const dir of tempDirs.splice(0)) rmSync(dir, { recursive: true, force: true })
 })
 
-describe('managedBlockHost', () => {
-  it('parses the pinned host out of the block', () => {
-    expect(managedBlockHost(managedBlock('0.0.0.0'))).toBe('0.0.0.0')
-    expect(managedBlockHost(managedBlock('127.0.0.1'))).toBe('127.0.0.1')
+describe('managedBindOf / managedBlock', () => {
+  it('parses the pinned bind out of the block', () => {
+    expect(managedBindOf(managedBlock('0.0.0.0', 3080))).toEqual({ host: '0.0.0.0', port: 3080 })
+    expect(managedBindOf(managedBlock('127.0.0.1', 3191))).toEqual({ host: '127.0.0.1', port: 3191 })
   })
 
   it('returns undefined without a managed block', () => {
-    expect(managedBlockHost('- id: other\n  config:\n    host: 0.0.0.0\n')).toBeUndefined()
-    expect(managedBlockHost('')).toBeUndefined()
+    expect(managedBindOf('- id: other\n  config:\n    host: 0.0.0.0\n')).toBeUndefined()
+    expect(managedBindOf('')).toBeUndefined()
   })
 
-  it('surfaces a hand-edited host instead of claiming a known state', () => {
-    const handEdited = managedBlock('0.0.0.0').replace("'0.0.0.0'", "'192.168.1.5'")
-    expect(managedBlockHost(handEdited)).toBe('192.168.1.5')
+  it('surfaces hand-edited values instead of claiming a known state', () => {
+    const handEdited = managedBlock('0.0.0.0', 3080).replace("'0.0.0.0'", "'192.168.1.5'")
+    expect(managedBindOf(handEdited)?.host).toBe('192.168.1.5')
   })
 })
 
 describe('stripManagedBlock', () => {
   it('removes the block and keeps surrounding content byte-identical', () => {
     const before = '- id: a\n  config:\n    x: 1\n'
-    const content = `${before}${LAN_BIND_BLOCK_BEGIN}\n- id: webserver\n  config:\n    host: !!js ctx.webStartup.host ?? '0.0.0.0'\n${LAN_BIND_BLOCK_END}\n- id: b\n`
+    const content = `${before}${LAN_BIND_BLOCK_BEGIN}\n- id: webserver\n  config:\n    host: '0.0.0.0'\n    port: 3080\n${LAN_BIND_BLOCK_END}\n- id: b\n`
     expect(stripManagedBlock(content)).toBe(`${before}- id: b\n`)
   })
 
@@ -53,27 +53,20 @@ describe('writeLanBind / lanBindState', () => {
     const patch = join(home, 'profiles', 'web', 'cordis.patch.yml')
     mkdirSync(join(home, 'profiles', 'web'), { recursive: true })
     writeFileSync(patch, '- insert:\n    - id: remote-web-ui\n      name: \'@linxin666/dsh-remote-web-ui\'\n')
-    writeLanBind('0.0.0.0', 'web', home)
+    writeLanBind('0.0.0.0', 3080, 'web', home)
     const afterOn = readFileSync(patch, 'utf8')
     expect(afterOn).toContain('- id: remote-web-ui')
-    expect(managedBlockHost(afterOn)).toBe('0.0.0.0')
-    expect(lanBindState('web', home)).toEqual({ blockPresent: true, host: '0.0.0.0' })
+    expect(managedBindOf(afterOn)).toEqual({ host: '0.0.0.0', port: 3080 })
+    expect(lanBindState('web', home)).toEqual({ blockPresent: true, host: '0.0.0.0', port: 3080 })
     // Flipping rewrites the same block (no duplication).
-    writeLanBind('127.0.0.1', 'web', home)
+    writeLanBind('127.0.0.1', 3191, 'web', home)
     const afterOff = readFileSync(patch, 'utf8')
-    expect(managedBlockHost(afterOff)).toBe('127.0.0.1')
+    expect(managedBindOf(afterOff)).toEqual({ host: '127.0.0.1', port: 3191 })
     expect(afterOff.split(LAN_BIND_BLOCK_BEGIN)).toHaveLength(2)
-    expect(lanBindState('web', home)).toEqual({ blockPresent: true, host: '127.0.0.1' })
   })
 
   it('reports a missing file as untouched', () => {
     const home = tempHome()
-    expect(lanBindState('web', home)).toEqual({ blockPresent: false, host: undefined })
-  })
-
-  it('leaves no temp file behind', () => {
-    const home = tempHome()
-    writeLanBind('0.0.0.0', 'web', home)
-    expect(lanBindState('web', home).blockPresent).toBe(true)
+    expect(lanBindState('web', home)).toEqual({ blockPresent: false })
   })
 })

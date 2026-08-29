@@ -59,7 +59,7 @@ async function call(
   method: 'GET' | 'POST',
   path: string,
   opts: { host?: string; body?: unknown; cookie?: string; headers?: Record<string, string> } = {},
-): Promise<{ status: number; body: Record<string, unknown>; cookies: string[]; referrerPolicy: string | undefined }> {
+): Promise<{ status: number; body: Record<string, unknown>; cookies: string[]; referrerPolicy: string | undefined; location: string | undefined }> {
   return await new Promise((resolve, reject) => {
     const payload = opts.body === undefined ? undefined : JSON.stringify(opts.body)
     const headers: Record<string, string> = { host: opts.host ?? `127.0.0.1:${String(port)}` }
@@ -83,6 +83,7 @@ async function call(
             body,
             cookies: setCookie,
             referrerPolicy: response.headers['referrer-policy'],
+            location: response.headers['location'],
           })
         })
       },
@@ -134,7 +135,7 @@ describe('/api/pair routes', () => {
       // Loopback issues; the URL is the official Web GUI with the token.
       const issued = await call(port, 'POST', '/api/pair/issue', { body: { workspaceId: 'ws-7' } })
       expect(issued.status).toBe(200)
-      expect(issued.body.url).toMatch(/^http:\/\/192\.168\.1\.5:3080\/\?pair=tok-1$/)
+      expect(issued.body.url).toMatch(/^http:\/\/192\.168\.1\.5:3080\/pair-accept\?pair=tok-1$/)
       expect(issued.body.lanAddresses).toEqual(['192.168.1.5'])
       // A LAN phone accepts: sets the HttpOnly device cookie.
       const accepted = await call(port, 'POST', '/api/pair/accept', { host: '192.168.1.5:3080', body: { token: 'tok-1' } })
@@ -153,6 +154,36 @@ describe('/api/pair routes', () => {
       expect(heartbeat.status).toBe(200)
       const status = await call(port, 'GET', '/api/pair/status', { host: '192.168.1.5:3080', cookie: 'dsh_pair=tok-1' })
       expect(status.body).toMatchObject({ ok: true, paired: true, phase: 'connected' })
+    } finally {
+      await close()
+    }
+  })
+
+  it('/pair-accept sets the device cookie and redirects to the authenticated home', async () => {
+    const service = makeService()
+    const { port, close } = await serve(makeRoutes({
+      service,
+      lanAddresses: ['192.168.1.5'],
+      authenticatedHome: (origin: string) => `${origin}/?token=launch-1`,
+    }))
+    try {
+      // The QR link is the /pair-accept entry: mint issues it directly.
+      const issued = await call(port, 'POST', '/api/pair/issue', {})
+      expect(issued.body.url).toBe('http://192.168.1.5:3080/pair-accept?pair=tok-1')
+      const accept = await call(port, 'GET', '/pair-accept?pair=tok-1', { host: '192.168.1.5:3080' })
+      expect(accept.status).toBe(303)
+      expect(accept.location).toBe('http://192.168.1.5:3080/?token=launch-1')
+      expect(accept.cookies).toEqual([
+        'dsh_pair=tok-1; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000',
+      ])
+      // The paired cookie then passes the heartbeat (device is live).
+      const heartbeat = await call(port, 'POST', '/api/pair/heartbeat', { host: '192.168.1.5:3080', cookie: 'dsh_pair=tok-1' })
+      expect(heartbeat.status).toBe(200)
+      // An invalid token redirects to the clean home without a cookie.
+      const bad = await call(port, 'GET', '/pair-accept?pair=dead', { host: '192.168.1.5:3080' })
+      expect(bad.status).toBe(303)
+      expect(bad.location).toBe('/')
+      expect(bad.cookies ?? []).toEqual([])
     } finally {
       await close()
     }
@@ -181,7 +212,7 @@ describe('/api/pair routes', () => {
     try {
       const chosen = await call(port, 'POST', '/api/pair/issue', { body: { address: '10.0.0.3' } })
       expect(chosen.status).toBe(200)
-      expect(chosen.body.url).toMatch(/^http:\/\/10\.0\.0\.3:3080\/\?pair=tok-1$/)
+      expect(chosen.body.url).toMatch(/^http:\/\/10\.0\.0\.3:3080\/pair-accept\?pair=tok-1$/)
       expect(chosen.body.lanAddresses).toEqual(['192.168.1.5', '10.0.0.3'])
       const unknown = await call(port, 'POST', '/api/pair/issue', { body: { address: '192.0.2.1' } })
       expect(unknown.status).toBe(400)
@@ -232,12 +263,12 @@ describe('/api/pair routes', () => {
       // Loopback issues; the default URL is now built from the public base.
       const issued = await call(port, 'POST', '/api/pair/issue', {})
       expect(issued.status).toBe(200)
-      expect(issued.body.url).toMatch(/^https:\/\/phone\.example\.com\/\?pair=tok-1$/)
+      expect(issued.body.url).toMatch(/^https:\/\/phone\.example\.com\/pair-accept\?pair=tok-1$/)
       expect(issued.body.publicBaseUrl).toBe('https://phone.example.com')
       expect(issued.body.lanAddresses).toEqual(['192.168.1.5'])
       // An explicit LAN address still mints a LAN URL (in-network fallback).
       const lan = await call(port, 'POST', '/api/pair/issue', { body: { address: '192.168.1.5' } })
-      expect(lan.body.url).toMatch(/^http:\/\/192\.168\.1\.5:3080\/\?pair=tok-1$/)
+      expect(lan.body.url).toMatch(/^http:\/\/192\.168\.1\.5:3080\/pair-accept\?pair=tok-1$/)
       // The tunneled host passes the phone-facing fence: accept + status work.
       const accepted = await call(port, 'POST', '/api/pair/accept', { host: 'phone.example.com', body: { token: 'tok-1' } })
       expect(accepted.status).toBe(200)
@@ -264,7 +295,7 @@ describe('/api/pair routes', () => {
     try {
       const issued = await call(port, 'POST', '/api/pair/issue', {})
       expect(issued.status).toBe(200)
-      expect(issued.body.url).toMatch(/^https:\/\/phone\.example\.com:8443\/\?pair=tok-1$/)
+      expect(issued.body.url).toMatch(/^https:\/\/phone\.example\.com:8443\/pair-accept\?pair=tok-1$/)
       // The fence matches the authority verbatim, port included.
       const accepted = await call(port, 'POST', '/api/pair/accept', { host: 'phone.example.com:8443', body: { token: 'tok-1' } })
       expect(accepted.status).toBe(200)

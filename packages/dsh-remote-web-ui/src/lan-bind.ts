@@ -1,16 +1,22 @@
 /**
- * LAN bind toggle: the managed cordis patch block that defaults the web
- * server's bind host. On = a block pinning the host default to 0.0.0.0 (an
- * explicit --host flag still wins: the value is a !!js expression over
- * ctx.webStartup.host); off = the same block pinning the default to
- * 127.0.0.1. The harness watches the profile patch file and hot-reloads the
- * composition, so flipping the toggle re-binds the running server without a
- * restart. Until the user flips the toggle once, the plugin never touches
- * the patch file: an untouched installation keeps whatever bind the user
- * configured themselves.
+ * LAN bind toggle: the managed cordis patch block that pins the web
+ * server's bind. On = a block binding 0.0.0.0; off = the same block binding
+ * 127.0.0.1. The block takes effect on the next `dsh web` start (the live
+ * patch watcher cannot rebind a running listener, and on this harness line
+ * the user patch layer cannot evaluate webStartup-dependent expressions
+ * reliably - static values are the only dependable form), so the plugin
+ * re-asserts the block at every boot and the settings card reports the
+ * running bind honestly.
  *
- * Ported from the dsh-LAN reference implementation (MIT): same block
- * markers, same toggle-block discipline, atomic file writes.
+ * Same-id patch rows REPLACE the row config wholesale, so the block carries
+ * the official web-app webserver row's full config (bind + compression)
+ * with the bind values materialized. The CLI's --host 0.0.0.0 guard stays
+ * intact: deliberate LAN exposure happens through this configuration layer
+ * only. Until the user flips the toggle once, the plugin never touches the
+ * patch file.
+ *
+ * The block discipline (markers, atomic write, strip-and-rewrite) follows
+ * the dsh-LAN reference implementation (MIT).
  */
 
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
@@ -20,7 +26,7 @@ import { dshHome } from './dsh-home.ts'
 export const LAN_BIND_BLOCK_BEGIN = '# --- remote-web-ui lan-bind block (managed - do not edit) ---'
 export const LAN_BIND_BLOCK_END = '# --- end remote-web-ui lan-bind block ---'
 
-/** The two bind defaults the managed block pins. */
+/** The two bind hosts the managed block pins. */
 export type LanBindHost = '0.0.0.0' | '127.0.0.1'
 
 /** The absolute path of the profile patch file this toggle manages. */
@@ -33,7 +39,7 @@ function readPatchContent(file: string): string {
   return readFileSync(file, 'utf8')
 }
 
-/** Escape one literal string for embeddin into a RegExp pattern. */
+/** Escape one literal string for embedding into a RegExp pattern. */
 function escapeRegex(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
@@ -46,49 +52,67 @@ export function stripManagedBlock(content: string): string {
   return content.replace(pattern, '\n')
 }
 
-/** Render the managed block for one bind default. */
-export function managedBlock(host: LanBindHost): string {
+/**
+ * Render the managed block for one bind state. The values are static: the
+ * user patch layer has no reliable lazy service evaluation, and the plugin
+ * re-asserts the block at every boot so CLI flags (--port, --host) win by
+ * rewriting it before the next start.
+ */
+export function managedBlock(host: LanBindHost, port: number): string {
   return [
     LAN_BIND_BLOCK_BEGIN,
     '- id: webserver',
+    "  name: '@deepseek-ai/dsh-host-webserver'",
     '  config:',
-    `    host: !!js ctx.webStartup.host ?? '${host}'`,
-    '    port: !!js ctx.webStartup.port ?? 3080',
+    `    host: '${host}'`,
+    `    port: ${String(port)}`,
+    '    compression: gzip',
+    '    compressionLevel: 1',
+    '    compressionThresholdBytes: 1024',
     LAN_BIND_BLOCK_END,
     '',
   ].join('\n')
 }
 
+/** The bind state a managed block pins (undefined when there is no block). */
+export interface ManagedBindState {
+  host: LanBindHost | (string & {})
+  port: number | undefined
+}
+
 /**
- * The bind default the managed block currently pins, or undefined when the
- * file carries no managed block. A block whose host line was hand-edited to
- * something else reports the literal as-is so the card can surface it
+ * Parse the block's pinned bind out of patch content. A block whose values
+ * were hand-edited reports the literals as-is so the card can surface them
  * instead of silently claiming one of the two known states.
  */
-export function managedBlockHost(content: string): LanBindHost | (string & {}) | undefined {
+export function managedBindOf(content: string): ManagedBindState | undefined {
   const begin = content.indexOf(LAN_BIND_BLOCK_BEGIN)
   if (begin === -1) return undefined
   const end = content.indexOf(LAN_BIND_BLOCK_END, begin)
   const block = end === -1 ? content.slice(begin) : content.slice(begin, end)
-  const match = /host:\s*!!js ctx\.webStartup\.host \?\? '([^']+)'/.exec(block)
-  return match?.[1]
+  const hostMatch = /host:\s*'([^']+)'/.exec(block)
+  const portMatch = /port:\s*(\d+)/.exec(block)
+  return {
+    host: hostMatch?.[1] ?? '',
+    port: portMatch !== null ? Number(portMatch[1]) : undefined,
+  }
 }
 
-/** Full file-level state: whether the block exists and what it pins. */
-export function lanBindState(profile: string, home: string = dshHome()): { blockPresent: boolean; host?: string } {
-  const content = readPatchContent(profilePatchFile(profile, home))
-  const host = managedBlockHost(content)
-  return { blockPresent: host !== undefined, host }
+/** Full file-level state for the settings card and the boot re-assert. */
+export function lanBindState(profile: string, home: string = dshHome()): { blockPresent: boolean; host?: string; port?: number } {
+  const state = managedBindOf(readPatchContent(profilePatchFile(profile, home)))
+  if (state === undefined) return { blockPresent: false }
+  return { blockPresent: true, host: state.host, port: state.port }
 }
 
 /**
- * Write (or rewrite) the managed block with the given bind default. The rest
- * of the patch file is preserved byte-for-byte; the block is appended at the
- * end via temp-file + rename so a crash never leaves a torn patch behind.
+ * Write (or rewrite) the managed block with the given bind. The rest of the
+ * patch file is preserved; the block is rewritten atomically (temp file +
+ * rename) so a crash never leaves a torn patch behind.
  */
-export function writeLanBind(host: LanBindHost, profile: string, home: string = dshHome()): void {
+export function writeLanBind(host: LanBindHost, port: number, profile: string, home: string = dshHome()): void {
   const file = profilePatchFile(profile, home)
-  const content = `${stripManagedBlock(readPatchContent(file)).trimEnd()}\\n\\n${managedBlock(host)}`
+  const content = `${stripManagedBlock(readPatchContent(file)).trimEnd()}\n\n${managedBlock(host, port)}`
   mkdirSync(dirname(file), { recursive: true })
   const temp = `${file}.remote-web-ui-tmp`
   writeFileSync(temp, content)

@@ -23,6 +23,8 @@ export interface RemoteAdaptGlobal {
   evaluate: () => void
   /** Wired by the plugin apply once ctx.layout is live. */
   toggleSidebar: (() => void) | null
+  /** Wired by the plugin apply once ctx.layout is live. */
+  closeDetails: (() => void) | null
 }
 
 /** Storage key for the manual desktop opt-out. */
@@ -150,6 +152,19 @@ const ADAPT_CSS: readonly string[] = [
   '[class$="_header"] [class$="_tabs"] [class*="_tab"]{font-size:12px;white-space:nowrap}',
   // Text-bottom alignment is dynamic (alignActionsText below); flex seat.
   '[class$="_header"] [class$="_tabs"] [class$="_headerActions"]{margin-left:auto;display:flex;align-items:center;gap:6px;flex:none}',
+  // Mobile scope: hide the plugin surfaces that do not fit a phone — the
+  // right-hand details column and every desktop-oriented tool surface. The
+  // list keys on the L2 semantic roots (data-dsh-plugin, ownership stays
+  // with the declaring plugin), so official class churn cannot resurrect
+  // them. These are render suppressions: the client bundles still load.
+  `body.${ACTIVE_CLASS} [class$=\"_detailsCol\"]{display:none !important}`,
+  `body.${ACTIVE_CLASS} [data-dsh-plugin=\"ssh\"],`,
+  `body.${ACTIVE_CLASS} [data-dsh-plugin=\"skill-explorer\"],`,
+  `body.${ACTIVE_CLASS} [data-dsh-plugin=\"task-board\"],`,
+  `body.${ACTIVE_CLASS} [data-dsh-plugin=\"git-graph\"],`,
+  `body.${ACTIVE_CLASS} [data-dsh-plugin=\"pet\"],`,
+  `body.${ACTIVE_CLASS} [data-dsh-plugin=\"perf\"],`,
+  `body.${ACTIVE_CLASS} [data-dsh-plugin=\"usage\"]{display:none !important}`,
   // v68: settings modal on mobile — the official panel is a fixed 800px
   // two-column layout (nav + content); switch to a column layout: the
   // section nav becomes a horizontal scrollable row on top.
@@ -189,6 +204,10 @@ export function startMobileAdapt(): void {
     if (active) return
     active = true
     document.body.classList.add(ACTIVE_CLASS)
+    // A details panel opened before the viewport rotated into portrait (or
+    // restored across reloads) would sit behind the display:none above;
+    // closing it through the official face unmounts the surface entirely.
+    w.__dshRemoteAdapt?.closeDetails?.()
     if (document.querySelector(`style[data-plugin-css="${ADAPT_CSS_ID}"]`) === null) {
       const tag = document.createElement('style')
       tag.dataset.plugin = 'remote-web-ui'
@@ -657,6 +676,7 @@ export function startMobileAdapt(): void {
     }, true)
   }
 
-  // The plugin apply() wires toggleSidebar to ctx.layout once it is live.
-  w.__dshRemoteAdapt = { evaluate, toggleSidebar: null }
+  // The plugin apply() wires toggleSidebar/closeDetails to ctx.layout once
+  // it is live.
+  w.__dshRemoteAdapt = { evaluate, toggleSidebar: null, closeDetails: null }
 }

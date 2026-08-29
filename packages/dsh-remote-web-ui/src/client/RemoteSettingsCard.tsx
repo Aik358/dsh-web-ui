@@ -309,6 +309,9 @@ function LanBindStatus({ t }: { t: TranslateNS<'remote'> }) {
   if (frame.setting === null) {
     lines.push(t('lan.untouched'))
   }
+  if (frame.pendingRestart === true) {
+    lines.push(t('lan.pendingRestart'))
+  }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 12, lineHeight: '18px', opacity: 0.85 }}>
       {lines.map((line, index) => (
