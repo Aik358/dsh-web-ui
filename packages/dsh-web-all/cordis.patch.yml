@@ -53,6 +53,7 @@
 - id: session-persistence-jsonl
   name: '@deepseek-ai/dsh-session-persistence-jsonl'
   config:
+    root: !!js dshHomePath('sessions')
     packChunks: true
     compression: zstd
     preparedSessionCacheSize: 5
@@ -130,7 +131,7 @@
       name: '@morlay/session-rdb'
       config:
         type: sqlite
-        path: sessions/sessions.sqlite
+        path: !!js dshHomePath('sessions', 'sessions.sqlite')
 
 # from external bundle @morlay/better-session (insert row web-ui-conversation-message-actions)
 - insert:

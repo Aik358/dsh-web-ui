@@ -305,15 +305,7 @@ function collectRows(pkgDir, entry, via, visited, errors, blocks) {
 function pushConfig(lines, configLines, keyIndent) {
   if (configLines.length === 0) return
   lines.push(`${' '.repeat(keyIndent)}config:`)
-  for (const configLine of configLines) {
-    // Sanitize unparsed !!js dshHomePath(...) expressions into clean path strings
-    // to avoid YAML TAG_RESOLVE_FAILED warnings in stock DSH loaders (#1272).
-    const sanitized = configLine.replace(/!!js\s+dshHomePath\(([^)]+)\)/g, (_match, args) => {
-      const parts = args.split(',').map(s => s.trim().replace(/^['"]|['"]$/g, '')).filter(Boolean)
-      return parts.join('/')
-    })
-    lines.push(sanitized)
-  }
+  for (const configLine of configLines) lines.push(configLine)
 }
 
 /**
