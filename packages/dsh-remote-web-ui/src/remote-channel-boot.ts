@@ -45,10 +45,12 @@ export function buildRemoteChannelBootScript(rules: RemoteChannelRules = REMOTE_
     // all branch on connection.isLoopback). Must run before any boot entry.
     'try{if(w.__DSH_TRANSPORT__===undefined)w.__DSH_TRANSPORT__={};w.__DSH_TRANSPORT__.ownsHost=true}catch(e){}' +
     'var R=' + json + ';' +
-    // The cookieless device credential: read once, attach to every fenced
-    // call (header on fetch, device query on WS/EventSource handshakes).
-    'var dv=null;try{dv=w.sessionStorage.getItem(R.deviceKey)}catch(e){}' +
+    // The cookieless device credential: read lazily per call - the
+    // /pair-app capture script sets it in head AFTER this boot script ran,
+    // so a parse-time read would always see null.
+    'function rdv(){try{return w.sessionStorage.getItem(R.deviceKey)}catch(e){return null}}' +
     'function att(init){' +
+    'var dv=rdv();' +
     'if(dv===null)return init;' +
     'var h=init&&init.headers;' +
     'if(typeof Headers!=="undefined"&&h instanceof Headers){try{h.set(R.deviceHeader,dv)}catch(e){}return init}' +
@@ -113,7 +115,8 @@ export function buildRemoteChannelBootScript(rules: RemoteChannelRules = REMOTE_
     'if(o!==""&&o===loc.origin&&sw(p.pathname)){' +
     'var nx=new URL(p);' +
     'nx.pathname=rp(p.pathname);' +
-    'if(dv!==null)nx.searchParams.set(R.deviceQuery,dv);' +
+    'var dvv=rdv();' +
+    'if(dvv!==null)nx.searchParams.set(R.deviceQuery,dvv);' +
     'return protocols!==undefined?new OW(nx,protocols):new OW(nx)}' +
     'return protocols!==undefined?new OW(url,protocols):new OW(url)};' +
     'w.WebSocket.prototype=OW.prototype;' +
@@ -125,7 +128,8 @@ export function buildRemoteChannelBootScript(rules: RemoteChannelRules = REMOTE_
     'if(so(p)&&sf(p.pathname)){' +
     'var nx=new URL(p);' +
     'nx.pathname=rp(p.pathname);' +
-    'if(dv!==null)nx.searchParams.set(R.deviceQuery,dv);' +
+    'var dvv=rdv();' +
+    'if(dvv!==null)nx.searchParams.set(R.deviceQuery,dvv);' +
     'return new OE(nx,cfg)}' +
     'return new OE(url,cfg)};' +
     'w.EventSource.prototype=OE.prototype}' +
