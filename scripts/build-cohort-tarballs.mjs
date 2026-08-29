@@ -58,8 +58,10 @@ function run(command, args, options = {}) {
     ...options,
   })
   if (result.status !== 0) {
+    if (options.allowFailure) return false
     fail(`${command} ${args.join(' ')} failed with exit code ${result.status}`)
   }
+  return true
 }
 
 function capture(command, args, options = {}) {
@@ -136,9 +138,15 @@ function collectTarballs(scratchDir, storeDir) {
 
 /** Pack the publish family with the harness's own release packer. */
 function packFamily(harnessDir, scratchDir) {
-  run('pnpm', ['run', 'release:pack', '--family', 'dsh', '--out', scratchDir, '--concurrency', '4'], {
+  // Upstream harness scripts/release/pack.ts spawns 'pnpm' without shell: true on Windows,
+  // which fails with ENOENT. When release:pack fails, packMissing directly packs every package.
+  const ok = run('pnpm', ['run', 'release:pack', '--family', 'dsh', '--out', scratchDir, '--concurrency', '4'], {
     cwd: harnessDir,
+    allowFailure: true,
   })
+  if (!ok) {
+    console.warn('build-cohort-tarballs: release:pack unavailable on this platform; falling back to direct package pack')
+  }
 }
 
 /**
