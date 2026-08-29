@@ -10,8 +10,15 @@
  * (hooks + pending unpaired signal) instead of patching twice.
  *
  * The rewrite decisions are generated from REMOTE_CHANNEL_RULES, the same
- * data the browser patch consumes — the two cannot drift apart. The script
- * self-skips on loopback origins and never throws.
+ * data the browser patch consumes — the two cannot drift apart. On this
+ * 0.1.2-alpha.1 line the "configuration plane is local" behavior lives in
+ * the browser (client plugins branch on connection.isLoopback), so the
+ * script also flips the official UI into host mode by installing the
+ * transport hook `__DSH_TRANSPORT__ = { ownsHost: true }` before the
+ * connection plugin reads it: the paired remote desktop gets the full
+ * settings/credentials/presets surface, and every call still rides the
+ * gated /remote channel. The script self-skips on loopback origins and
+ * never throws.
  * @module @linxin666/dsh-remote-web-ui/remote-channel-boot
  */
 
@@ -32,6 +39,11 @@ export function buildRemoteChannelBootScript(rules: RemoteChannelRules = REMOTE_
     'var w=window,loc=w.location,h=loc.hostname;' +
     // Loopback origins keep the original paths (mirrors isLoopbackHostname).
     "if(h==='localhost'||h==='::1'||/^127(\\.\\d{1,3}){3}$/.test(h))return;" +
+    // Host mode: the paired remote desktop presents itself as the machine
+    // owner, so the official UI keeps its full configuration surface (the
+    // settings mirror, document controller, and deliverables open actions
+    // all branch on connection.isLoopback). Must run before any boot entry.
+    'try{if(w.__DSH_TRANSPORT__===undefined)w.__DSH_TRANSPORT__={};w.__DSH_TRANSPORT__.ownsHost=true}catch(e){}' +
     'var R=' + json + ';' +
     'function sf(p){' +
     'if(p.indexOf(R.pairPrefix)===0)return false;' +

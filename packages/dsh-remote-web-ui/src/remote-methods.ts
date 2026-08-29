@@ -1,6 +1,15 @@
 /**
  * Remote desktop channel constants — SDK-independent so tests and the
  * client half can pin them without importing the host SDK graph.
+ *
+ * Access model on the 0.1.2-alpha.1 line: the host /api surface has no
+ * per-method privilege pin — the "configuration plane is local" behavior
+ * lives in the browser (client plugins branch on connection.isLoopback), and
+ * the paired remote desktop flips into host mode via the transport hook
+ * (ownsHost) while every call rides this gated channel as a loopback-shaped
+ * request. A paired device is therefore a full-control credential by
+ * design; the only paths that stay physically local are the control planes
+ * below (pairing control, self-update, plugin install/remove, host power).
  */
 
 /** Gated mirror of same-origin fenced paths (`/remote` + original pathname). */
@@ -33,30 +42,34 @@ export const PLUGIN_MANAGER_PATH = '/api/plugin-manager'
 /** Desktop-launcher HTTP prefix: shortcut create and host shutdown stay physically local. */
 export const DESKTOP_LAUNCHER_PATH = '/api/dsh-desktop-launcher'
 
-/** Family settings-bridge HTTP prefix: describe/mutate stay physically local. */
+/** Family settings-bridge HTTP prefix — re-exposed to paired devices (plain settings parity). */
 export const WEB_UI_SETTINGS_BRIDGE_PATH = '/api/dsh-web-ui-settings'
 
 /**
- * Loopback-only methods of the host API surface, mirrored from
- * client-connection's `PRIVILEGED_METHODS` (pinned by
- * tests/remote-contract.spec.ts against the installed SDK). They stay
- * unreachable from a paired remote desktop, matching the SDK's own stance
- * that the configuration plane is loopback-same-origin only.
+ * Path prefixes that stay physically local even for a paired device. A
+ * paired remote desktop may use the full host API (chat, sessions,
+ * settings, credentials, presets — it is a full-control credential), but it
+ * must not reach the machine-control planes: pairing control itself, the
+ * dsh-web self-update installer, plugin install/remove, and desktop
+ * launcher actions (host shutdown, shortcuts).
  */
-export const LOOPBACK_ONLY_METHODS = new Set([
-  'agentPreset.read',
-  'agentPreset.copy',
-  'agentPreset.openDocument',
-  'agentPreset.remove',
-  'host.pickDirectory',
-  'host.openPath',
-  'settings.describe',
-  'settings.openDocument',
-  'settings.update',
-  'settings.replace',
-  'settings.mutate',
-  'credentials.describe',
-  'credentials.set',
-  'credentials.unset',
-  'llm.discoverModels',
-])
+export const LOCAL_ONLY_PREFIXES: readonly string[] = [
+  '/api/pair',
+  '/api/update',
+  PLUGIN_MANAGER_PATH,
+  DESKTOP_LAUNCHER_PATH,
+] as const
+
+/**
+ * Whether a paired inner path must stay physically local.
+ * @param innerPath - the rewritten inner path (e.g. `/api/session.list`).
+ * @returns a denial message, or undefined when the path may be proxied.
+ */
+export function localOnlyDenial(innerPath: string): string | undefined {
+  for (const prefix of LOCAL_ONLY_PREFIXES) {
+    if (innerPath === prefix || innerPath.startsWith(`${prefix}/`)) {
+      return `${prefix.slice(1)} stays physically local and stays unreachable from a paired remote desktop`
+    }
+  }
+  return undefined
+}

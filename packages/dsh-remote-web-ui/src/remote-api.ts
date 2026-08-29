@@ -1,21 +1,21 @@
 /**
  * The remote desktop data channel: `/remote` is this plugin's own prefix, so
- * the paired-device cookie is the access control (exactly like `/m/api`).
- * After that gate, every fenced same-origin path the browser rewrote here is
- * re-issued to 127.0.0.1 as a loopback-shaped request so sibling plugin
- * fences (and the connection plugin's `/api`) accept it — no `--trusted-host`
- * and no per-plugin pairing consult.
+ * the paired-device cookie is the access control. After that gate, every
+ * fenced same-origin path the browser rewrote here is re-issued to 127.0.0.1
+ * as a loopback-shaped request so sibling plugin fences (and the connection
+ * plugin's `/api`) accept it — no `--trusted-host` and no per-plugin pairing
+ * consult.
  *
  * Security model:
  * - While `requirePairingForLan` is on (default), every request must carry a
  *   live paired-device cookie, enforced before any bytes are forwarded and
  *   before any host call. With the policy off, the cookie gate is skipped
- *   (the loopback-only denials below still apply).
- * - The SDK's loopback-only privileged methods (native dialogs, the settings
- *   plane, credentials — the `PRIVILEGED_METHODS` set of client-connection)
- *   are denied here. The set is pinned by tests/remote-contract.spec.ts.
- * - `/api/pair/*`, `/api/update/*`, `/api/plugin-manager/*`,
- *   `/api/dsh-desktop-launcher/*` and `/api/dsh-web-ui-settings/*` stay physically local.
+ *   (the local-only denials below still apply).
+ * - A paired remote desktop is a full-control credential: the browser half
+ *   flips the official UI into host mode (the transport ownsHost hook), so
+ *   the configuration plane (settings, credentials, presets, deliverables)
+ *   rides this channel like every other call. The four control planes in
+ *   LOCAL_ONLY_PREFIXES stay physically local.
  * - Everything else is HTTP- or WebSocket-proxied to the local port with
  *   Host rewritten, Origin and cookies dropped, and a synthetic same-origin
  *   browser marker added after authentication. Plugin loopback fences then
@@ -30,22 +30,20 @@ import { readCookie } from './gate.ts'
 import { writeJson } from './http.ts'
 import { proxyLoopbackHttp, proxyLoopbackUpgrade } from './loopback-proxy.ts'
 import {
-  DESKTOP_LAUNCHER_PATH,
-  LOOPBACK_ONLY_METHODS,
-  PLUGIN_MANAGER_PATH,
   REMOTE_PREFIX,
   REMOTE_UPGRADE_PATHS,
-  WEB_UI_SETTINGS_BRIDGE_PATH,
+  localOnlyDenial,
 } from './remote-methods.ts'
 
 export {
   DESKTOP_LAUNCHER_PATH,
-  LOOPBACK_ONLY_METHODS,
+  LOCAL_ONLY_PREFIXES,
   PLUGIN_MANAGER_PATH,
   REMOTE_API_PATHS,
   REMOTE_PREFIX,
   REMOTE_UPGRADE_PATHS,
   WEB_UI_SETTINGS_BRIDGE_PATH,
+  localOnlyDenial,
 } from './remote-methods.ts'
 export { REMOTE_API_PREFIX } from './remote-methods.ts'
 
@@ -104,31 +102,12 @@ export function innerPathOf(pathname: string): string | undefined {
 }
 
 /**
- * Whether a paired inner path must stay physically local.
+ * Whether a paired inner path must stay physically local (delegates to the
+ * shared LOCAL_ONLY_PREFIXES table).
  * @returns a denial message, or undefined when the path may be proxied.
  */
 export function loopbackOnlyDenial(innerPath: string): string | undefined {
-  if (innerPath === '/api/pair' || innerPath.startsWith('/api/pair/')) {
-    return 'pairing endpoints stay loopback-only and stay unreachable from a paired remote desktop'
-  }
-  if (innerPath === '/api/update' || innerPath.startsWith('/api/update/')) {
-    return 'update endpoints stay loopback-only and stay unreachable from a paired remote desktop'
-  }
-  if (innerPath === PLUGIN_MANAGER_PATH || innerPath.startsWith(`${PLUGIN_MANAGER_PATH}/`)) {
-    return 'plugin-manager stays loopback-only and stays unreachable from a paired remote desktop'
-  }
-  if (innerPath === DESKTOP_LAUNCHER_PATH || innerPath.startsWith(`${DESKTOP_LAUNCHER_PATH}/`)) {
-    return 'desktop-launcher endpoints stay loopback-only and stay unreachable from a paired remote desktop'
-  }
-  if (innerPath === WEB_UI_SETTINGS_BRIDGE_PATH || innerPath.startsWith(`${WEB_UI_SETTINGS_BRIDGE_PATH}/`)) {
-    return 'settings-bridge endpoints stay loopback-only and stay unreachable from a paired remote desktop'
-  }
-  if (!innerPath.startsWith('/api/')) return undefined
-  const method = innerPath.slice('/api/'.length)
-  if (method !== '' && !method.includes('/') && LOOPBACK_ONLY_METHODS.has(method)) {
-    return `${method} is loopback-only and stays unreachable from a paired remote desktop`
-  }
-  return undefined
+  return localOnlyDenial(innerPath)
 }
 
 /**

@@ -25,7 +25,6 @@ const PATH_MATRIX = [
   '/git',
   '/pet/whale/sprite.webp',
   '/pet',
-  '/m/api/session.list',
   '/assets/index.js',
 ]
 
@@ -36,7 +35,6 @@ const WS_MATRIX = [
   '/sidebar/ws/agent-terminals',
   '/api/dsh-ssh/terminal',
   '/api/session.list',
-  '/m/api/events.mux',
 ]
 
 interface FakeWindow {
@@ -185,5 +183,20 @@ describe('remote channel boot patch (issue #987)', () => {
     expect(win[REMOTE_CHANNEL_BOOT_GLOBAL]).toBeUndefined()
     await win.fetch('/api/session.list', { method: 'POST' })
     expect(win.calls).toEqual(['http://192.168.1.20:3080/api/session.list'])
+  })
+
+  it('flips the official UI into host mode on non-loopback origins', () => {
+    const win = makeWindow('192.168.1.20') as Record<string, unknown>
+    boot(win as never)
+    const transport = win.__DSH_TRANSPORT__ as { ownsHost?: boolean } | undefined
+    expect(transport?.ownsHost).toBe(true)
+  })
+
+  it('does not flip host mode on loopback origins', () => {
+    const win = makeWindow('127.0.0.1') as Record<string, unknown>
+    boot(win as never)
+    expect(win.__DSH_TRANSPORT__).toBeUndefined()
+    // And nothing else was patched either.
+    expect(win[REMOTE_CHANNEL_BOOT_GLOBAL]).toBeUndefined()
   })
 })

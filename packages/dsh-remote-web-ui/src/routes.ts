@@ -92,6 +92,7 @@ export const PAIR_PATHS = {
   heartbeat: '/api/pair/heartbeat',
   status: '/api/pair/status',
   events: '/api/pair/events',
+  lanBind: '/api/pair/lan-bind',
 } as const
 
 /**
@@ -103,7 +104,6 @@ export const PAIR_PATHS = {
  * are tolerated exactly as the previous manual reads ignored them.
  */
 export const issuePayloadSchema = z.object({
-  workspaceId: z.string().min(1).optional(),
   address: z.string().min(1).optional(),
 })
 export const acceptPayloadSchema = z.object({
@@ -188,6 +188,13 @@ export interface PairRoutesDeps {
   lanAddresses: readonly string[]
   /** Current desktop gate policy, re-read for every status response. */
   requirePairingForLan?: boolean | (() => boolean)
+  /**
+   * LAN-bind facts for the settings card (managed patch block state, live
+   * bind host/port, firewall summary). Re-read per request so a hot-reloaded
+   * rebind and a fresh toggle round are both reflected without a restart.
+   * The route is loopback-only; undefined drops it (tests).
+   */
+  lanBindStatus?: () => Record<string, unknown>
 }
 
 /**
@@ -262,18 +269,21 @@ export function makeRoutes(deps: PairRoutesDeps): WebRoute[] {
       writeJson(res, 400, { ok: false, code: 'bad-payload' })
       return
     }
-    const { workspaceId, address } = payload
+    const { address } = payload
     try {
-      const { token, expiresAt } = service.issue(workspaceId, address)
+      // The QR link is the official Web GUI itself: after the accept round
+      // trip every device — phone or PC — boots the desktop SPA (phones get
+      // the injected portrait adaptation, PCs the full desktop UI), so the
+      // remote surface can never drift from the official one.
+      const { token, expiresAt } = service.issue(undefined, address)
       // The default base is the public (tunneled) URL when configured — a
       // phone anywhere can reach it — and the first LAN interface otherwise.
       // An explicit address always names a LAN literal.
       const base = address === undefined ? (service.publicBaseUrl ?? service.lanBaseUrl) : service.lanBaseUrlFor(address)
       if (base === undefined) throw new Error('remote-web-ui: base unavailable')
-      const workspaceQuery = workspaceId === undefined ? '' : `&workspace=${encodeURIComponent(workspaceId)}`
       writeJson(res, 200, {
         ok: true,
-        url: `${base}/m/?pair=${token}${workspaceQuery}`,
+        url: `${base}/?pair=${token}`,
         token,
         expiresAt,
         // Every constructible base, so a multi-homed panel can switch the
@@ -412,7 +422,17 @@ export function makeRoutes(deps: PairRoutesDeps): WebRoute[] {
     events.push(service.snapshot())
   }
 
-  return [
+  /** LAN-bind facts for the settings card; loopback-only, read per request. */
+  const handleLanBind = (req: IncomingMessage, res: ServerResponse): void => {
+    if (!requireMethod(req, res, 'GET')) return
+    if (!loopbackFence(req)) {
+      writeJson(res, 403, { ok: false, code: 'forbidden' })
+      return
+    }
+    writeJson(res, 200, { ok: true, ...(deps.lanBindStatus?.() ?? {}) })
+  }
+
+  const routes: WebRoute[] = [
     { kind: 'exact', path: PAIR_PATHS.issue, handler: handleIssue },
     { kind: 'exact', path: PAIR_PATHS.accept, handler: handleAccept },
     { kind: 'exact', path: PAIR_PATHS.stop, handler: handleStop },
@@ -421,4 +441,8 @@ export function makeRoutes(deps: PairRoutesDeps): WebRoute[] {
     { kind: 'exact', path: PAIR_PATHS.status, handler: handleStatus },
     { kind: 'exact', path: PAIR_PATHS.events, handler: handleEvents },
   ]
+  if (deps.lanBindStatus !== undefined) {
+    routes.push({ kind: 'exact', path: PAIR_PATHS.lanBind, handler: handleLanBind })
+  }
+  return routes
 }

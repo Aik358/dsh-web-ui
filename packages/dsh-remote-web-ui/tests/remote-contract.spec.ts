@@ -1,28 +1,31 @@
 /**
- * SDK contract pins: the remote desktop channel mirrors client-connection
- * internals (the loopback-only method set, the /api transport paths and
- * envelope type strings). The 0.1.2 cohort restructured the connection
- * package: the dist no longer ships a PRIVILEGED_METHODS table nor the
- * events.mux/events.host literals in lib/index.js, so the rc-line pins are
- * suspended until the channel is re-derived against the 0.1.2 /api surface
- * (tracked as the follow-up of this migration). The channel's own path
- * constants stay pinned below.
+ * SDK contract pins: on the 0.1.2-alpha.1 line the host /api surface carries
+ * no per-method privilege table — the "configuration plane is local"
+ * behavior lives in the browser (client plugins branch on
+ * connection.isLoopback), and the paired remote desktop flips into host mode
+ * via the transport ownsHost hook installed by the boot script. The channel
+ * therefore pins its own path constants and the physically-local control
+ * planes instead.
  */
 import { describe, expect, it } from 'vitest'
-import { LOOPBACK_ONLY_METHODS, REMOTE_API_PATHS } from '../src/remote-methods.ts'
+import { LOCAL_ONLY_PREFIXES, REMOTE_API_PATHS, REMOTE_UPGRADE_PATHS, localOnlyDenial } from '../src/remote-methods.ts'
 
-describe('client-connection contract pins (0.1.2 line)', () => {
-  it.skip('the loopback-only method set matches the installed SDK exactly (0.1.2 dist no longer ships the table; re-derive)', () => {})
-
-  it.skip('the browser event streams still live at /api/events.{mux,host} (0.1.2 moved the downlinks; re-derive)', () => {})
-
-  it.skip('the unary envelope still uses the client-request/server-response pair (0.1.2 moved the carrier; re-derive)', () => {})
-
-  it.skip('the browser client still issues unary calls as POST /api/<method> (0.1.2 restructured the client; re-derive)', () => {})
-
+describe('remote channel contract pins (0.1.2 line)', () => {
   it('the channel rewrite surface keeps its own fixed path constants', () => {
     expect(REMOTE_API_PATHS.mux).toBe('/remote/api/events.mux')
     expect(REMOTE_API_PATHS.host).toBe('/remote/api/events.host')
-    expect(LOOPBACK_ONLY_METHODS.size).toBeGreaterThan(0)
+    expect(REMOTE_UPGRADE_PATHS).toContain('/remote/api/dsh-ssh/terminal')
+  })
+
+  it('exactly four control planes stay physically local', () => {
+    expect(LOCAL_ONLY_PREFIXES).toEqual([
+      '/api/pair',
+      '/api/update',
+      '/api/plugin-manager',
+      '/api/dsh-desktop-launcher',
+    ])
+    for (const prefix of LOCAL_ONLY_PREFIXES) {
+      expect(localOnlyDenial(prefix)).toBeDefined()
+    }
   })
 })

@@ -9,8 +9,8 @@ import type { AddressInfo } from 'node:net'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import { PairingService } from '../src/pairing.ts'
 import {
+  LOCAL_ONLY_PREFIXES,
   innerPathOf,
-  LOOPBACK_ONLY_METHODS,
   loopbackOnlyDenial,
   makeRemoteApiRoutes,
 } from '../src/remote-api.ts'
@@ -156,20 +156,27 @@ describe('innerPathOf / loopbackOnlyDenial', () => {
     expect(innerPathOf('/remote/api/%5csecret')).toBeUndefined()
   })
 
-  it('denies privileged SDK methods, pairing, update, plugin-manager, desktop-launcher, and the settings bridge', () => {
-    expect(loopbackOnlyDenial('/api/settings.update')).toBeDefined()
+  it('keeps the control planes local; the full host API is available to a paired device', () => {
     expect(loopbackOnlyDenial('/api/pair')).toBeDefined()
     expect(loopbackOnlyDenial('/api/pair/status')).toBeDefined()
     expect(loopbackOnlyDenial('/api/pair/revoke')).toBeDefined()
     expect(loopbackOnlyDenial('/api/update/run')).toBeDefined()
+    expect(loopbackOnlyDenial('/api/update/status')).toBeDefined()
     expect(loopbackOnlyDenial('/api/plugin-manager/install')).toBeDefined()
     expect(loopbackOnlyDenial('/api/dsh-desktop-launcher')).toBeDefined()
     expect(loopbackOnlyDenial('/api/dsh-desktop-launcher/shutdown')).toBeDefined()
     expect(loopbackOnlyDenial('/api/dsh-desktop-launcher/create')).toBeDefined()
-    expect(loopbackOnlyDenial('/api/dsh-web-ui-settings')).toBeDefined()
-    expect(loopbackOnlyDenial('/api/dsh-web-ui-settings/describe')).toBeDefined()
-    expect(loopbackOnlyDenial('/api/dsh-web-ui-settings/mutate')).toBeDefined()
+    // No per-method host pin exists on this line: the configuration plane
+    // (settings / credentials / presets) is a client-side branch, flipped by
+    // the transport ownsHost hook, and rides the gated channel like any
+    // other call.
     expect(loopbackOnlyDenial('/api/session.list')).toBeUndefined()
+    expect(loopbackOnlyDenial('/api/settings/describe')).toBeUndefined()
+    expect(loopbackOnlyDenial('/api/settings/mutate')).toBeUndefined()
+    expect(loopbackOnlyDenial('/api/credentials/set')).toBeUndefined()
+    expect(loopbackOnlyDenial('/api/agentPresets/read')).toBeUndefined()
+    expect(loopbackOnlyDenial('/api/llm/discoverModels')).toBeUndefined()
+    expect(loopbackOnlyDenial('/api/dsh-web-ui-settings/describe')).toBeUndefined()
     expect(loopbackOnlyDenial('/api/pet/state')).toBeUndefined()
     expect(loopbackOnlyDenial('/sidebar/api/fs.tree')).toBeUndefined()
   })
@@ -290,7 +297,7 @@ describe('remote desktop channel (/remote)', () => {
     }
   })
 
-  it('still denies loopback-only paths when the pairing policy is off', async () => {
+  it('still denies the control planes when the pairing policy is off', async () => {
     const service = makeService()
     const upstream = await startUpstream(() => ({ status: 200, body: '{"leaked":true}' }))
     const { port, close } = await serve(makeRemoteApiRoutes({ service, port: upstream.port, requirePairingForLan: false }))
@@ -300,11 +307,15 @@ describe('remote desktop channel (/remote)', () => {
       const pairBody = JSON.parse(pair.body) as { result: { ok: boolean; error: { code: string } } }
       expect(pairBody.result.ok).toBe(false)
       expect(pairBody.result.error.code).toBe('forbidden')
-      const privileged = await call(port, 'POST', '/remote/api/settings.update', { body: '{}' })
-      expect(privileged.status).toBe(403)
-      const privilegedBody = JSON.parse(privileged.body) as { result: { error: { code: string } } }
-      expect(privilegedBody.result.error.code).toBe('forbidden')
-      expect(upstream.hits).toHaveLength(0)
+      const launcher = await call(port, 'POST', '/remote/api/dsh-desktop-launcher/shutdown', { body: '{}' })
+      expect(launcher.status).toBe(403)
+      const launcherBody = JSON.parse(launcher.body) as { result: { error: { code: string } } }
+      expect(launcherBody.result.error.code).toBe('forbidden')
+      // Non-control paths still proxy with the policy off (the stale client
+      // rewrite must not 403), including the configuration plane.
+      const settings = await call(port, 'POST', '/remote/api/settings/describe', { body: '{}' })
+      expect(settings.status).toBe(200)
+      expect(upstream.hits.map(hit => hit.url)).toEqual(['/api/settings/describe'])
     } finally {
       await close()
       await upstream.close()
@@ -334,20 +345,20 @@ describe('remote desktop channel (/remote)', () => {
     }
   })
 
-  it('denies every loopback-only method with a forbidden envelope', async () => {
+  it('denies every physically-local control plane with a forbidden envelope', async () => {
     const service = makeService()
     const cookie = pairedCookie(service)
     const { port, close } = await serve(makeRemoteApiRoutes({ service, port: 1 }))
     try {
-      for (const method of LOOPBACK_ONLY_METHODS) {
-        const result = await call(port, 'POST', `/remote/api/${method}`, {
-          body: ENVELOPE(`rpc-${method}`, method, {}),
+      for (const prefix of LOCAL_ONLY_PREFIXES) {
+        const result = await call(port, 'POST', `/remote${prefix}/probe`, {
+          body: ENVELOPE(`rpc-${prefix}`, prefix, {}),
           cookie,
         })
-        expect(result.status, method).toBe(403)
+        expect(result.status, prefix).toBe(403)
         const body = JSON.parse(result.body) as { rpcId: string; result: { ok: boolean; error: { code: string } } }
-        expect(body.result.ok, method).toBe(false)
-        expect(body.result.error.code, method).toBe('forbidden')
+        expect(body.result.ok, prefix).toBe(false)
+        expect(body.result.error.code, prefix).toBe('forbidden')
       }
       const manager = await call(port, 'POST', '/remote/api/plugin-manager/install', { cookie, body: '{}' })
       expect(manager.status).toBe(403)
@@ -395,19 +406,19 @@ describe('remote desktop channel (/remote)', () => {
     }
   })
 
-  it('denies the family settings bridge to a paired remote desktop', async () => {
+  it('re-exposes the family settings bridge to a paired remote desktop (settings parity)', async () => {
     const service = makeService()
     const cookie = pairedCookie(service)
-    const upstream = await startUpstream(() => ({ status: 200, body: '{"leaked":true}' }))
+    const upstream = await startUpstream((req) => {
+      if (req.url === '/api/dsh-web-ui-settings/describe') return { status: 200, body: JSON.stringify({ ok: true, value: {} }) }
+      return { status: 404, body: 'no' }
+    })
     const { port, close } = await serve(makeRemoteApiRoutes({ service, port: upstream.port }))
     try {
-      for (const path of ['/remote/api/dsh-web-ui-settings/describe', '/remote/api/dsh-web-ui-settings/mutate']) {
-        const result = await call(port, 'POST', path, { cookie, body: '{}' })
-        expect(result.status, path).toBe(403)
-        const body = JSON.parse(result.body) as { result: { error: { code: string } } }
-        expect(body.result.error.code, path).toBe('forbidden')
-      }
-      expect(upstream.hits).toHaveLength(0)
+      const result = await call(port, 'POST', '/remote/api/dsh-web-ui-settings/describe', { cookie, body: '{}' })
+      expect(result.status).toBe(200)
+      expect(JSON.parse(result.body)).toEqual({ ok: true, value: {} })
+      expect(upstream.hits.map(hit => hit.url)).toEqual(['/api/dsh-web-ui-settings/describe'])
     } finally {
       await close()
       await upstream.close()

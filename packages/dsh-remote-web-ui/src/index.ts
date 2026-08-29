@@ -23,13 +23,11 @@ import { dshHome } from './dsh-home.ts'
 import { isPairedDeviceRequest, makeGateListener } from './gate.ts'
 import { RemoteWebUiPairing } from './pairing-access.ts'
 import { isTrustedApiRequest, makeRoutes } from './routes.ts'
-import { makeMobileRoutes } from './mobile-routes.ts'
-import { makeMobileApiRoutes } from './mobile-api.ts'
-import { PendingTracker } from './mobile-pending.ts'
-import { makePairedModelCatalogRoutes } from './paired-model-catalog.ts'
 import { makeRemoteApiRoutes, makeRemoteApiUpgradeRoutes } from './remote-api.ts'
 import { claimPostureKey, postureTargets, probePosture, releasePostureKey } from './posture.ts'
 import { lanIPv4Addresses } from './lan.ts'
+import { ensureFirewallRule, firewallSummary, removeFirewallRule } from './firewall.ts'
+import { lanBindState, writeLanBind, type LanBindHost } from './lan-bind.ts'
 import { TunnelManager, type TunnelInfo } from './tunnel.ts'
 import {
   checkUpdates,
@@ -68,7 +66,7 @@ declare module '@deepseek-ai/cordis' {
 export const name = 'remote-web-ui'
 
 /** Services required before the pairing surfaces can mount. */
-export const inject = ['webServer', 'typertGateway', 'workspaceRegistry', 'commands', 'agents']
+export const inject = ['webServer', 'typertGateway']
 
 /**
  * Settings namespace of the remote-control capability — the section the web
@@ -125,12 +123,21 @@ export interface Config {
    */
   autoTunnel?: boolean
   /**
-   * Mobile composer behavior: when true (default), a plain Enter in the
-   * phone chat textarea sends the prompt and Shift+Enter inserts a newline.
-   * When false, plain Enter inserts a newline and only the send button
-   * sends (Shift+Enter keeps inserting a newline).
+   * LAN bind toggle. When the user flips it (true or false) the plugin
+   * writes the managed webserver block into the profile patch — true pins
+   * the bind default to 0.0.0.0 (an explicit --host flag still wins), false
+   * pins it back to 127.0.0.1 — and maintains the matching host firewall
+   * rule (Windows netsh; Linux firewalld/ufw/iptables; other platforms
+   * report the firewall as unmanaged). The patch hot-reloads, so the rebind
+   * applies without a restart. While the toggle has never been set
+   * (undefined), the plugin does not touch the patch file at all.
    */
-  mobileEnterToSend?: boolean
+  lanBind?: boolean
+  /**
+   * The profile whose cordis.patch.yml the LAN bind toggle manages.
+   * Defaults to the DSH_PROFILE environment variable, then "web".
+   */
+  profile?: string
   /** Master switch for the plugin (browser half + host pairing surfaces). */
   enabled?: boolean
 }
@@ -145,7 +152,8 @@ export const Config: z<Config> = z.object({
   publicBaseUrl: z.string(),
   devicesFile: z.string(),
   autoTunnel: z.boolean().default(false),
-  mobileEnterToSend: z.boolean().default(true),
+  lanBind: z.boolean(),
+  profile: z.string().min(1),
   enabled: z.boolean().default(true),
 })
 
@@ -157,9 +165,12 @@ const SWEEP_INTERVAL_MS = 10_000
  * which legitimately resolves to `undefined` when unset (the schema keeps it
  * optional, so `Required` alone would over-narrow it to `string`).
  */
-type ResolvedConfig = Required<Omit<Config, 'publicBaseUrl' | 'devicesFile'>> & {
+type ResolvedConfig = Required<Omit<Config, 'publicBaseUrl' | 'devicesFile' | 'lanBind' | 'profile'>> & {
   publicBaseUrl: string | undefined
   devicesFile: string
+  /** undefined until the user flips the toggle once; undefined never writes the patch. */
+  lanBind: boolean | undefined
+  profile: string
 }
 
 /**
@@ -198,7 +209,8 @@ const DEFAULTS: ResolvedConfig = {
   publicBaseUrl: undefined,
   devicesFile: defaultDevicesFile(),
   autoTunnel: false,
-  mobileEnterToSend: true,
+  lanBind: undefined,
+  profile: process.env.DSH_PROFILE ?? 'web',
   enabled: true,
 }
 
@@ -220,7 +232,8 @@ function applyImpl(ctx: Context, config?: Config): void {
     publicBaseUrl: config?.publicBaseUrl,
     devicesFile: config?.devicesFile ?? DEFAULTS.devicesFile,
     autoTunnel: config?.autoTunnel ?? DEFAULTS.autoTunnel,
-    mobileEnterToSend: config?.mobileEnterToSend ?? DEFAULTS.mobileEnterToSend,
+    lanBind: config?.lanBind,
+    profile: config?.profile ?? process.env.DSH_PROFILE ?? DEFAULTS.profile,
     enabled: config?.enabled ?? DEFAULTS.enabled,
   }
   // The live source the pairing service and the gate read: the settings
@@ -239,7 +252,8 @@ function applyImpl(ctx: Context, config?: Config): void {
       publicBaseUrl: value.publicBaseUrl,
       devicesFile: value.devicesFile ?? DEFAULTS.devicesFile,
       autoTunnel: value.autoTunnel ?? DEFAULTS.autoTunnel,
-      mobileEnterToSend: value.mobileEnterToSend ?? DEFAULTS.mobileEnterToSend,
+      lanBind: value.lanBind,
+      profile: value.profile ?? process.env.DSH_PROFILE ?? DEFAULTS.profile,
       enabled: value.enabled ?? DEFAULTS.enabled,
     }
   }
@@ -292,14 +306,6 @@ function applyImpl(ctx: Context, config?: Config): void {
   // (now vetoing every non-loopback request) instead of opening the fence.
   let disposeRoutes: (() => void) | undefined
   let disposeSweep: (() => void) | undefined
-  // The phone's data channel: pairing routes + the /m page + the /m/api
-  // gateway proxy (which needs the typertGateway and workspaceRegistry host
-  // services; the plugin injects both).
-  const gateway = ctx.get('typertGateway') as import('./host-gateway.ts').TypertGatewayFace | undefined
-  const workspaceRegistry = ctx.get('workspaceRegistry') as import('./host-gateway.ts').WorkspaceRegistryFace | undefined
-  if (gateway === undefined || workspaceRegistry === undefined) {
-    console.warn('remote-web-ui: typertGateway/workspaceRegistry service unavailable — the mobile data channel is disabled')
-  }
   // ── remote update ────────────────────────────────────────────────────────
   // The dsh-web self-update surface: probe the npm registry for family
   // releases and run `pnpm update --latest` in the owning profile. Resolutions
@@ -374,30 +380,34 @@ function applyImpl(ctx: Context, config?: Config): void {
       })
     },
   })
+  // LAN-bind facts for the settings card, re-read per request so a hot
+  // rebind (the patch watcher recomposes the process) and a fresh toggle
+  // round are both reflected without a restart.
+  const lanBindStatus = (): Record<string, unknown> => {
+    const resolvedNow = resolve()
+    const state = lanBindState(resolvedNow.profile)
+    const lanOn = state.host === '0.0.0.0'
+    const port = ctx.webServer.port
+    return {
+      profile: resolvedNow.profile,
+      setting: resolvedNow.lanBind ?? null,
+      blockHost: state.host ?? null,
+      bindHost: ctx.webServer.host,
+      port,
+      lanUrls: ctx.webServer.host === '0.0.0.0'
+        ? lanIPv4Addresses().map(address => `http://${address}:${String(port)}`)
+        : [],
+      firewall: firewallSummary(port, lanOn),
+      platform: process.platform,
+    }
+  }
   const routes = [
-    ...makeRoutes({ service, lanAddresses, requirePairingForLan: () => resolve().requirePairingForLan }),
-    ...makeMobileRoutes(),
-    ...(gateway !== undefined && workspaceRegistry !== undefined
-      ? makeMobileApiRoutes({
-          service,
-          gateway,
-          workspaceRegistry,
-          pendingTracker: new PendingTracker(),
-          mobileEnterToSend: () => resolve().mobileEnterToSend,
-          commandDispatcher: ctx.commands !== undefined && ctx.agents !== undefined
-            ? {
-                async execute(sessionId, line, signal) {
-                  const agent = ctx.agents.get(sessionId as never)
-                  if (agent === undefined) return { error: 'session-not-found' as const }
-                  const execution = await ctx.commands.execute(agent, line, [], signal)
-                  if (execution === undefined) return { error: 'unknown-command' as const }
-                  return { ok: true as const, result: execution.result }
-                },
-              }
-            : undefined,
-        })
-      : []),
-    ...(gateway !== undefined ? makePairedModelCatalogRoutes({ service, gateway, lanAddresses }) : []),
+    ...makeRoutes({
+      service,
+      lanAddresses,
+      requirePairingForLan: () => resolve().requirePairingForLan,
+      lanBindStatus,
+    }),
     // The remote desktop channel: policy-gated `/remote` prefix that
     // re-issues fenced paths to loopback (see remote-api.ts). The live
     // requirePairingForLan is re-read per request, same as the gate listener
@@ -467,13 +477,37 @@ function applyImpl(ctx: Context, config?: Config): void {
   })
 
   if (lanAddresses.length > 0) {
-    const urls = lanAddresses.map(ip => `http://${ip}:${String(ctx.webServer.port)}/m/`).join(' , ')
-    console.log(`remote-web-ui: mobile UI reachable on LAN at ${urls}`)
+    const urls = lanAddresses.map(ip => `http://${ip}:${String(ctx.webServer.port)}`).join(' , ')
+    console.log(`remote-web-ui: the paired Web GUI is reachable on LAN at ${urls}`)
   }
 
   const sync = (): void => {
     const value = resolve()
     service.config = pairingConfigOf(value)
+    // LAN bind toggle: only write the managed patch block once the user has
+    // flipped it (undefined = untouched, never write). The desired host must
+    // differ from the on-disk block before writing, so unrelated settings
+    // edits do not churn the patch file (each write trips a hot reload).
+    if (value.lanBind !== undefined) {
+      const desiredHost: LanBindHost = value.lanBind ? '0.0.0.0' : '127.0.0.1'
+      const current = lanBindState(value.profile)
+      if (current.host !== desiredHost) {
+        try {
+          writeLanBind(desiredHost, value.profile)
+          console.log(`remote-web-ui: lan-bind block written for profile ${value.profile} (host default ${desiredHost}); the patch hot-reloads`)
+        } catch (error) {
+          console.error(`remote-web-ui: failed to write the lan-bind block: ${error instanceof Error ? error.message : String(error)}`)
+        }
+      }
+      // Keep the firewall rule aligned with the toggle (managed platforms
+      // only; see firewall.ts). The port is the live bind port.
+      const ruleOk = value.lanBind
+        ? ensureFirewallRule(ctx.webServer.port)
+        : removeFirewallRule(ctx.webServer.port)
+      if (!ruleOk) {
+        console.error('remote-web-ui: the host firewall rule could not be updated (admin rights required on managed platforms)')
+      }
+    }
     // The auto tunnel owns the public base while enabled: the minted URL
     // lands in the service through the tunnel's phase listener. The manual
     // publicBaseUrl applies only when the auto tunnel is off.
