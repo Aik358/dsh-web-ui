@@ -66,6 +66,7 @@ const MANIFEST = [
       'packages/dsh-web-settings/src/dsh-home.ts',
       'packages/dsh-market/src/dsh-home.ts',
       'packages/dsh-git-graph/src/host/dsh-home.ts',
+      'packages/dsh-usage/src/dsh-home.ts',
     ],
   },
   {
@@ -100,6 +101,7 @@ const MANIFEST = [
       'packages/dsh-doctor/src/mount-once.ts',
       'packages/skins/skin-center/src/mount-once.ts',
       'packages/dsh-market/src/mount-once.ts',
+      'packages/dsh-usage/src/mount-once.ts',
     ],
   },
 
@@ -136,7 +138,7 @@ const MANIFEST = [
   {
     file: 'loopback.ts',
     source: 'shared/host/loopback.ts',
-    targets: ['packages/dsh-ssh/src/loopback.ts', 'packages/dsh-git-graph/src/host/loopback.ts', 'packages/dsh-remote-web-ui/src/loopback.ts', 'packages/dsh-task-board/src/loopback.ts', 'packages/dsh-skill-explorer/src/loopback.ts', 'packages/dsh-pet/src/loopback.ts', 'packages/dsh-plugin-manager/src/host/loopback.ts', 'packages/dsh-tool-describe-image/src/loopback.ts', 'packages/dsh-desktop-launcher/src/loopback.ts', 'packages/dsh-doctor/src/host/loopback.ts', 'packages/dsh-market/src/loopback.ts'],
+    targets: ['packages/dsh-ssh/src/loopback.ts', 'packages/dsh-git-graph/src/host/loopback.ts', 'packages/dsh-remote-web-ui/src/loopback.ts', 'packages/dsh-task-board/src/loopback.ts', 'packages/dsh-skill-explorer/src/loopback.ts', 'packages/dsh-pet/src/loopback.ts', 'packages/dsh-plugin-manager/src/host/loopback.ts', 'packages/dsh-tool-describe-image/src/loopback.ts', 'packages/dsh-desktop-launcher/src/loopback.ts', 'packages/dsh-doctor/src/host/loopback.ts', 'packages/dsh-market/src/loopback.ts', 'packages/dsh-usage/src/host/loopback.ts'],
   },
   {
     file: 'http.ts',
@@ -155,6 +157,7 @@ const MANIFEST = [
       'packages/skins/skin-center/src/http.ts',
       'packages/dsh-remote-web-ui/src/http.ts',
       'packages/dsh-task-board/src/http.ts',
+      'packages/dsh-usage/src/host/http.ts',
     ],
   },
   {

@@ -1,0 +1,108 @@
+/**
+ * The usage ledger: a pure fold from session usage facts into a per-day,
+ * per-provider, per-model totals document, plus its JSON serialization.
+ * Host-side state lives only in the document; the service owns persistence.
+ * @module @linxin666/dsh-usage/core/ledger
+ */
+
+import { addTotals, emptyTotals, type UsageLedgerDocument, type UsageTokenTotals } from './types.ts'
+
+/** Local-date key (`YYYY-MM-DD`) for an epoch ms timestamp. */
+export function localDateKey(ms: number): string {
+  const date = new Date(ms)
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${date.getFullYear()}-${month}-${day}`
+}
+
+/** An empty ledger document. */
+export function createLedgerDocument(): UsageLedgerDocument {
+  return { version: 1, days: {} }
+}
+
+/**
+ * Fold one usage report into the ledger in place. `provider` is the route key
+ * and `model` the provider-owned model id the step ran under.
+ */
+export function foldUsage(
+  doc: UsageLedgerDocument,
+  atMs: number,
+  provider: string,
+  model: string,
+  usage: Readonly<UsageTokenTotals>,
+): void {
+  if (usage.calls <= 0 && usage.inputTokens + usage.outputTokens + usage.cacheReadTokens + usage.cacheWriteTokens <= 0) return
+  const dayKey = localDateKey(atMs)
+  const day = doc.days[dayKey] ?? {}
+  const models = day[provider] ?? {}
+  const totals = models[model] ?? emptyTotals()
+  addTotals(totals, usage)
+  models[model] = totals
+  day[provider] = models
+  doc.days[dayKey] = day
+}
+
+/** Total tokens of a bucket (billed input + output; reasoning is inside output). */
+export function totalTokens(totals: Readonly<UsageTokenTotals>): number {
+  return totals.inputTokens + totals.cacheReadTokens + totals.cacheWriteTokens + totals.outputTokens
+}
+
+/** All local-date keys in the ledger, ascending. */
+export function ledgerDayKeys(doc: Readonly<UsageLedgerDocument>): string[] {
+  return Object.keys(doc.days).sort()
+}
+
+/**
+ * Drop every day older than `retainDays` local days before `todayKey`, in
+ * place. Returns the number of pruned days.
+ */
+export function pruneLedger(doc: UsageLedgerDocument, todayKey: string, retainDays: number): number {
+  const cutoff = new Date(todayKey + 'T00:00:00')
+  cutoff.setDate(cutoff.getDate() - retainDays)
+  const cutoffKey = localDateKey(cutoff.getTime())
+  let pruned = 0
+  for (const key of Object.keys(doc.days)) {
+    if (key < cutoffKey) {
+      delete doc.days[key]
+      pruned += 1
+    }
+  }
+  return pruned
+}
+
+function reviveTotals(value: unknown): UsageTokenTotals | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+  const source = value as Record<string, unknown>
+  const num = (key: string): number => typeof source[key] === 'number' && Number.isFinite(source[key]) ? source[key] : 0
+  return {
+    inputTokens: num('inputTokens'),
+    outputTokens: num('outputTokens'),
+    cacheReadTokens: num('cacheReadTokens'),
+    cacheWriteTokens: num('cacheWriteTokens'),
+    reasoningTokens: num('reasoningTokens'),
+    calls: num('calls'),
+  }
+}
+
+/**
+ * Parse a ledger document from untrusted JSON: unknown shapes resolve to an
+ * empty document, malformed entries are dropped, numbers are coerced to
+ * finite values. Never throws.
+ */
+export function deserializeLedger(value: unknown): UsageLedgerDocument {
+  const doc = createLedgerDocument()
+  if (typeof value !== 'object' || value === null) return doc
+  const days = (value as Record<string, unknown>).days
+  if (typeof days !== 'object' || days === null) return doc
+  for (const [dateKey, providers] of Object.entries(days as Record<string, unknown>)) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey) || typeof providers !== 'object' || providers === null) continue
+    for (const [provider, models] of Object.entries(providers as Record<string, unknown>)) {
+      if (typeof models !== 'object' || models === null) continue
+      for (const [model, totals] of Object.entries(models as Record<string, unknown>)) {
+        const revived = reviveTotals(totals)
+        if (revived !== undefined) foldUsage(doc, new Date(dateKey + 'T12:00:00').getTime(), provider, model, revived)
+      }
+    }
+  }
+  return doc
+}

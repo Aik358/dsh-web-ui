@@ -28,6 +28,7 @@ patchFrom:
   - ../dsh-skill-explorer
   - ../dsh-desktop-launcher
   - ../dsh-doctor
+  - ../dsh-usage
   - ../skins/skin-center
 self:
   - web-ui-compat
@@ -46,6 +47,7 @@ deps:
   - ../dsh-skill-explorer
   - ../dsh-desktop-launcher
   - ../dsh-doctor
+  - ../dsh-usage
   - ../dsh-web-settings
   - ../skins/skin-center
 # 外部 npm 插件：dsh-better-sidebar 接管右侧面板位置。行名从 profile 顶层

@@ -99,6 +99,11 @@
     - id: web-ui-doctor
       name: '@linxin666/dsh-doctor'
 
+# from ../dsh-usage
+- insert:
+    - id: web-ui-usage
+      name: '@linxin666/dsh-usage'
+
 # from ../skins/skin-center
 - insert:
     - id: web-ui-skin-center
