@@ -187,12 +187,44 @@ describe('/api/pair routes', () => {
       expect(bad.raw).toContain('配对链接已失效或已被使用')
       expect(bad.raw).toContain('refresh the QR code')
       expect(bad.cookies ?? []).toEqual([])
-      // An already-paired device re-opening a consumed link is sent on to
-      // the app (its browser credential was redeemed during the first scan).
+      // An already-paired device re-opening a stale (invalid) link is sent
+      // on to the app (its browser credential was redeemed during the first
+      // scan).
       const reOpen = await call(port, 'GET', '/pair-accept?pair=dead', { host: '192.168.1.5:3080', cookie: 'dsh_pair=tok-1' })
       expect(reOpen.status).toBe(303)
       expect(reOpen.location).toBe('/')
       expect(reOpen.cookies ?? []).toEqual([])
+    } finally {
+      await close()
+    }
+  })
+
+  it('completes the auth chain when a prefetch consumed the token (used + live device cookie)', async () => {
+    const service = makeService()
+    const { port, close } = await serve(makeRoutes({
+      service,
+      lanAddresses: ['192.168.1.5'],
+      authenticatedHome: (origin: string) => `${origin}/?token=launch-1`,
+    }))
+    try {
+      service.issue()
+      // First GET (the prefetch): consumes the one-time token and sets the
+      // device cookie.
+      const first = await call(port, 'GET', '/pair-accept?pair=tok-1', { host: '192.168.1.5:3080' })
+      expect(first.status).toBe(303)
+      expect(first.cookies[0]).toMatch(/^dsh_pair=tok-1;/)
+      // Second GET (the real navigation, same browser): the token reads
+      // `used`, but this device completed its own pairing - finish the
+      // chain with the launch-token redirect instead of failing it.
+      const second = await call(port, 'GET', '/pair-accept?pair=tok-1', { host: '192.168.1.5:3080', cookie: 'dsh_pair=tok-1' })
+      expect(second.status).toBe(303)
+      expect(second.location).toBe('http://192.168.1.5:3080/?token=launch-1')
+      expect(second.cookies[0]).toMatch(/^dsh_pair=tok-1;/)
+      // A different (unknown) device cookie does NOT get the recovery: it
+      // is not the device that consumed the token.
+      const stranger = await call(port, 'GET', '/pair-accept?pair=tok-1', { host: '192.168.1.5:3080', cookie: 'dsh_pair=unknown-device' })
+      expect(stranger.status).toBe(200)
+      expect(stranger.raw).toContain('refresh the QR code')
     } finally {
       await close()
     }
