@@ -59,6 +59,31 @@ describe('deserializeLedger', () => {
     // Non-numeric buckets revive to zero, and an all-zero report folds to nothing.
     expect(deserializeLedger({ days: { '2026-08-29': { p: { m: { inputTokens: '7', calls: NaN } } } } }).days['2026-08-29']).toBeUndefined()
   })
+
+  it('drops prototype-plumbing keys instead of polluting Object.prototype', () => {
+    // JSON.parse creates own '__proto__'/'constructor' properties, so the
+    // entries survive Object.entries and reach the fold.
+    const poisoned = JSON.parse('{"days":{"2026-08-29":{"__proto__":{"evil":{"calls":1}},"constructor":{"evil2":{"calls":1}},"deepseek":{"deepseek-v4-pro":{"calls":1}}}}}')
+    const doc = deserializeLedger(poisoned)
+    expect(doc.days['2026-08-29']?.deepseek).toBeDefined()
+    // Only the legitimate provider bucket survives; the plumbing-keyed
+    // entries never become own properties.
+    expect(Object.keys(doc.days['2026-08-29']!)).toEqual(['deepseek'])
+    // The global prototype stays clean.
+    expect((Object.prototype as unknown as Record<string, unknown>).evil).toBeUndefined()
+    expect((Object.prototype as unknown as Record<string, unknown>).evil2).toBeUndefined()
+  })
+
+  it('rejects impossible and rollover dates instead of folding NaN days', () => {
+    const doc = deserializeLedger({
+      days: {
+        '9999-99-99': { deepseek: { m: { calls: 1 } } },
+        '2026-02-30': { deepseek: { m: { calls: 1 } } },
+        '2026-08-29': { deepseek: { m: { calls: 1 } } },
+      },
+    })
+    expect(Object.keys(doc.days)).toEqual(['2026-08-29'])
+  })
 })
 
 describe('ledgerDayKeys + totalTokens', () => {

@@ -54,6 +54,20 @@ describe('kimi coding plan parse', () => {
     expect(parsed?.windows).toContainEqual({ key: '5h', name: '5h limit', percent: 2, resetsAt: '2026-08-29T12:00:00.000Z' })
     expect(parsed?.windows).toContainEqual({ key: 'week', name: 'Weekly', percent: 45, resetsAt: '2026-08-31T00:00:00.000Z' })
   })
+
+  it('normalizes reset instants or drops them (never passes raw text through)', () => {
+    const parse = (resetTime: unknown) =>
+      adapter.plan?.parse(200, { limits: [{ window: { duration: 60, timeUnit: 'TIME_UNIT_MINUTE' }, detail: { used: 1, limit: 2, resetTime } }] })
+        ?.windows[0]?.resetsAt
+    // Epoch instants as strings normalize through the numeric branch.
+    expect(parse('1756428000')).toBe(new Date(1756428000 * 1000).toISOString())
+    expect(parse('1756428000000')).toBe(new Date(1756428000000).toISOString())
+    // Unparseable text resolves to undefined, not "Invalid Date" fodder.
+    expect(parse('2026-13-45')).toBeUndefined()
+    expect(parse('soon')).toBeUndefined()
+    expect(parse('')).toBeUndefined()
+    expect(parse(null)).toBeUndefined()
+  })
 })
 
 describe('glm coding plan parse', () => {
