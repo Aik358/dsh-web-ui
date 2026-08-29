@@ -115,9 +115,9 @@ export function apply(ctx: ClientContext): void {
         console.debug('[dsh-perf] HUD boot degraded:', error)
       }
     }
-    // CSS 降载(P0): 独立于 HUD(默认关) 生效, 跟随总开关。
+    // CSS 降载(P0): 独立于 HUD(默认关) 生效, 跟随总开关与渲染降载开关。
     try {
-      installPerfCss(isEnabled)
+      installPerfCss(() => isEnabled() && renderDegrade)
     } catch { /* noop */ }
     // 尾部完整性观察: 跟随总开关 enabled(默认开) 启停。
     const shouldRun = isEnabled()
@@ -243,10 +243,10 @@ function readPositiveInt(key: string, fallback: number): number {
 
 /** P0 CSS 降载样式(单例): 屏外消息行 content-visibility 近似虚拟化。 */
 let perfCssStyle: HTMLStyleElement | undefined
-function installPerfCss(isEnabled: () => boolean): void {
+function installPerfCss(isDegradeEnabled: () => boolean): void {
   try {
     const off = localStorage.getItem('dsh-perf-css') === 'off'
-    if (!isEnabled() || off) {
+    if (!isDegradeEnabled() || off) {
       perfCssStyle?.remove()
       perfCssStyle = undefined
       return
@@ -255,11 +255,17 @@ function installPerfCss(isEnabled: () => boolean): void {
     const style = document.createElement('style')
     style.dataset.dshPerf = 'css'
     // 选择器列表后必须带 '{': 缺失时浏览器丢弃整条规则, 降载形同虚设。
+    // 含 .md-table-wide 宽表的行排除 content-visibility, 防止 contain:paint 裁剪横向溢出表格(#1269)。
     style.textContent = [
-      '[data-chat-flow-kind="assistant-step"],',
-      '[data-chat-flow-kind="tool-call"] {',
+      '[data-chat-flow-kind="assistant-step"]:not(:has(.md-table-wide)),',
+      '[data-chat-flow-kind="tool-call"]:not(:has(.md-table-wide)) {',
       '  content-visibility: auto;',
       '  contain-intrinsic-size: auto 120px;',
+      '}',
+      '[data-chat-flow-kind="assistant-step"]:has(.md-table-wide),',
+      '[data-chat-flow-kind="tool-call"]:has(.md-table-wide) {',
+      '  content-visibility: visible !important;',
+      '  contain: none !important;',
       '}',
       // 侧栏会话行(dsh-better-sidebar 渲染)不再注入降载 CSS: 固定 32px 占位行高
       // 会干扰其自身布局(行被钉在固定位置), 降载范围收回消息行本身(2026-08-28 移除,

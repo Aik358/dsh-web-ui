@@ -5,15 +5,6 @@
  * controller fallback.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { DoctorApi } from '../src/client/doctor-api.ts'
-import { DoctorController } from '../src/client/doctor-controller.ts'
-import { PassiveProbe } from '../src/client/doctor-passive.ts'
-import { DoctorSettingsCard, type DoctorSettingsCardProps, type DoctorSettingsCardState } from '../src/client/DoctorSettingsCard.tsx'
-import { pluginIdOf } from '../src/client/DoctorRecoveryConsole.tsx'
-import type { DoctorSupervisorResponse } from '../src/client/doctor-types.ts'
-import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
-import { en } from '../src/client/locales.ts'
 
 // The family settings-form slice value-imports the browser runtime bundle,
 // which is a window.__ModuleLoader__ closure; provide a node-safe stand-in so
@@ -24,6 +15,16 @@ vi.mock('@deepseek-ai/dsh-client-store', () => ({
     getSnapshot: () => undefined,
   }),
 }))
+
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { DoctorApi } from '../src/client/doctor-api.ts'
+import { DoctorController } from '../src/client/doctor-controller.ts'
+import { PassiveProbe } from '../src/client/doctor-passive.ts'
+import { DoctorSettingsCard, type DoctorSettingsCardProps, type DoctorSettingsCardState } from '../src/client/DoctorSettingsCard.tsx'
+import { pluginIdOf } from '../src/client/DoctorRecoveryConsole.tsx'
+import type { DoctorSupervisorResponse } from '../src/client/doctor-types.ts'
+import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
+import { en } from '../src/client/locales.ts'
 
 const t: TranslateNS<'doctor'> = (key, params) => {
   let text = (en as Record<string, string>)[key] ?? key

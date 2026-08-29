@@ -18,7 +18,7 @@
 
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -37,15 +37,38 @@ function fail(message) {
   process.exit(1)
 }
 
+function resolveCommand(command, args) {
+  if (process.platform === 'win32') {
+    if (command === 'tar') {
+      const systemTar = 'C:\\Windows\\System32\\tar.exe'
+      if (existsSync(systemTar)) return { cmd: systemTar, args }
+    }
+    if (command === 'pnpm') {
+      return { cmd: 'pnpm.cmd', args, shell: true }
+    }
+  }
+  return { cmd: command, args }
+}
+
 function run(command, args, options = {}) {
-  const result = spawnSync(command, args, { stdio: 'inherit', ...options })
+  const resolved = resolveCommand(command, args)
+  const result = spawnSync(resolved.cmd, resolved.args, {
+    stdio: 'inherit',
+    shell: resolved.shell ?? false,
+    ...options,
+  })
   if (result.status !== 0) {
     fail(`${command} ${args.join(' ')} failed with exit code ${result.status}`)
   }
 }
 
 function capture(command, args, options = {}) {
-  const result = spawnSync(command, args, { encoding: 'utf8', ...options })
+  const resolved = resolveCommand(command, args)
+  const result = spawnSync(resolved.cmd, resolved.args, {
+    encoding: 'utf8',
+    shell: resolved.shell ?? false,
+    ...options,
+  })
   if (result.status !== 0) {
     fail(`${command} ${args.join(' ')} failed with exit code ${result.status}`)
   }
@@ -94,7 +117,19 @@ function collectTarballs(scratchDir, storeDir) {
   for (const entry of readdirSync(scratchDir)) {
     if (!entry.endsWith('.tgz')) continue
     const target = join(storeDir, entry)
-    if (!existsSync(target)) renameSync(join(scratchDir, entry), target)
+    if (!existsSync(target)) {
+      const src = join(scratchDir, entry)
+      try {
+        renameSync(src, target)
+      } catch (error) {
+        if (error && (error.code === 'EXDEV' || error.code === 'EPERM')) {
+          copyFileSync(src, target)
+          rmSync(src, { force: true })
+        } else {
+          throw error
+        }
+      }
+    }
   }
   rmSync(scratchDir, { recursive: true, force: true })
 }
