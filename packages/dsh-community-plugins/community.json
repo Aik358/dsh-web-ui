@@ -500,5 +500,17 @@
     "npm": "dsh-passwords",
     "category": "security",
     "subcategory": "access"
+  },
+  {
+    "id": "dsh-free-search",
+    "name": "免费搜索",
+    "nameEn": "Free Search",
+    "author": "DDDMUC",
+    "description": "无需 API key 的多引擎网络搜索：10 个引擎自动回退（Bing/DDG/AnySearch/SearXNG/Exa/Tavily/Keenable/Perplexity/DeepSeek 等——其中付费引擎需各自配置 API key）+ 时间过滤 + 8 个平台搜索 + Web 设置面板。安装时会接管宿主默认 web 搜索 provider（searchProvider=ddg 指向本插件），卸载时由 bundle patch 的 rollbackPatch 恢复原默认值。",
+    "descriptionEn": "Multi-engine web search without API keys: 10 engines with auto-fallback (Bing/DDG/AnySearch/SearXNG/Exa/Tavily/Keenable/Perplexity/DeepSeek — paid engines need their own API key) + time filtering + 8 platform searches + a web settings panel. Installing takes over the host default web search provider (searchProvider=ddg points at this plugin); uninstalling restores the previous default via the bundle patch rollbackPatch.",
+    "repo": "https://github.com/DDDMUC/dsh-free-search",
+    "npm": "dsh-free-search",
+    "category": "tools",
+    "subcategory": "dev"
   }
 ]
