@@ -2,6 +2,8 @@
 
 Status: implemented
 
+> Superseded by [restore-npm-publish-alpha.2](2026-08-30-restore-npm-publish-alpha.2.md) once the `@deepseek-ai/*` 0.1.2-alpha.2 cohort was published to the npm `alpha` dist-tag; this record documents the pause decision and its design.
+
 ## Problem
 
 The tag-driven release pipeline published every family package to npm the moment a vX.Y.Z tag is pushed. The family builds against an unstable @deepseek-ai/* DSH alpha cohort that is not published to npm, so a pushed tag ships packages whose @deepseek-ai/* dependency ranges cannot resolve from the registry — a broken publish for real npm consumers, and an irreversible one for that version (a failed or bad publish cannot be re-run for an already-published version). The same gap makes the post-publish npm-strict mount smoke meaningless while it lasts: it would assert registry resolution the registry cannot provide.

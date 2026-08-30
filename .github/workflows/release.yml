@@ -7,11 +7,11 @@ name: Release
 # below): while it is 'false', a tag push stops at the mount smoke plus the
 # GitHub Release and nothing reaches npm.
 #
-# The lane is paused because the family tracks an unstable @deepseek-ai/*
-# alpha cohort that is not published to npm, so publishing would ship
-# packages whose dependencies cannot resolve from the registry. Set
-# NPM_PUBLISH_ENABLED to 'true' to restore the npm publish steps in
-# dependency order and the post-publish strict-registry smoke assertion.
+# The lane is enabled: the @deepseek-ai/* alpha.2 cohort the family tracks
+# is published to npm (alpha dist-tag), so the family's @deepseek-ai/*
+# dependency ranges resolve from the registry. With NPM_PUBLISH_ENABLED
+# 'true', a tag push publishes every family package in dependency order and
+# runs the post-publish strict-registry smoke assertion.
 #
 # Publishing requires the repository secret NPM_TOKEN (npm automation token
 # for the @linxin666 scope).
@@ -24,7 +24,7 @@ on:
 env:
   # Single switch for the npm publish lane. Decision record:
   # .agents/notes/implemented/process/2026-08-28-pause-release-npm-publish-unstable-dsh-alpha.md
-  NPM_PUBLISH_ENABLED: 'false'
+  NPM_PUBLISH_ENABLED: 'true'
 
 permissions:
   contents: write
@@ -130,8 +130,8 @@ jobs:
 
       # Publish with the explicit "latest" dist-tag so that installing the
       # package without a version (or with @latest) always resolves to the
-      # newest release, never a stale earlier one. Skipped while the npm
-      # lane is paused (NPM_PUBLISH_ENABLED: 'false').
+      # newest release, never a stale earlier one. Gated on the
+      # NPM_PUBLISH_ENABLED switch.
       - name: Publish packages to npm
         if: env.NPM_PUBLISH_ENABLED == 'true'
         env:
@@ -183,7 +183,7 @@ jobs:
       # Pin the DSH CLI the lane mounts into (same pin as ci.yml's
       # plugin-mount lane).
       - name: Install dsh CLI (pinned)
-        run: npm install -g @deepseek-ai/dsh@0.1.1-rc.2
+        run: npm install -g @deepseek-ai/dsh@0.1.2-alpha.2
 
       # The aggregate tarball must be produced from a fresh build.
       - name: Build
