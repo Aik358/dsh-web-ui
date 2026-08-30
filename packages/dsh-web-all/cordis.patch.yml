@@ -109,20 +109,6 @@
     - id: web-ui-skin-center
       name: '@linxin666/dsh-client-ui-skin-center'
 
-# external bundle: dsh-better-sidebar
-
-# from external bundle dsh-better-sidebar (insert row web-ui-better-sidebar)
-- insert:
-    - id: web-ui-better-sidebar
-      name: 'dsh-better-sidebar'
-
-# external bundle: @mlgbnb/dsh-archive-manager
-
-# from external bundle @mlgbnb/dsh-archive-manager (insert row web-ui-archive-manager)
-- insert:
-    - id: web-ui-archive-manager
-      name: '@mlgbnb/dsh-archive-manager'
-
 # external bundle: @morlay/better-session
 
 # from external bundle @morlay/better-session (insert row web-ui-session-branch)

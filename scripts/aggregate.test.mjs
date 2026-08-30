@@ -91,22 +91,15 @@ test('no aggregate deps entry resolves to a private workspace package', () => {
   }
 })
 
-test('web-ui-all mounts dsh-better-sidebar as an external row', () => {
+test('web-ui-all does not mount the dsh-client-runtime-dependent externals', () => {
   const patch = readFileSync(join(ROOT, 'packages/dsh-web-all/cordis.patch.yml'), 'utf8')
-  const lines = patch.split(/\r?\n/)
-  const idx = lines.findIndex((line) => /^ {4}- id: web-ui-better-sidebar$/.test(line))
-  assert.ok(idx >= 0, 'web-ui-better-sidebar row is missing from the aggregate patch')
-  // The paired name line resolves the row from the profile root (npm package).
-  assert.match(lines[idx + 1] ?? '', /^ {6}name: 'dsh-better-sidebar'$/)
-})
-
-test('web-ui-all mounts @mlgbnb/dsh-archive-manager as an external row', () => {
-  const patch = readFileSync(join(ROOT, 'packages/dsh-web-all/cordis.patch.yml'), 'utf8')
-  const lines = patch.split(/\r?\n/)
-  const idx = lines.findIndex((line) => /^ {4}- id: web-ui-archive-manager$/.test(line))
-  assert.ok(idx >= 0, 'web-ui-archive-manager row is missing from the aggregate patch')
-  // The paired name line resolves the scoped npm package from the profile root.
-  assert.match(lines[idx + 1] ?? '', /^ {6}name: '@mlgbnb\/dsh-archive-manager'$/)
+  // dsh-better-sidebar and @mlgbnb/dsh-archive-manager import the removed
+  // @deepseek-ai/dsh-client-runtime face, so on the alpha.2 cohort the host
+  // loader cannot resolve their entries and the whole boot fails. They are
+  // excluded until upstream ships alpha.2 builds; re-add the rows and these
+  // assertions together with package.json deps when that happens.
+  assert.doesNotMatch(patch, /^ {4}- id: web-ui-better-sidebar$/m, 'dsh-better-sidebar must not be mounted on the alpha.2 cohort')
+  assert.doesNotMatch(patch, /^ {4}- id: web-ui-archive-manager$/m, '@mlgbnb/dsh-archive-manager must not be mounted on the alpha.2 cohort')
 })
 
 test('web-ui-all expands @morlay/better-session into importable but inactive bundle rows', () => {
