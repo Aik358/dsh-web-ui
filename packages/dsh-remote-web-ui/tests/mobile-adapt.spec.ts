@@ -209,4 +209,99 @@ describe('startMobileAdapt', () => {
       vi.useRealTimers()
     }
   })
+
+  it('injects the picker bottom sheet, the workbench suppression, and no body gap', async () => {
+    media.portrait = true
+    media.coarse = true
+    setWidth(390)
+    const start = await freshStart()
+    start()
+    ;(window as unknown as { __dshRemoteAdapt?: { evaluate: () => void } }).__dshRemoteAdapt?.evaluate()
+    const tag = document.querySelector('style[data-plugin-css="dsh-remote-web-ui/mobile-adapt.css"]')
+    expect(tag).not.toBeNull()
+    const css = tag?.textContent ?? ''
+    // The picker sheet: free the seat transform (fixed-position containing
+    // block), pin seat menus to the viewport bottom, touch-sized cells.
+    expect(css).toContain('[class$="_composerSeat"]{transform:none !important}')
+    expect(css).toContain('[class$="_composerSeat"] [class$="_menu"]{position:fixed')
+    expect(css).toContain('[class$="_menu"] [class$="_cell"]{height:44px')
+    // The workbench suppression is scoped to the workbench panel: the same
+    // portal layer hosts the settings modal, which must stay reachable.
+    expect(css).toContain('[class$="_overlayLayer"] [class$="_workbench"]{display:none !important}')
+    expect(css).not.toContain('[class$="_overlayLayer"]{display:none')
+    // The compact picker: icon entries for model/effort inline in the tools
+    // row (parallel to the permission trigger); the trailing line collapses.
+    expect(css).toContain('body.dsh-remote-compact-picker [class$="_composerSeat"] [class$="_trailing"] [class$="_trigger"]')
+    expect(css).toContain('body.dsh-remote-compact-picker [class$="_composerSeat"] [class$="_trailing"]{flex-basis:auto;position:static;min-height:0;padding:0;width:0}')
+    expect(css).toContain('#dshRemoteModelPick,#dshRemoteEffortPick{width:26px;height:32px')
+    // The dsh-LAN _body gap compaction must stay out: it clips message text.
+    expect(css).not.toContain('_body"]{gap:6px}')
+  })
+
+  it('falls back to the official rail toggle when the wired face is inert', async () => {
+    vi.useFakeTimers()
+    try {
+      media.portrait = true
+      media.coarse = true
+      setWidth(390)
+      // A collapsed frame + the official logo toggle button (the fallback target).
+      const frame = document.createElement('div')
+      frame.className = 'app_frame'
+      frame.setAttribute('data-sidebar-collapsed', '')
+      document.body.appendChild(frame)
+      const logoRow = document.createElement('div')
+      logoRow.className = 'x_logoRow'
+      const logoToggle = document.createElement('button')
+      logoToggle.className = 'x_iconButton x_toggle'
+      const clickSpy = vi.spyOn(logoToggle, 'click')
+      logoRow.appendChild(logoToggle)
+      document.body.appendChild(logoRow)
+      const start = await freshStart()
+      start()
+      // Wire an inert face: mounted, callable, but a silent no-op — the
+      // observed LayoutController state on the running local build.
+      const adapt = (window as unknown as { __dshRemoteAdapt?: { toggleSidebar: () => void } }).__dshRemoteAdapt
+      adapt!.toggleSidebar = () => {}
+      const whale = document.getElementById('dshRemoteWhale') as HTMLElement | null
+      expect(whale).not.toBeNull()
+      whale!.click()
+      expect(clickSpy).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(200)
+      // The frame never flipped, so the official rail toggle took over.
+      expect(clickSpy).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not fall back when the wired face flips the frame', async () => {
+    vi.useFakeTimers()
+    try {
+      media.portrait = true
+      media.coarse = true
+      setWidth(390)
+      const frame = document.createElement('div')
+      frame.className = 'app_frame'
+      frame.setAttribute('data-sidebar-collapsed', '')
+      document.body.appendChild(frame)
+      const logoRow = document.createElement('div')
+      logoRow.className = 'x_logoRow'
+      const logoToggle = document.createElement('button')
+      logoToggle.className = 'x_iconButton x_toggle'
+      const clickSpy = vi.spyOn(logoToggle, 'click')
+      logoRow.appendChild(logoToggle)
+      document.body.appendChild(logoRow)
+      const start = await freshStart()
+      start()
+      // A healthy face: the call itself flips the frame out of collapsed.
+      const adapt = (window as unknown as { __dshRemoteAdapt?: { toggleSidebar: () => void } }).__dshRemoteAdapt
+      adapt!.toggleSidebar = () => { frame.removeAttribute('data-sidebar-collapsed') }
+      const whale = document.getElementById('dshRemoteWhale') as HTMLElement | null
+      whale!.click()
+      await vi.advanceTimersByTimeAsync(200)
+      expect(clickSpy).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
