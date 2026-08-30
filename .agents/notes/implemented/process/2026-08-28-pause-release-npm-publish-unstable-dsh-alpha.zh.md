@@ -2,6 +2,8 @@
 
 Status: implemented
 
+> 已在 `@deepseek-ai/*` 0.1.2-alpha.2 cohort 发布到 npm 的 `alpha` dist-tag 后被 [restore-npm-publish-alpha.2](2026-08-30-restore-npm-publish-alpha.2.md) 取代；本记录仅存档暂停决策及其设计。
+
 ## Problem
 
 既有的 tag 驱动发布管线会在 vX.Y.Z tag 推送的瞬间把所有家族包发布到 npm。家族包构建依赖的 @deepseek-ai/* DSH alpha 组件群高度不稳定且未发布到 npm，推 tag 就会把依赖范围无法从 registry 解析的包发上去——对真实的 npm 使用者是一次坏发布，而且对该版本不可逆（已发布的版本无法重跑一次失败的发布）。同样的缺口让发布后的 npm 严格挂载冒烟在其持续期间失去意义：它会断言 registry 根本提供不了的解析能力。
