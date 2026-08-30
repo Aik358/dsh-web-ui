@@ -14,7 +14,7 @@ Status: implemented
 - #1279（dsh-reasoning-effort，Jamsharden）评审闭环：条目已声明核验版本（0.1.1-rc.2 与 0.1.2-alpha.1），并披露卸载不会删除写入 llm-pi-ai 的思考配置；PR 模板已补全。排入 #1098 合入后的 rank 46。
 - #1277（dsh-codekin，Nath-Vikky）评审闭环：条目已披露真实存档路径（DSH 主目录下的 `codekinsave/state.json`）、首启从 `tracewild/state.json` 的无损迁移与卸载保留；该 PR 的 CI 失败被确认为同一个 dev 侧既有缺陷。排队 rank 47。
 - 无移动、不动作：#1285（cohort 验证与描述阻塞仍在）、#1282（仍占 rank 44，其 inject 在 alpha.1 cohort 无法解析）、#1100（仍占 rank 43）、#1245 与 #1144（按既记录阻塞停靠）。
-- 仅向用户呈报、未采取动作的事实：提交 dd376dcb（"Add dsh-memory plugin to community index"，作者 yyspoem，2026-08-29 23:29）曾被直接推上 dev，现已不可从 origin/dev 到达——05:18 推送的 5eaa7b0f3 替换了分支线且未包含它。dev 仍为 44 条，位次账目不受影响；恢复或重新登记 dsh-memory 属人工决定。
+- 已呈报并由所有者定夺的事实：提交 dd376dcb（"Add dsh-memory plugin to community index"，作者 yyspoem，2026-08-29 23:29）曾被直接推上 dev，现已不可从 origin/dev 到达——05:18 推送的 5eaa7b0f3 替换了分支线且未包含它。dev 仍为 44 条，位次账目不受影响。所有者选择走正常流程重新登记，而非维护者侧恢复；外联 issue #1290 已告知 yyspoem（账号创建于直推前数小时，非协作者）提交被覆盖的情况与重新提交要求：条目与重新生成的 manifest 同在一个 PR、按模板附测试证据（安装、记忆写入、tool 召回、卸载）、描述与仓库当前的 tool-based recall 实现一致。上游插件真实且活跃（yyspoem/dshstore，dsh-memory@0.1.0，cordis.patch.yml + dsh/ 布局）；其 PR 合入后在排队的 45/46/47 之下取下一个空位。
 
 ## Alternatives considered
 
@@ -26,5 +26,5 @@ Status: implemented
 ## Consequences
 
 - dev 从 700a74e09 前进到 bb3d1588f，携带 firewall 修复；登记管线的必需检查恢复绿色，rebase 后的登记 head 无需改测试即可跑绿（修复在 src，不在 spec）。
-- 位次队列明确：45 = #1098（待其绿色 rebase）、46 = #1279、47 = #1277；#1285 仍须先清掉 cohort 验证阻塞才能入队。
+- 位次队列明确：45 = #1098（待其绿色 rebase）、46 = #1279、47 = #1277；#1285 仍须先清掉 cohort 验证阻塞才能入队。dsh-memory 只能通过新的 PR 重新进入，取合入时的下一个空位。
 - `computeFirewallSummary` 的契约现为"undefined 即无 backend"；需要平台探测的调用方自行传入 `firewallBackend()`（`firewallSummary` 即如此）。
