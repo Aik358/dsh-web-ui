@@ -4,6 +4,8 @@
 
 DSH Web UI 全家桶聚合插件：一键安装全部功能插件（task-board / git-graph / pet / remote-web-ui / web-ui-settings / skin-center / community-plugins），外加外部插件 `dsh-better-sidebar`（右侧面板）、`@mlgbnb/dsh-archive-manager`（设置页归档管理）、`@morlay/better-session`（分支式会话编辑；默认关闭）以及皮肤全家桶（`dsh-skins`，皮肤资产内置）。compat 桥接层已并入本包（`src/client`），因此无需独立的 compat npm 包。
 
+> 注（DSH 0.1.2-alpha.2）：`dsh-better-sidebar` 与 `@mlgbnb/dsh-archive-manager` 目前从本聚合暂时排除——alpha.2 官方移除了它们依赖的 `@deepseek-ai/dsh-client-runtime` 面，保留会导致 `dsh web` 启动失败；待上游发布 alpha.2 兼容版后回归。`@morlay/better-session` 保留（默认关闭）。
+
 ## 是什么
 
 - **一次安装、全部到位**：其 dependencies 引入全部子插件包（dsh-client-ui-task-board / dsh-client-ui-git-graph / dsh-pet / dsh-remote-web-ui / dsh-ssh / dsh-client-ui-web-ui-settings / dsh-client-ui-skin-center / dsh-client-ui-community-plugins / dsh-skins），外加外部 npm 插件 `dsh-better-sidebar`（默认右侧面板：文件资源管理器 / 编辑器 / 终端 / Git / 浏览器）、`@mlgbnb/dsh-archive-manager`（默认设置页归档管理：按项目分组、搜索筛选、预览对话、一键恢复与删除）与 `@morlay/better-session`（分支式会话编辑：就地 edit / retry / rewind / fork，RDB 持久化；默认关闭，见[启用 better-session](#启用-better-session)）。

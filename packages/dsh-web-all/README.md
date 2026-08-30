@@ -4,6 +4,8 @@ English | [中文](README.zh.md)
 
 The one-click aggregate package for the whole dsh web UI family: installing it brings every functional plugin (task-board / git-graph / pet / remote-web-ui / web-ui-settings / skin-center / community-plugins) plus the external plugins `dsh-better-sidebar` (right panel), `@mlgbnb/dsh-archive-manager` (settings-page archive manager), `@morlay/better-session` (branching session editing; ships inactive by default) and the skin family (`dsh-skins`, skin assets bundled inside). The compat bridge layer is folded into this package (`src/client`), so no separate compat npm package is needed.
 
+> Note (DSH 0.1.2-alpha.2): `dsh-better-sidebar` and `@mlgbnb/dsh-archive-manager` are tentatively excluded from this aggregate — the alpha.2 cohort removed the `@deepseek-ai/dsh-client-runtime` face they import, which would abort `dsh web` boot. They come back when upstream ships alpha.2 builds. `@morlay/better-session` stays (ships inactive).
+
 ## What it is
 
 - **One install, everything on**: its dependencies pull in all sub-plugin packages (dsh-client-ui-task-board / dsh-client-ui-git-graph / dsh-pet / dsh-remote-web-ui / dsh-ssh / dsh-client-ui-web-ui-settings / dsh-client-ui-skin-center / dsh-client-ui-community-plugins / dsh-skins) plus the external npm plugins `dsh-better-sidebar` (the default right sidebar: explorer / editor / terminal / git / browser), `@mlgbnb/dsh-archive-manager` (the default settings-page archive manager: group by project, search and filter, preview conversations, restore and delete) and `@morlay/better-session` (branching session editing: in-place edit / retry / rewind / fork on RDB persistence; ships inactive by default — see [Opting into better-session](#opting-into-better-session)).
