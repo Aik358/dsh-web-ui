@@ -85,14 +85,16 @@ dsh-web 是 DeepSeek Harness（DSH）Web GUI 的插件聚合生态包（DSH Web 
 
 ### 移动端远程控制（Mobile Remote）
 
-侧边栏底部的手机图标打开配对面板。扫码（或复制链接）配对后，手机进独立移动端界面，远程操作当前的 dsh web 工作区：看会话、开新会话、收发消息、切模型和思考强度、调权限预设，都和桌面端同步。同一份配对链接也能配对 **PC 浏览器**（手机配对流扩展到桌面 Web GUI）：在另一台电脑打开桌面 URL 形态的链接，完整 Web GUI 便在那台设备上运行，流量走配对门控的 `/remote/api` 通道——未配对设备只有横幅提示、拿不到任何数据。配对令牌一次性、限时，「停止」随时吊销所有设备；二维码默认走局域网，开 cloudflared 公网隧道后手机（和 PC）在任何网络都能配对。PC 远程桌面应优先使用插件自己的设备配对通道，安全上不建议为隧道域名设置 `--trusted-host`；该 flag 会让 SDK 的 `/api` 绕过配对门控（详见[插件 README](packages/dsh-remote-web-ui/README.zh.md)）。
+侧边栏底部的手机图标打开配对面板。扫码（或复制链接）配对后，手机运行的就是官方 Web GUI 本身，竖屏下自动注入触控适配层：鲸鱼按钮展开侧边栏、左滑收起 / 右滑展开、长按会话行展开与桌面省略号相同的操作菜单、Enter 只换行、16px 输入框防聚焦缩放；面向桌面的工具面（SSH 终端、任务看板、Git 图谱等）在手机上自动隐藏——看会话、开新会话、收发消息、切模型和思考强度、调权限预设，和桌面端同一份界面、同一份状态。同一份配对链接也能配对 **PC 浏览器**（手机配对流扩展到桌面 Web GUI）：在另一台电脑打开桌面 URL 形态的链接，完整 Web GUI 便在那台设备上运行，流量走配对门控的 `/remote/api` 通道——未配对设备只有横幅提示、拿不到任何数据。配对令牌一次性、限时，「停止」随时吊销所有设备；二维码默认走局域网，开 cloudflared 公网隧道后手机（和 PC）在任何网络都能配对。PC 远程桌面应优先使用插件自己的设备配对通道，安全上不建议为隧道域名设置 `--trusted-host`；该 flag 会让 SDK 的 `/api` 绕过配对门控（详见[插件 README](packages/dsh-remote-web-ui/README.zh.md)）。
+
+![手机与 Web 同界面（示意图）](docs/assets/phone-and-web.png)
 
 > **实时消息与隧道**：移动端靠 SSE（Server-Sent Events）收实时消息。Cloudflare quick tunnel（trycloudflare.com）和 Tailscale Serve 不透传 SSE，普通 HTTP 正常、实时推送到不了；这种网络下插件自动降级轮询，收发消息正常，只是新消息可能晚几秒。要即时推送就用支持 SSE 的隧道（Cloudflare named tunnel、自定义 TCP 端口转发等）。
 
-| 工作区列表 | 会话列表与新建会话 |
+| 移动端主页（鲸鱼入口） | 会话列表 |
 | --- | --- |
-| ![移动端工作区](docs/screenshots/20-mobile-workspaces.png) | ![移动端会话列表](docs/screenshots/21-mobile-sessions.png) |
-| 聊天（折叠的深度思考与工具调用） | 模型与思考强度选择 |
+| ![移动端主页](docs/screenshots/20-mobile-home.png) | ![移动端会话列表](docs/screenshots/21-mobile-sessions.png) |
+| 聊天（思考与工具调用） | 模型选择（底部弹层） |
 | ![移动端聊天](docs/screenshots/22-mobile-chat.png) | ![模型选择](docs/screenshots/23-mobile-model-sheet.png) |
 
 ### 远程连接（SSH Ops）
