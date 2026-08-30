@@ -33,7 +33,11 @@ function sessionAddress(sessionId: string): SessionAddress {
  * unknown at every boot.
  */
 function isServiceUnavailable(error: unknown): boolean {
-  return (error as { code?: unknown }).code === 'service-unavailable'
+  const code = (error as { code?: unknown }).code
+  // The alpha.2 gateway emits the namespace-qualified code ('gateway/service-unavailable');
+  // the bare form is the pre-alpha.2 shape. Recognize both so a provider that is merely
+  // slow to activate (start-order race) is retried instead of degraded to "roster unknown".
+  return code === 'service-unavailable' || code === 'gateway/service-unavailable'
 }
 
 const SERVICE_UNAVAILABLE_ATTEMPTS = 5
