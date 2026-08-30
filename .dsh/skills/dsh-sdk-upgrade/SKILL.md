@@ -28,7 +28,9 @@ Use this Skill only for the dsh-web monorepo. It selects and upgrades the reposi
 
 ## 2. Inventory Before Changing Anything
 
-Build an explicit upgrade matrix from every workspace package.json and the root configuration. Include direct dependencies, devDependencies, peerDependencies, optionalDependencies, pnpm-lock.yaml, and pnpm-workspace.yaml.
+Build an explicit upgrade matrix from every workspace package.json and the root configuration. Include direct dependencies, devDependencies, peerDependencies, optionalDependencies, pnpm-lock.yaml, and pnpm-workspace.yaml. Also inventory the external npm plugins an aggregate pulls in (e.g. `packages/dsh-web-all`) and every `@deepseek-ai/*` peer they carry — they are easy to miss.
+
+A cohort `overrides:` block in `pnpm-workspace.yaml` (used to pin a not-yet-published cohort to source-built tarballs) does double duty: it also force-resolves the `@deepseek-ai/*` peers of those external aggregate plugins. Deleting the block when the cohort reaches npm therefore unmasks external plugins hard-importing a now-removed SDK face, which fail the host loader's strict import resolution and abort `dsh web` boot. Inventory externals and their peers before dropping the block, so the compatibility phase can decide exclusion (drop the aggregate row + dep + generator/mount assertions together) instead of discovering the abort at release time.
 
 For each relevant official package, record:
 
