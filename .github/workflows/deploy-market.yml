@@ -62,19 +62,6 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      # The lockfile resolves the preview cohort tarballs relative to the
-      # checkout root (file:../../.dsh-cohorts/...), so the store lives two
-      # levels above the workspace; restore or rebuild it for the frozen
-      # install. A cache hit makes the materialize step a no-op.
-      - name: Restore preview cohort store
-        uses: actions/cache@v4
-        with:
-          path: ${{ github.workspace }}/../../.dsh-cohorts/0.1.2-alpha.1
-          key: dsh-cohorts-${{ hashFiles('pnpm-workspace.yaml') }}
-
-      - name: Materialize preview cohort store
-        run: node scripts/build-cohort-tarballs.mjs
-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
 
