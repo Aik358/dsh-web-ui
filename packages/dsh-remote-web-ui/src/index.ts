@@ -27,6 +27,7 @@ import { isPairedDeviceRequest, makeGateListener } from './gate.ts'
 import { RemoteWebUiPairing } from './pairing-access.ts'
 import { isTrustedApiRequest, makeRoutes } from './routes.ts'
 import { makeRemoteApiRoutes, makeRemoteApiUpgradeRoutes } from './remote-api.ts'
+import { startRemotePresencePet, type PresencePetSeam } from './remote-presence-pet.ts'
 import { claimPostureKey, postureTargets, probePosture, releasePostureKey } from './posture.ts'
 import { lanIPv4Addresses } from './lan.ts'
 import { ensureFirewallRule, firewallSummary, removeFirewallRule } from './firewall.ts'
@@ -561,6 +562,23 @@ function applyImpl(ctx: Context, config?: Config): void {
     if (!resolve().enabled) return false
     return isPairedDeviceRequest(service, request)
   })
+
+  // Remote-presence to pet-visibility link: while a paired device is online
+  // (an active phone mirror), hide the host-global pet through the pet's OWN
+  // hide switch; when the last device has been offline for a grace window,
+  // show it again (user design; the pet plugin is optional, so the seam is
+  // resolved per transition and every failure degrades to a no-op).
+  const presencePet = startRemotePresencePet({
+    onState: listener => service.onState(listener),
+    pet: (): PresencePetSeam | undefined => {
+      try {
+        return ctx.get('pet') as unknown as PresencePetSeam | undefined
+      } catch {
+        return undefined
+      }
+    },
+  })
+  ctx.effect(() => presencePet, 'remote-web-ui: remote-presence pet visibility')
 
   if (service.lanAddresses.length > 0) {
     const urls = service.lanAddresses.map(ip => `http://${ip}:${String(ctx.webServer.port)}`).join(' , ')
