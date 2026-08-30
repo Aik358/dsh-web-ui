@@ -171,6 +171,17 @@ dsh-web 是 DeepSeek Harness（DSH）Web GUI 的插件聚合生态包（DSH Web 
 
 > 只要皮肤就装 `@linxin666/dsh-client-ui-skin-center`。若装到了旧版本（pnpm 11 的发布年龄门禁），见下方「安装排障」。
 
+### 从 GitHub 仓库直接安装
+
+仓库根 `package.json` 声明 `dsh.bundle`（复用聚合包的装配清单）并依赖 npm 已发布的聚合包，整个仓库因此可以直接当成一个插件安装，无需克隆与构建，插件中心 / hub 按仓库一键安装时走的就是这条路：
+
+```sh
+dsh plugin --profile web add github:zhu1090093659/dsh-web
+# 等价写法：dsh plugin --profile web add git+https://github.com/zhu1090093659/dsh-web.git
+```
+
+插件代码来自安装时解析到的 npm 聚合包，仓库只提供装配清单；该方式与 npm 安装聚合包二选一，两者产出相同的 `web-ui-*` 插件行，同时安装会因重复 id 挂载失败。
+
 ### 从仓库安装（开发调试）
 
 插件包已在 npm 发布，仓库安装仅供开发调试（需要 Node.js >= 22 与 pnpm）：

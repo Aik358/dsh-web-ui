@@ -170,6 +170,17 @@ Classic Blue Fantasy is the default skin shipped with the skins plugin: whale ar
 
 > Skins only? Install `@linxin666/dsh-client-ui-skin-center`. If you ended up with an old version (pnpm 11's release-age gate), see "Install Troubleshooting" below.
 
+### Install Directly from the GitHub Repository
+
+The repository root `package.json` declares `dsh.bundle` (reusing the aggregate's assembly manifest) and depends on the npm-published aggregate, so the whole repository installs directly as one plugin — no clone or build needed. Plugin hubs that one-click-install from a repository use exactly this path:
+
+```sh
+dsh plugin --profile web add github:zhu1090093659/dsh-web
+# Equivalent: dsh plugin --profile web add git+https://github.com/zhu1090093659/dsh-web.git
+```
+
+The plugin code comes from the npm aggregate resolved at install time; the repository only contributes the assembly manifest. Choose either this or the npm aggregate install — both produce the same `web-ui-*` plugin rows, and installing both fails to mount on duplicate ids.
+
 ### Install from the Repository (Development)
 
 The packages are already on npm; installing from this repository is only for development (requires Node.js >= 22 and pnpm):

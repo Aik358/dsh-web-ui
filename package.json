@@ -3,6 +3,18 @@
   "version": "0.1.1",
   "private": true,
   "description": "DeepSeek Harness Web GUI 插件全家桶 + 皮肤集合。皮肤是纯资产目录（packages/skins/skin-center/skins/<id>），由皮肤中心包统一加载。",
+  "dsh": {
+    "bundle": {
+      "patch": "./packages/dsh-web-all/cordis.patch.yml"
+    }
+  },
+  "files": [
+    "package.json",
+    "packages/dsh-web-all/cordis.patch.yml"
+  ],
+  "dependencies": {
+    "@linxin666/dsh-web-all": "^0.3.6"
+  },
   "scripts": {
     "build": "pnpm -r build",
     "dev:watch": "node scripts/dev-watch.mjs",

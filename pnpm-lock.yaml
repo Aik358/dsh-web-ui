@@ -261,6 +261,10 @@ patchedDependencies:
 importers:
 
   .:
+    dependencies:
+      '@linxin666/dsh-web-all':
+        specifier: ^0.3.6
+        version: link:packages/dsh-web-all
     devDependencies:
       '@playwright/test':
         specifier: ^1.62.1

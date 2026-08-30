@@ -7,6 +7,10 @@ packages:
 # （原 true 只为聚合包发布时解析 peers，现已不需要）。
 autoInstallPeers: false
 
+# 根包作为可安装 bundle（dsh.bundle）依赖聚合包；仓库内开发时把该 range
+# 链接到 workspace 工程（版本同源），profile 里的 git 安装仍走 npm registry。
+linkWorkspacePackages: true
+
 allowBuilds:
   # The cloudflared postinstall downloads the platform binary (the auto-tunnel
   # feature ships its own tunnel client — users install nothing).
