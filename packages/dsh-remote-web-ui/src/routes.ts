@@ -5,10 +5,12 @@
  * and apply their own trust fence (loopback-only for control endpoints;
  * loopback-or-LAN for the phone-facing accept/heartbeat/status). The cookie
  * set on accept is the device identity the plugin's own surfaces enforce:
- * the /remote channel gate and the api/gate listener. Note that on the
- * 0.1.2-alpha.1 cohort nothing emits api/gate — direct /api is governed by
- * the harness fence + browser auth — while the /remote channel always
- * enforces the pairing cookie itself.
+ * the /remote channel gate and the api/gate listener. Alongside the JSON
+ * family sit the phone-facing top-level pages (exact routes /pair-accept,
+ * /pair-app, /pair-app.sw.js) with their own LAN-or-public fence. Note that
+ * on the 0.1.2-alpha.1 cohort nothing emits api/gate — direct /api is
+ * governed by the harness fence + browser auth — while the /remote channel
+ * always enforces the pairing cookie itself.
  */
 
 import type { IncomingMessage, ServerResponse } from 'node:http'
@@ -108,13 +110,17 @@ const COOKIE_MAX_AGE_SEC = 365 * 24 * 60 * 60
  * URL into sessionStorage (and localStorage for tab reloads) before any app
  * script runs - same key the boot patch and the channel gate read. The
  * replaceState to '/' hides the credential URL from the address bar and
- * leaves the SPA at its canonical root path.
+ * leaves the SPA at its canonical root path. The reopen service worker is
+ * registered in the same breath: later navigations to '/' (history,
+ * bookmark, tab restore) must not fall through to the harness index gate,
+ * which the cookieless flow can never satisfy.
  */
 export const APP_DEVICE_STORAGE_KEY = 'dsh-remote-device'
 
 export function appShellCaptureScript(deviceId: string): string {
   const safeId = JSON.stringify(deviceId)
-  return `<script>(function(){try{sessionStorage.setItem(${JSON.stringify(APP_DEVICE_STORAGE_KEY)},${safeId});localStorage.setItem(${JSON.stringify(APP_DEVICE_STORAGE_KEY)},${safeId});}catch(e){}try{history.replaceState(null,'','/')}catch(e){}})()</script>`
+  const register = `try{if('serviceWorker' in navigator){navigator.serviceWorker.register(${JSON.stringify(PAIR_PATHS.appServiceWorker)},{scope:'/'}).catch(function(e){})}}catch(e){}`
+  return `<script>(function(){try{sessionStorage.setItem(${JSON.stringify(APP_DEVICE_STORAGE_KEY)},${safeId});localStorage.setItem(${JSON.stringify(APP_DEVICE_STORAGE_KEY)},${safeId});}catch(e){}try{history.replaceState(null,'','/')}catch(e){}${register}})()</script>`
 }
 
 /** Patch the official index document with the device-capture script. */
@@ -127,10 +133,83 @@ export function patchAppShell(html: string, deviceId: string): string {
 }
 
 /**
- * The dead-end guard for a failed /pair-accept: an unauthenticated device
- * redirected to bare `/` would land on the harness browser-auth 401 page
- * ("authentication required"), which reads like a broken server. Serve a
- * plain bilingual explanation instead; an already-paired device (live
+ * The reopen service worker served at PAIR_PATHS.appServiceWorker. A paired
+ * phone comes back to `/` from history, bookmarks, or tab restore; the
+ * harness fallback seat answers that navigation with its browser-auth 401,
+ * and the cookieless mobile flow never holds a browser-auth cookie. The
+ * worker owns navigations to `/` instead: network-first through /pair-app
+ * (which validates the device cookie and refreshes its presence), the
+ * cached shell for offline opens, and a pass-through of the original
+ * request when the plugin no longer answers. Plain-HTTP LAN origins are not
+ * secure contexts, so the worker never registers there — the LAN reopen
+ * path stays "scan a fresh QR", which is cheap in-network.
+ *
+ * Kept as a plain string (same pattern as the capture script): it must load
+ * with no build step, run on every JS engine that ships service workers,
+ * and be assertable as source in tests. Bump SHELL_CACHE when the storage
+ * layout changes so old caches are pruned on activate.
+ */
+export function appServiceWorkerScript(): string {
+  return `'use strict';
+var SHELL_CACHE = 'dsh-remote-shell-v1';
+var SHELL_KEY = '/dsh-remote-shell';
+var APP_URL = '/pair-app';
+self.addEventListener('install', function (event) {
+  event.waitUntil(refreshShell().then(function () { return self.skipWaiting(); }));
+});
+self.addEventListener('activate', function (event) {
+  event.waitUntil(self.caches.keys().then(function (names) {
+    return Promise.all(names.map(function (name) {
+      return name === SHELL_CACHE ? Promise.resolve() : self.caches.delete(name);
+    }));
+  }).then(function () { return self.clients.claim(); }));
+});
+self.addEventListener('fetch', function (event) {
+  var request = event.request;
+  if (request.method !== 'GET' || request.mode !== 'navigate') return;
+  var path;
+  try { path = new URL(request.url).pathname; } catch (error) { return; }
+  if (path !== '/') return;
+  event.respondWith(reopen(event));
+});
+/* Network-first: a live pairing gets the current shell (the /pair-app check
+   refreshes lastSeenAt, so every reopen also keeps the session alive); a
+   refused shell passes the original navigation through for the harness's
+   own response; an unreachable server falls back to the cached shell. */
+function reopen(event) {
+  var request = event.request;
+  return fetch(APP_URL, { credentials: 'same-origin', cache: 'no-store' }).then(function (response) {
+    if (!response.ok) return fetch(request);
+    var copy = response.clone();
+    event.waitUntil(self.caches.open(SHELL_CACHE).then(function (cache) {
+      return cache.put(SHELL_KEY, copy);
+    }));
+    return response;
+  }, function () {
+    return self.caches.match(SHELL_KEY).then(function (cached) {
+      return cached !== undefined ? cached : fetch(request);
+    });
+  });
+}
+/* Best-effort shell warm-up and refresh; never rejects. */
+function refreshShell() {
+  return fetch(APP_URL, { credentials: 'same-origin', cache: 'no-store' }).then(function (response) {
+    if (!response.ok) return undefined;
+    var copy = response.clone();
+    return self.caches.open(SHELL_CACHE).then(function (cache) {
+      return cache.put(SHELL_KEY, copy);
+    });
+  }, function () { return undefined; });
+}`
+}
+
+/**
+ * The dead-end guard for a failed /pair-accept and for a dead reopen (the
+ * reopen service worker serves this page at `/` when the pairing no longer
+ * passes): a device without a live pairing has no harness browser-auth
+ * cookie, so a redirect to bare `/` would land on the harness browser-auth
+ * 401 page ("authentication required"), which reads like a broken server.
+ * Serve a plain bilingual explanation instead; an already-paired device (live
  * device cookie, browser credential redeemed during its first scan) keeps
  * the old behavior and is sent on to the app.
  */
@@ -141,11 +220,11 @@ function pairingFailurePage(): string {
     '<meta name="referrer" content="no-referrer">',
     '<title>Pairing link invalid</title></head>',
     '<body style="font-family:system-ui,sans-serif;padding:24px;max-width:32em;margin:0 auto;line-height:1.6">',
-    '<p><strong>配对链接已失效或已被使用。</strong></p>',
-    '<p>请在桌面端打开远程控制面板，刷新二维码后重新扫码。</p>',
+    '<p><strong>配对已失效，或配对链接已过期。</strong></p>',
+    '<p>请在桌面端打开远程控制面板，刷新二维码后重新扫码；重新配对后本机即可恢复访问。</p>',
     '<hr style="border:none;border-top:1px solid #ccc;margin:16px 0">',
-    '<p><strong>This pairing link is invalid or has already been used.</strong></p>',
-    '<p>Open the remote panel on the desktop, refresh the QR code, and scan again.</p>',
+    '<p><strong>This pairing has expired or the link is no longer valid.</strong></p>',
+    '<p>Open the remote panel on the desktop, refresh the QR code, and scan again — re-pairing restores access on this device.</p>',
     '</body></html>',
   ].join('')
 }
@@ -164,6 +243,11 @@ export const PAIR_PATHS = {
   acceptPage: '/pair-accept',
   /** The cookieless app landing: serves the official shell for a paired device. */
   appPage: '/pair-app',
+  /**
+   * The reopen service worker (registered by the capture script). Root-level
+   * path so its default script-directory scope already covers `/`.
+   */
+  appServiceWorker: '/pair-app.sw.js',
 } as const
 
 /**
@@ -625,6 +709,30 @@ export function makeRoutes(deps: PairRoutesDeps): WebRoute[] {
     res.end(patchAppShell(html, id))
   }
 
+  /**
+   * The reopen service worker script. Same phone-facing fence as the app
+   * page but no rate limit and no device check: the script is inert logic
+   * (no secrets, no data), and browsers re-fetch it on navigations for
+   * update checks, which must not trip a brute-force budget. no-store keeps
+   * the update check meaningful across deploys.
+   */
+  const handleAppServiceWorker = (req: IncomingMessage, res: ServerResponse): void => {
+    if (!requireMethod(req, res, 'GET')) return
+    if (!lanFence(req)) {
+      res.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' })
+      res.end('forbidden')
+      return
+    }
+    res.writeHead(200, {
+      'content-type': 'text/javascript; charset=utf-8',
+      'cache-control': 'no-store',
+      // Defensive: the root-level script path already allows a `/` scope,
+      // the header keeps that explicit for engines that want it stated.
+      'service-worker-allowed': '/',
+    })
+    res.end(appServiceWorkerScript())
+  }
+
   const routes: WebRoute[] = [
     { kind: 'exact', path: PAIR_PATHS.issue, handler: handleIssue },
     { kind: 'exact', path: PAIR_PATHS.accept, handler: handleAccept },
@@ -640,6 +748,9 @@ export function makeRoutes(deps: PairRoutesDeps): WebRoute[] {
   routes.push({ kind: 'exact', path: PAIR_PATHS.acceptPage, handler: handleAcceptPage })
   if (deps.indexDocument !== undefined) {
     routes.push({ kind: 'exact', path: PAIR_PATHS.appPage, handler: handleAppPage })
+    // The reopen worker is only meaningful when the app landing it
+    // re-serves exists (same condition as /pair-app).
+    routes.push({ kind: 'exact', path: PAIR_PATHS.appServiceWorker, handler: handleAppServiceWorker })
   }
   return routes
 }

@@ -59,7 +59,7 @@ async function call(
   method: 'GET' | 'POST',
   path: string,
   opts: { host?: string; body?: unknown; cookie?: string; headers?: Record<string, string> } = {},
-): Promise<{ status: number; body: Record<string, unknown>; raw: string; cookies: string[]; referrerPolicy: string | undefined; location: string | undefined }> {
+): Promise<{ status: number; body: Record<string, unknown>; raw: string; cookies: string[]; referrerPolicy: string | undefined; location: string | undefined; contentType: string | undefined; cacheControl: string | undefined; serviceWorkerAllowed: string | undefined }> {
   return await new Promise((resolve, reject) => {
     const payload = opts.body === undefined ? undefined : JSON.stringify(opts.body)
     const headers: Record<string, string> = { host: opts.host ?? `127.0.0.1:${String(port)}` }
@@ -85,6 +85,9 @@ async function call(
             cookies: setCookie,
             referrerPolicy: response.headers['referrer-policy'],
             location: response.headers['location'],
+            contentType: response.headers['content-type'],
+            cacheControl: response.headers['cache-control'],
+            serviceWorkerAllowed: response.headers['service-worker-allowed'],
           })
         })
       },
@@ -199,7 +202,7 @@ describe('/api/pair routes', () => {
       // device (a bare `/` redirect would dead-end on the harness 401).
       const bad = await call(port, 'GET', '/pair-accept?pair=dead', { host: '192.168.1.5:3080' })
       expect(bad.status).toBe(200)
-      expect(bad.raw).toContain('配对链接已失效或已被使用')
+      expect(bad.raw).toContain('配对已失效，或配对链接已过期')
       expect(bad.raw).toContain('refresh the QR code')
       expect(bad.cookies ?? []).toEqual([])
       // An already-paired device re-opening a stale (invalid) link goes
@@ -257,6 +260,54 @@ describe('/api/pair routes', () => {
       await call(port, 'GET', '/pair-accept?pair=tok-1', { host: '192.168.1.5:3080' })
       const app = await call(port, 'GET', '/pair-app?device=tok-1', { host: '192.168.1.5:3080' })
       expect(app.status).toBe(404)
+    } finally {
+      await close()
+    }
+  })
+
+  it('serves the reopen service worker and registers it from the app shell', async () => {
+    const service = makeService()
+    const { port, close } = await serve(makeRoutes({
+      service,
+      lanAddresses: ['192.168.1.5'],
+      indexDocument: async () => '<html><head><title>shell</title></head><body>official</body></html>',
+    }))
+    try {
+      // The worker script: inert logic served to the phone-facing fence.
+      const sw = await call(port, 'GET', PAIR_PATHS.appServiceWorker, {})
+      expect(sw.status).toBe(200)
+      expect(sw.contentType).toContain('text/javascript')
+      expect(sw.cacheControl).toBe('no-store')
+      expect(sw.serviceWorkerAllowed).toBe('/')
+      // The worker owns navigations to `/` only, network-first through the
+      // cookie-authenticated app landing, cached shell as the offline
+      // fallback, pass-through when the plugin no longer answers.
+      expect(sw.raw).toContain("var APP_URL = '/pair-app'")
+      expect(sw.raw).toContain("path !== '/'")
+      expect(sw.raw).toContain('caches.open')
+      expect(sw.raw).toContain('caches.match')
+      expect(sw.raw).toContain('skipWaiting')
+      expect(sw.raw).toContain('clients.claim')
+      // The app shell registers the worker while the page is open (a live
+      // device gets the patched shell; a stranger gets the failure page).
+      service.issue()
+      await call(port, 'GET', '/pair-accept?pair=tok-1', { host: '192.168.1.5:3080' })
+      const app = await call(port, 'GET', '/pair-app?device=tok-1', { host: '192.168.1.5:3080' })
+      expect(app.raw).toContain('serviceWorker')
+      expect(app.raw).toContain(PAIR_PATHS.appServiceWorker)
+      // A foreign authority is refused like any phone-facing surface.
+      const foreign = await call(port, 'GET', PAIR_PATHS.appServiceWorker, { host: 'evil.example.com' })
+      expect(foreign.status).toBe(403)
+    } finally {
+      await close()
+    }
+  })
+
+  it('does not register the reopen worker without an app landing', async () => {
+    const { port, close } = await serve(makeRoutes({ service: makeService(), lanAddresses: ['192.168.1.5'] }))
+    try {
+      const missing = await call(port, 'GET', PAIR_PATHS.appServiceWorker, {})
+      expect(missing.status).toBe(404)
     } finally {
       await close()
     }

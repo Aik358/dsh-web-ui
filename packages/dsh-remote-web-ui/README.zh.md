@@ -9,7 +9,7 @@
 
 - **入口**：展开侧栏与窄栏中设置按钮旁的手机图标；tooltip 与可访问标签为「远程访问」。
 - **面板**：「远程访问」标题、「设备配对」卡片（状态区「等待设备连接」+ 状态徽标）、大二维码、带复制按钮的配对链接、停止 / 刷新二维码操作，以及已授权设备列表（按 User-Agent 推断的设备名、在线/离线、最近活动时间、逐设备取消配对）。承载凭据的设备 id 与原始 User-Agent 值绝不渲染。手机与电脑共用同一条一次性链接。
-- **手机侧**：扫码后以一次性限时令牌绑定并重载进入**官方 Web GUI**——不存在会漂移的第二套界面。手机竖屏时插件在运行中的界面上注入触控适配层（见下文）。链接同时携带 harness 浏览器认证令牌，从未见过本服务器的设备一次导航即可完成认证与配对。
+- **手机侧**：扫码后以一次性限时令牌绑定并重载进入**官方 Web GUI**——不存在会漂移的第二套界面。手机竖屏时插件在运行中的界面上注入触控适配层（见下文）。接受链路不依赖 cookie（`/pair-accept` → `/pair-app`）：官方应用壳由插件直接交付，手机全程不需要 harness 浏览器认证 cookie。随后由重开 service worker（https 源）接管此后对 `/` 的导航——来自历史、书签或标签恢复的重开直接回到应用，而不是 401 死路（见安全模型）。
 - **电脑侧**：同一链接在另一台电脑的浏览器里打开完整桌面 Web GUI，流量走门控 `/remote` 通道；未配对的电脑看到引导式拦截页（含手动粘贴配对令牌输入框），其后没有任何工作区数据。
 - **安全**：同时只有一枚有效令牌（刷新二维码使旧链接失效；链接在其有效期窗口内可重复配对——扫码在浏览器间转手也能完成配对；令牌会过期）。停止会撤销所有配对设备与当前令牌——`/remote` 通道在下一次请求即切断它们。配对是本插件对 `/remote` 通道的访问控制；暴露到局域网后的直连 `/api` 由 harness 围栏 + 浏览器认证约束（见安全模型）。回环（127.0.0.1）继续直接使用 `/api`。配对设备是**完全控制凭据**（见安全模型）。
 - **局域网绑定开关**：设置卡片向 profile `cordis.patch.yml` 写入受管块，将 webserver 绑定固定为 `0.0.0.0`（开）或 `127.0.0.1`（关）——无需 `--host` 命令行操作；显式 `--host`/`--port` 旗标仍然优先。同时维护对应的主机防火墙规则（Windows Defender 经 netsh；Linux firewalld/ufw/iptables；其他平台报告防火墙不受管），并展示运行中的绑定、可达局域网地址与防火墙状态。
@@ -58,7 +58,7 @@ dsh plugin --profile web add link:$(pwd)/packages/dsh-remote-web-ui
 
 1. 打开设置卡片（设置 → Web 插件 → 远程访问设置），若服务绑定回环则打开**局域网访问**；卡片展示运行中的绑定、防火墙状态与可达局域网地址。绑定变化自下一次 `dsh web` 启动生效。
 2. 启动 `dsh web`，点手机图标，面板铸造一枚全新的一次性二维码。
-3. 手机扫码（或打开复制的链接）：设备一次导航中越过 harness 浏览器认证门与配对门，重载后进入**官方 Web GUI**。手机上竖屏适配层已生效——与桌面同布局、同实时状态。
+3. 手机扫码（或打开复制的链接）：设备完成配对，进入由插件不依赖 cookie 交付的**官方 Web GUI**（`/pair-accept` → `/pair-app`），并重载到 `/`。手机上竖屏适配层已生效——与桌面同布局、同实时状态。此后的重开（历史、书签）直接回到应用（https 源；见安全模型）。
 4. **改为配对电脑**：复制同一链接，在另一台电脑的浏览器打开。相同往返后完整 Web GUI 在彼处经门控 `/remote` 通道运行；未配对电脑看到引导式拦截页，其后没有数据。一枚令牌配一台设备；下一台设备请刷新二维码。
 5. 桌面徽标实时切换为已连接；设备列表列出已配对设备并支持逐设备取消配对，停止则全部撤销。
 6. 配对有效期、设备上限、局域网栅栏策略（`requirePairingForLan`）、公网地址与自动隧道都在同一设置卡片配置。
@@ -114,7 +114,7 @@ pnpm run build
 
 - **`sidebar.footer.action` 底部席位**（0.1.2 shell 组合）：侧栏声明并渲染远程入口占据的席位。
 - **`ctx.layout.toggleSidebar()`**（packages/client/ui-layout）：鲸鱼按钮经官方面板动作面展开折叠侧栏。
-- **`ctx.connection.authenticatedUrl()`**（packages/client/connection）：`/pair-accept` 重定向使用的官方启动令牌接缝，局域网设备借此越过浏览器认证门。
+- **`ctx.connection.authenticatedUrl()`**（packages/client/connection）：代理为内部凭据一次性兑换启动令牌的官方接缝（`src/inner-auth.ts`），使再发起的 `/api` 调用满足 harness 浏览器认证校验。
 - **`__DSH_TRANSPORT__.ownsHost`**（client-connection 传输钩子）：配对远程桌面的 host 模式翻转。本线没有 host 侧按方法特权锁定——配置面在客户端按 `connection.isLoopback` 分支——也没有 `api/gate` 瀑布（gate 监听器保持挂载，待未来部署获得该接缝；配对强制在插件自己的 `/remote` 通道上）。
 - **用户补丁绑定语义**：同 id 补丁行整行替换 config，且用户补丁层无法可靠求值依赖 `webStartup` 的 `!!js` 表达式——局域网绑定块因此落静态值，插件每次启动重断言。
 
@@ -126,7 +126,7 @@ pnpm run build
 
 1. 启动隔离实例：`DSH_HOME=/tmp/dsh-qa dsh --profile web --no-open --port 3191`，并打开局域网绑定开关（或使用绑定块固定 0.0.0.0 的 profile）。
 2. 浏览器打开**回环** URL（`http://127.0.0.1:3191`）：手机图标位于侧栏底部；面板立即铸造二维码，链接形如 `<lan-url>/pair-accept?pair=<token>`。
-3. 在第二个标签（390x844 触控模拟）打开该链接：链路 `/pair-accept → /?token=<launch> → /` 设置两枚 cookie 并启动官方 UI——`document.body.classList` 带 `dsh-remote-portrait`、适配样式表与小鲸鱼按钮存在、`__DSH_TRANSPORT__.ownsHost` 为 `true`。设置面渲染 host 数据（host 模式），而非 memory 镜像。
+3. 在第二个标签（390x844 触控模拟）打开该链接：链路 `/pair-accept → /pair-app?device=<id> → /` 设置设备 cookie、交付打过补丁的官方应用壳并启动 UI——`document.body.classList` 带 `dsh-remote-portrait`、适配样式表与小鲸鱼按钮存在、`__DSH_TRANSPORT__.ownsHost` 为 `true`。设置面渲染 host 数据（host 模式），而非 memory 镜像。https 部署下应用壳还会注册重开 service worker（`/pair-app.sw.js`）；在该标签刷新 `/` 会直接进入应用而不是 harness 401。
 4. 桌面徽标实时切换为已连接；局域网源的桌面页面则显示配对面板仅限本机使用横幅且不开状态流。
 5. 桌面点停止切断设备：下一次请求 403 且 `unpaired`（栅栏页提供手动配对令牌输入）。
 
@@ -140,8 +140,9 @@ pnpm run build
 - **配对设备是完全控制凭据。** host 模式下它可达完整 host API——聊天、会话、设置、凭据、Agent 预设、产出物——与 SDK 对回环桌面的信任一致。只有四个控制面（配对、自更新、插件安装/卸载、桌面启动器）保持物理本地。只配对你控制的设备；停止或逐设备取消配对立即撤销。
 - **控制端点仅限回环**：铸造/停止/撤销、设备列表、lan-bind 状态与更新端点只应答回环。局域网源浏览器看到「配对面板仅限本机使用」横幅。
 - **应用落地页不依赖 cookie。** 配对后二维码把设备带到 `/pair-app`——由本插件直接交付官方应用壳，不经过 harness 索引认证门；设备凭据经 `x-dsh-remote-device` 请求头（fetch）与 `device` 查询参数（WebSocket 升级）由引导补丁从 sessionStorage 挂载。因此手机浏览器完全禁用 cookie 时链路依然成立；有 cookie 时配对 cookie 仍是主凭据，手机路径不再需要 harness 浏览器认证 cookie。
+- **重开由 service worker 接管（仅 https 源）。** 配对过的手机从历史、书签或标签恢复回来时导航到裸 `/`——插件不拥有的路径，harness 兜底座会用浏览器认证 401 应答（不依赖 cookie 的流程永远拿不到那份凭据）。应用壳因此注册 `/pair-app.sw.js`（与 `/pair-app` 同一栅栏；脚本是不含任何秘密的惰性逻辑）：只拦截对 `/` 的导航，经 `/pair-app` 网络优先地重发应用壳——同时校验设备 cookie 并刷新其活跃时间，每次重开也在为会话续期——离线时回退缓存的壳，插件不再应答时把导航原样放行（被撤销的设备随后看到 harness 应答或双语重扫页）。纯 HTTP 的局域网源不是安全上下文，永远不会注册该 worker；那里的重开意味着重新扫码。
 - **撤销按请求生效**：停止落地时已在途的请求会完成；下一个请求 403。
-- **配对设备会话默认持久化**：设备会话（非一次性 QR 令牌）写入 `$DSH_HOME/remote-web-ui-devices.json`（0600，临时文件 + 原子改名）。`dsh web` 重启后配对 cookie 依然有效。刷新二维码铸造新令牌；重启不会恢复当前二维码。空闲超过 `idleExpireMs`（默认 7 天）的会话被删除并须重新配对。设备 id 即会话凭据。需要时可用 `devicesFile` 指定其他绝对路径。更换 `cookieName` 会使现有设备失效（预期行为）。
+- **配对设备会话默认持久化**：设备会话（非一次性 QR 令牌）写入 `$DSH_HOME/remote-web-ui-devices.json`（0600，临时文件 + 原子改名）。`dsh web` 重启后配对 cookie 依然有效。刷新二维码铸造新令牌；重启不会恢复当前二维码。空闲超过 `idleExpireMs`（默认 30 天；重开 service worker 每次接管导航都会刷新该窗口）的会话被删除并须重新配对。设备 id 即会话凭据。需要时可用 `devicesFile` 指定其他绝对路径。更换 `cookieName` 会使现有设备失效（预期行为）。
 - **局域网绑定块拥有 webserver 行**：开关翻过后受管块固定绑定；插件每次启动重断言，显式 `--host`/`--port` 旗标通过重写块获胜。手工编辑该块会被检测并在卡片展示（`blockHost` 显示字面量）。
 - **桌面栅栏策略公开**：`/api/pair/status` 只暴露布尔 `requirePairingForLan` 策略，供远程桌面在设置作用域可用前选择正确传输。该字段不是凭据，不暴露令牌、设备、计数或隧道 URL。
 - **快速隧道主机名每次运行都变**：`trycloudflare.com` URL 每次 `cloudflared` 启动都随机，`publicBaseUrl`（或自动隧道）须随之刷新。命名隧道可避免抖动。
@@ -149,6 +150,7 @@ pnpm run build
 ## 已知限制与后续工作
 
 - **绑定变化需要重启**：补丁热重载监视器无法重绑监听中的套接字，且热重载行为依赖 profile 形态。卡片以 `pendingRestart` 提示局域网访问将在下次 `dsh web` 启动时生效。
+- **纯 HTTP 局域网的重开需要重扫**：重开 service worker 只在安全上下文（https 隧道、localhost）注册；经纯 HTTP 局域网 URL 配对的手机导航回 `/` 时会撞上 harness 401，需要重新扫码。局域网内重配对成本很低，配对后一切恢复。
 - **适配选择器跟随官方构建**：语义后缀策略可在 hash 变化中存活，但语义改名不行；每次官方 GUI 升级需要一轮视觉 QA（参考 dsh-LAN，这些后缀在多次官方发布中保持稳定）。
 - **开发 HMR**：`dsh web --dev` 按路径轮询每个 roster bundle，重建本包（自身 `tsdown --watch`）即热重载客户端 bundle；host 半区需要重启。
 

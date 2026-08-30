@@ -55,8 +55,16 @@ export interface TokenRecord {
   address?: string
 }
 
-/** Default idle-expiry window: 7 days without heartbeat or a gated request. */
-export const DEFAULT_IDLE_EXPIRE_MS = 7 * 24 * 60 * 60 * 1000
+/**
+ * Default idle-expiry window: 30 days without a heartbeat or a gated
+ * request. The reopen service worker refreshes lastSeenAt on every
+ * navigation it serves, so the window only runs out through genuine
+ * disuse; 30 days matches the browser-credential lifetimes the surrounding
+ * flow was built around, while the effective device lifetime stays shorter
+ * than the 365-day cookie because of this sweep. Override per deployment
+ * through the idleExpireMs config.
+ */
+export const DEFAULT_IDLE_EXPIRE_MS = 30 * 24 * 60 * 60 * 1000
 
 /** Cap on the persisted/displayed User-Agent string. */
 const MAX_USER_AGENT_CHARS = 180
