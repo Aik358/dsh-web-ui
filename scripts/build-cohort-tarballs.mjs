@@ -277,6 +277,7 @@ async function main() {
       'store-dir': { type: 'string' },
       'skip-install': { type: 'boolean' },
       'skip-build': { type: 'boolean' },
+      'skip-commit-check': { type: 'boolean' },
     },
     allowPositionals: false,
   })
@@ -300,10 +301,26 @@ async function main() {
   }
   console.log(`build-cohort-tarballs: ${missingBefore}/${expected.size} tarball(s) missing from ${storeDir}`)
 
-  let harnessDir = values['harness-dir']
+  let harnessDir = values['harness-dir'] ?? process.env.DSH_HARNESS_DIR
+  if (!harnessDir) {
+    const candidateDirs = [
+      resolve(REPO_ROOT, '..', 'deepseek-harness'),
+      resolve(REPO_ROOT, '..', '..', 'deepseek-harness'),
+    ]
+    for (const candidate of candidateDirs) {
+      if (existsSync(join(candidate, '.git')) || existsSync(join(candidate, 'package.json'))) {
+        harnessDir = candidate
+        break
+      }
+    }
+  }
+
   if (harnessDir) {
-    assertPinnedCommit(resolve(harnessDir))
     harnessDir = resolve(harnessDir)
+    console.log(`build-cohort-tarballs: using local harness checkout at ${harnessDir}`)
+    if (!values['skip-commit-check']) {
+      assertPinnedCommit(harnessDir)
+    }
   } else {
     harnessDir = cloneHarness(join(tmpdir(), 'dsh-cohort-build'))
   }
