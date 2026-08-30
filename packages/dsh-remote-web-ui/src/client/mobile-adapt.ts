@@ -212,6 +212,22 @@ export function startMobileAdapt(): void {
   // the settings snapshot settles (disabled plugin = no injected surface).
   let adaptEnabled = true
 
+  /**
+   * Idempotently (re-)install the adaptation stylesheet. The rules live in
+   * one <style> tag keyed by data-plugin-css; the sync tick re-runs this so
+   * a tag lost to any external DOM cleanup is restored within one tick
+   * instead of silently dropping the suppressions (portrait pet hiding,
+   * rail compaction) while the body class stays.
+   */
+  function ensureAdaptStyle(): void {
+    if (document.querySelector(`style[data-plugin-css="${ADAPT_CSS_ID}"]`) !== null) return
+    const tag = document.createElement('style')
+    tag.dataset.plugin = 'remote-web-ui'
+    tag.dataset.pluginCss = ADAPT_CSS_ID
+    tag.textContent = ADAPT_CSS.join('')
+    document.head.appendChild(tag)
+  }
+
   function apply(): void {
     if (active) return
     active = true
@@ -219,14 +235,13 @@ export function startMobileAdapt(): void {
     // A details panel opened before the viewport rotated into portrait (or
     // restored across reloads) would sit behind the display:none above;
     // closing it through the official face unmounts the surface entirely.
-    w.__dshRemoteAdapt?.closeDetails?.()
-    if (document.querySelector(`style[data-plugin-css="${ADAPT_CSS_ID}"]`) === null) {
-      const tag = document.createElement('style')
-      tag.dataset.plugin = 'remote-web-ui'
-      tag.dataset.pluginCss = ADAPT_CSS_ID
-      tag.textContent = ADAPT_CSS.join('')
-      document.head.appendChild(tag)
-    }
+    // The layout face throws by design when the root entry has not mounted
+    // yet (boot-order), which is a tolerated no-op here — the plugin apply
+    // replays it through flushCloseDetails once the wiring is live.
+    try {
+      w.__dshRemoteAdapt?.closeDetails?.()
+    } catch {}
+    ensureAdaptStyle()
     // viewport-fit=cover enables env(safe-area-inset-*); restore on revert.
     const meta = document.querySelector('meta[name=viewport]')
     if (meta instanceof HTMLMetaElement && meta.getAttribute('content') !== null && !(meta.getAttribute('content') ?? '').includes('viewport-fit')) {
@@ -365,6 +380,9 @@ export function startMobileAdapt(): void {
   }
 
   function syncWhale(): void {
+    // Keep the stylesheet present while the layer is active (the tick runs
+    // every 600ms; see ensureAdaptStyle for why the tag can need a re-assert).
+    if (active) ensureAdaptStyle()
     if (whaleEl === null) return
     if (!active) {
       whaleEl.style.display = 'none'

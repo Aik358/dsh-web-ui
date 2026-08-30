@@ -185,4 +185,28 @@ describe('startMobileAdapt', () => {
     adapt?.evaluate()
     expect(document.querySelectorAll('style[data-plugin-css="dsh-remote-web-ui/mobile-adapt.css"]')).toHaveLength(1)
   })
+
+  it('re-asserts the stylesheet within one sync tick after external removal', async () => {
+    vi.useFakeTimers()
+    try {
+      media.portrait = true
+      media.coarse = true
+      setWidth(390)
+      const start = await freshStart()
+      start()
+      const selector = 'style[data-plugin-css="dsh-remote-web-ui/mobile-adapt.css"]'
+      expect(document.querySelector(selector)).not.toBeNull()
+      // External DOM cleanup (observed live on the phone mirror) strips the
+      // tag while the body class stays; the suppressions must come back.
+      document.querySelector(selector)?.remove()
+      expect(document.querySelector(selector)).toBeNull()
+      await vi.advanceTimersByTimeAsync(600)
+      const restored = document.querySelector(selector)
+      expect(restored).not.toBeNull()
+      expect(document.querySelectorAll(selector)).toHaveLength(1)
+      expect(document.body.classList.contains('dsh-remote-portrait')).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
