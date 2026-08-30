@@ -84,6 +84,11 @@ describe('startMobileAdapt', () => {
     // 16px input rule (iOS focus zoom) and the collapsed-rail pin ride along.
     expect(tag?.textContent).toContain('font-size:16px')
     expect(tag?.textContent).toContain('grid-template-columns:0 minmax(0,1fr) 0')
+    // The collapsed sidebar is an absolute overlay (out of grid flow); the
+    // in-flow center would auto-place into the now-0px first track and
+    // collapse to zero width. The columns are pinned explicitly so the
+    // center always owns the 1fr track (regression: blank center on mobile).
+    expect(tag?.textContent).toContain('[class$="_centerCol"]{grid-column:2/3}')
     expect(meta.getAttribute('content')).toContain('viewport-fit=cover')
     // The desktop-only suppressors stay, including the pet: the mobile
     // remote mirror is deliberately free of the desktop decoration (user

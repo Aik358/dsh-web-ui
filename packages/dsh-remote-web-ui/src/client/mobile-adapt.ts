@@ -94,6 +94,16 @@ const ADAPT_CSS: readonly string[] = [
   // details track is always 0 (computeColumns drops it when there is no
   // room), so the three-track override is safe here.
   '[class$="_frame"][data-sidebar-collapsed]{grid-template-columns:0 minmax(0,1fr) 0 !important}',
+  // The official collapsed sidebar is an absolutely-positioned overlay rail
+  // (it leaves the grid flow), so the in-flow centerCol would auto-place
+  // into the now-0px FIRST track and collapse the conversation to zero width
+  // on an intermittent basis (the rail flips relative <-> absolute as the
+  // host overlay mounts). Pin every column to an explicit track so the
+  // center always lands on the 1fr track regardless of the sidebar's
+  // computed position.
+  '[class$="_frame"][data-sidebar-collapsed] [class$="_sidebarCol"]{grid-column:1/2}',
+  '[class$="_frame"][data-sidebar-collapsed] [class$="_centerCol"]{grid-column:2/3}',
+  '[class$="_frame"][data-sidebar-collapsed] [class$="_detailsCol"]{grid-column:3/4}',
   // Keep the chat header title clear of the floating whale.
   `body.${RAIL_HIDDEN_CLASS} [class$="_titleRow"]{padding-left:52px}`,
   // The whale button itself.
