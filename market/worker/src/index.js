@@ -166,8 +166,8 @@ async function readStats(env) {
 async function verifyTurnstile(request, env, token) {
   // Fail closed: without the secret binding no challenge can be verified,
   // so writes are rejected instead of passing anonymously.
-  if (!env.TURNSTILE_SECRET) return false
-  if (!token) return false
+  if (!env.TURNSTILE_SECRET) return { ok: false, codes: ['missing-secret-binding'] }
+  if (!token) return { ok: false, codes: [] }
   const form = new URLSearchParams()
   form.set('secret', env.TURNSTILE_SECRET)
   form.set('response', token)
@@ -179,7 +179,13 @@ async function verifyTurnstile(request, env, token) {
     body: form,
   })
   const result = await response.json().catch(() => ({ success: false }))
-  return result.success === true && INSTALL_ACTIONS.has(result.action) && result.hostname === 'dsh-market.com'
+  // siteverify error-codes are not sensitive and are surfaced on the 403 so a
+  // dead pairing (invalid-input-secret) is distinguishable from token problems.
+  const codes = Array.isArray(result['error-codes']) ? result['error-codes'].map(String) : []
+  return {
+    ok: result.success === true && INSTALL_ACTIONS.has(result.action) && result.hostname === 'dsh-market.com',
+    codes,
+  }
 }
 
 const CHALLENGE_HTML = [
@@ -332,8 +338,9 @@ export default {
       if (!(await isKnownAsset(env, kind, assetId))) return json({ ok: false, error: 'unknown-asset' }, 400)
       const hash = await sha256(fp)
       const token = typeof body.turnstile_token === 'string' ? body.turnstile_token : ''
-      if (!(await verifyTurnstile(request, env, token))) {
-        return json({ ok: false, error: token ? 'captcha-invalid' : 'captcha-required' }, 403)
+      const turnstile = await verifyTurnstile(request, env, token)
+      if (!turnstile.ok) {
+        return json({ ok: false, error: token ? 'captcha-invalid' : 'captcha-required', captcha_error_codes: turnstile.codes }, 403)
       }
       const installs = await mutateInstall(env, kind, assetId, hash, installId)
       return json({ ok: true, installs })
@@ -361,8 +368,9 @@ export default {
       if (!(await isKnownAsset(env, kind, assetId))) return json({ ok: false, error: 'unknown-asset' }, 400)
       const hash = await sha256(fp)
       const token = typeof body.turnstile_token === 'string' ? body.turnstile_token : ''
-      if (!(await verifyTurnstile(request, env, token))) {
-        return json({ ok: false, error: token ? 'captcha-invalid' : 'captcha-required' }, 403)
+      const turnstile = await verifyTurnstile(request, env, token)
+      if (!turnstile.ok) {
+        return json({ ok: false, error: token ? 'captcha-invalid' : 'captcha-required', captcha_error_codes: turnstile.codes }, 403)
       }
       const votes = await mutateLike(env, kind, assetId, hash, unlike)
       return json({ ok: true, liked: !unlike, votes })
