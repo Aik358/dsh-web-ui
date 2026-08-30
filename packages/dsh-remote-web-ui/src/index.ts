@@ -13,7 +13,7 @@ import { join } from 'node:path'
 import { setInterval as nodeSetInterval, setTimeout as nodeSetTimeout } from 'node:timers'
 import type { IncomingMessage } from 'node:http'
 import type { Context } from '@deepseek-ai/cordis'
-import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
+import type { SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import z from 'schemastery'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import type {} from '@deepseek-ai/dsh-agent'
@@ -59,7 +59,7 @@ declare module '@deepseek-ai/cordis' {
      * deployments that carry the pairing/revocation seam; call `next()` to
      * delegate, return false (without calling it) to veto with 403.
      *
-     * Cohort note (0.1.2-alpha.1): the official runtime ships NO emitter
+     * Cohort note (0.1.2-alpha.2): the official runtime ships NO emitter
      * for this event, so the listener below never fires there and direct
      * /api stays under the harness fence + browser auth. It is wired anyway
      * so cohort lines that do carry the seam get pairing enforcement on
@@ -85,7 +85,7 @@ export const inject = ['webServer', 'typertGateway', 'connection']
  * settings surface edits. Spelled here rather than imported: the browser
  * half spells the same value and must not depend on a Host package.
  */
-export const REMOTE_WEB_UI_SETTINGS_NAMESPACE = settingsNamespace('remote-web-ui')
+export const REMOTE_WEB_UI_SETTINGS_NAMESPACE = 'remote-web-ui' as SettingsNamespace
 
 /** Plugin config, validated by the same-named schemastery schema. */
 export interface Config {
@@ -108,7 +108,7 @@ export interface Config {
    * cookie — the QR is the only way into remote desktop, and stop()/revoke()
    * cut the /remote channel and the pairing cookie off immediately. Scope
    * note for this cohort: direct /api is governed by the harness fence +
-   * browser-auth cookie (the api/gate seam has no emitter on 0.1.2-alpha.1),
+   * browser-auth cookie (the api/gate seam has no emitter on 0.1.2-alpha.2),
    * so a harness browser credential a device has already redeemed is not
    * invalidated by stop() — see the README security model. Set false to keep
    * the desktop on plain `/api` (only useful when that origin is already
@@ -260,7 +260,7 @@ function applyImpl(ctx: Context, config?: Config): void {
   }
   // The live source the pairing service and the gate read: the settings
   // section once the web settings surface is served, the composition entry
-  // otherwise (installSettingsSection swaps it when the namespace registers).
+  // otherwise (installSection swaps it when the namespace registers).
   let current: () => Config = () => config ?? {}
   const resolve = (): ResolvedConfig => {
     const value = current()
@@ -713,12 +713,14 @@ function applyImpl(ctx: Context, config?: Config): void {
     table.push({ kind: 'script', placement: 'head', text: REMOTE_CHANNEL_BOOT_SCRIPT })
   }), 'remote-web-ui: remote channel boot patch')
 
-  installSettingsSection(ctx, REMOTE_WEB_UI_SETTINGS_NAMESPACE, Config, config ?? {}, {
-    setSource: (source) => {
-      current = source
-      sync()
-    },
-    onChange: sync,
+  ctx.inject(['settings'], (settingsCtx) => {
+    settingsCtx.settings.installSection(ctx, REMOTE_WEB_UI_SETTINGS_NAMESPACE, Config, config ?? {}, {
+      setSource: (source) => {
+        current = source
+        sync()
+      },
+      onChange: sync,
+    })
   })
   sync()
 }

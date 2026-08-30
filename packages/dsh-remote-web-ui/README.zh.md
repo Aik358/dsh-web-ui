@@ -98,7 +98,7 @@ pnpm --filter @linxin666/dsh-remote-web-ui test
 pnpm --filter @linxin666/dsh-remote-web-ui run typecheck
 ```
 
-对端 API 来自官方 NPM SDK：用到的每个 `@deepseek-ai/*` 包都声明在 devDependencies（0.1.2-alpha.1 cohort）中，TypeScript/Vitest 直接从 node_modules 解析类型——不需要 DSH 源码 checkout。消费侧 `prepare` 构建（`tsdown.prepare.config.ts`）不做类型检查地转译，git 安装同样无需 harness checkout。
+对端 API 来自官方 NPM SDK：用到的每个 `@deepseek-ai/*` 包都声明在 devDependencies（0.1.2-alpha.2 cohort）中，TypeScript/Vitest 直接从 node_modules 解析类型——不需要 DSH 源码 checkout。消费侧 `prepare` 构建（`tsdown.prepare.config.ts`）不做类型检查地转译，git 安装同样无需 harness checkout。
 
 ## 检查
 
@@ -110,7 +110,7 @@ pnpm run build
 
 ## Harness 契约依赖
 
-锚定 0.1.2-alpha.1 线；本构建依赖的接缝：
+锚定 0.1.2-alpha.2 线；本构建依赖的接缝：
 
 - **`sidebar.footer.action` 底部席位**（0.1.2 shell 组合）：侧栏声明并渲染远程入口占据的席位。
 - **`ctx.layout.toggleSidebar()`**（packages/client/ui-layout）：鲸鱼按钮经官方面板动作面展开折叠侧栏。
@@ -136,7 +136,7 @@ pnpm run build
 
 - **配对是 `/remote` 通道的访问控制**：`requirePairingForLan` 开启（默认）时，每个请求必须携带有效配对设备 cookie，在任何字节转发之前强制。缺失或被撤销的会话收到 HTTP 403，JSON 拒绝携带 `error.code: "unpaired"`；浏览器 `EventSource` API 只暴露流失败，不暴露响应体。
 - **通道携带进程自己的内部凭据。** harness 浏览器认证 cookie 与 authority 绑定（为浏览器访问过的确切 `host:port` 签发）且没有回环豁免，因此转发到 `127.0.0.1` 的再发起请求无法复用设备的 cookie。插件因此自行兑换一次自己的启动令牌——与浏览器首次访问执行的是同一次交换——并把所得 cookie 附到再发起请求上。该凭据只在上面的配对门之后被使用；停止/取消配对会立即停止对它的使用。
-- **本 cohort 的现实：配对不门控直连 `/api`。** 在锚定的 0.1.2-alpha.1 线上，没有任何组件发出 `api/gate` seam，因此来自局域网源头的直连 `/api` 仅由 harness 围栏（`0.0.0.0` 绑定下自动信任局域网字面量）加 harness 浏览器认证 cookie 约束。设备已经兑换过的浏览器凭据在停止/取消配对后仍然有效，直到其自然过期（30 天）——撤销约束的是 `/remote` 通道与配对 cookie，而不是那个凭据。插件会对 `/api` 姿态做探测并大声告警；请把局域网绑定当作深思熟虑的决定，在共享机器上优先回环加隧道。
+- **本 cohort 的现实：配对不门控直连 `/api`。** 在锚定的 0.1.2-alpha.2 线上，没有任何组件发出 `api/gate` seam，因此来自局域网源头的直连 `/api` 仅由 harness 围栏（`0.0.0.0` 绑定下自动信任局域网字面量）加 harness 浏览器认证 cookie 约束。设备已经兑换过的浏览器凭据在停止/取消配对后仍然有效，直到其自然过期（30 天）——撤销约束的是 `/remote` 通道与配对 cookie，而不是那个凭据。插件会对 `/api` 姿态做探测并大声告警；请把局域网绑定当作深思熟虑的决定，在共享机器上优先回环加隧道。
 - **配对设备是完全控制凭据。** host 模式下它可达完整 host API——聊天、会话、设置、凭据、Agent 预设、产出物——与 SDK 对回环桌面的信任一致。只有四个控制面（配对、自更新、插件安装/卸载、桌面启动器）保持物理本地。只配对你控制的设备；停止或逐设备取消配对立即撤销。
 - **控制端点仅限回环**：铸造/停止/撤销、设备列表、lan-bind 状态与更新端点只应答回环。局域网源浏览器看到「配对面板仅限本机使用」横幅。
 - **应用落地页不依赖 cookie。** 配对后二维码把设备带到 `/pair-app`——由本插件直接交付官方应用壳，不经过 harness 索引认证门；设备凭据经 `x-dsh-remote-device` 请求头（fetch）与 `device` 查询参数（WebSocket 升级）由引导补丁从 sessionStorage 挂载。因此手机浏览器完全禁用 cookie 时链路依然成立；有 cookie 时配对 cookie 仍是主凭据，手机路径不再需要 harness 浏览器认证 cookie。

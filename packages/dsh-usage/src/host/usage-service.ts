@@ -13,7 +13,6 @@ import type { Context } from '@deepseek-ai/cordis'
 import { credentialKey, credentialRef } from '@deepseek-ai/dsh-credentials'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type { TokenUsage } from '@deepseek-ai/dsh-llm'
-import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 import { dshHome } from '../dsh-home.ts'
 import { adapterFor, isDeepSeekProviderRoute, providerErrorMessage } from '../core/adapters.ts'
 import type { BalanceParse, PlanParse } from '../core/adapters.ts'
@@ -174,7 +173,7 @@ function readNamespace(ctx: Context, ns: string): unknown {
   try {
     const settings = service<{ get(ns: unknown): unknown }>(ctx, 'settings')
     if (settings === undefined) return undefined
-    return settings.get(settingsNamespace(ns))
+    return settings.get(ns)
   } catch {
     return undefined
   }

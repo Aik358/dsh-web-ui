@@ -12,7 +12,7 @@ type GatewayRequest = {
 
 type FakeWorkspace = { id: string }
 
-// Real 0.1.2-alpha.1 gateway wire contract, encoded from assertExactArguments
+// Real 0.1.2-alpha.2 gateway wire contract, encoded from assertExactArguments
 // in @deepseek-ai/dsh-api-gateway/lib/index.js plus the descriptor tables in
 // each package's lib/typert.host.js: session/list carries its request under
 // the '_request' wire key; session create/rename/prompt/page/follow (and the

@@ -75,7 +75,7 @@ declare module '@deepseek-ai/cordis' {
 /**
  * Required services (fiber inject waiting — the runtime must be up first).
  * The generated remote faces are probed at use time instead of injected:
- * `remote.agentPresets` only registers on 0.1.2-alpha.1 hosts (the
+ * `remote.agentPresets` only registers on 0.1.2-alpha.2 hosts (the
  * api-remotes contribution), so a hard wait would pend the entry forever
  * on hosts below that cohort, which serve the same roster through the
  * connection RPC face.
@@ -95,7 +95,7 @@ interface PresetRosterRow {
 /**
  * Read the agent-preset roster through whichever face the running host
  * serves: the generated api-remotes face (`remote.agentPresets`,
- * 0.1.2-alpha.1) or the connection RPC face
+ * 0.1.2-alpha.2) or the connection RPC face
  * (`connection.api.agentPresets`, hosts below that cohort). Answers
  * undefined when the host serves neither, so the caller leaves the picker
  * options untouched instead of erroring.
@@ -107,7 +107,7 @@ async function readPresetRoster(
   // The cordis `remote` proxy throws on a property that was never injected
   // ("cannot get property X without inject") rather than returning undefined,
   // so the probe must guard the access — a hard read would abort mounting on
-  // hosts below the 0.1.2-alpha.1 cohort instead of degrading to the legacy
+  // hosts below the 0.1.2-alpha.2 cohort instead of degrading to the legacy
   // connection RPC face below.
   let remotes: ClientRemote['agentPresets'] | undefined
   try {

@@ -11,7 +11,7 @@
  *
  * The rewrite decisions are generated from REMOTE_CHANNEL_RULES, the same
  * data the browser patch consumes — the two cannot drift apart. On this
- * 0.1.2-alpha.1 line the "configuration plane is local" behavior lives in
+ * 0.1.2-alpha.2 line the "configuration plane is local" behavior lives in
  * the browser (client plugins branch on connection.isLoopback), so the
  * script also flips the official UI into host mode by installing the
  * transport hook `__DSH_TRANSPORT__ = { ownsHost: true }` before the

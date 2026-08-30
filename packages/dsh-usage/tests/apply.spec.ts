@@ -55,8 +55,17 @@ function makeCtx(scope: ScopeHandle) {
     get: () => undefined,
     // dsh-settings checks ctx.fiber.state when a registration tears down.
     fiber: { state: 0 },
-    inject: (_deps: string[], fn: (sctx: { settings: { register: () => ScopeHandle['scope'] }; effect: typeof effect }) => void) => {
-      fn({ settings: { register: () => scope.scope }, effect })
+    inject: (_deps: string[], fn: (sctx: { settings: { installSection: (owner: unknown, ns: unknown, schema: unknown, entry: unknown, hooks: { setSource: (current: () => unknown) => void; onChange: () => void }) => void }; effect: typeof effect }) => void) => {
+      fn({
+        settings: {
+          installSection: (_owner, _ns, _schema, _entry, hooks) => {
+            hooks.setSource(() => scope.scope.get())
+            hooks.onChange()
+            scope.scope.watch(() => hooks.onChange())
+          },
+        },
+        effect,
+      })
       return () => {}
     },
     webServer: {

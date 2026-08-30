@@ -21,7 +21,7 @@ Today's spend is an estimate priced at fold time from the published DeepSeek V4 
 
 ## Install
 
-Requires DSH 0.1.2-alpha.1 or later: the plugin is developed against the 0.1.2-alpha.1 DSH cohort and its `@deepseek-ai/*` runtime imports are provided by the host itself.
+Requires DSH 0.1.2-alpha.2 or later: the plugin is developed against the 0.1.2-alpha.2 DSH cohort and its `@deepseek-ai/*` runtime imports are provided by the host itself.
 
 In your profile (e.g. `~/.dsh/profiles/web`):
 

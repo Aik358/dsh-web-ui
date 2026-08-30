@@ -50,7 +50,7 @@ jobs:
       - name: Restore preview cohort store
         uses: actions/cache@v4
         with:
-          path: ${{ github.workspace }}/../../.dsh-cohorts/0.1.2-alpha.1
+          path: ${{ github.workspace }}/../../.dsh-cohorts/0.1.2-alpha.2
           key: dsh-cohorts-${{ hashFiles('pnpm-workspace.yaml') }}
 
       - name: Materialize preview cohort store
@@ -161,7 +161,7 @@ jobs:
       - name: Restore preview cohort store
         uses: actions/cache@v4
         with:
-          path: ${{ github.workspace }}/../../.dsh-cohorts/0.1.2-alpha.1
+          path: ${{ github.workspace }}/../../.dsh-cohorts/0.1.2-alpha.2
           key: dsh-cohorts-${{ hashFiles('pnpm-workspace.yaml') }}
 
       - name: Materialize preview cohort store

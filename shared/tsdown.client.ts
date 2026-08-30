@@ -47,7 +47,7 @@ const GENERATED_REMOTE = /^@deepseek-ai\/dsh-[a-z0-9]+(?:-[a-z0-9]+)*\/remote$/
 const SKIP_WORKSPACE_BUILD: UserConfig = { entry: '' }
 
 /**
- * The snapshot-store engine's cohort duality. The 0.1.2-alpha.1 cohort
+ * The snapshot-store engine's cohort duality. The 0.1.2-alpha.2 cohort
  * freezes the engine into the dsh-client-store platform module; the
  * 0.1.1-rc.2 hosts this family still serves materialize the identical
  * engine (the same contract/store.ts rehomed) as the dsh-client-runtime
@@ -67,7 +67,7 @@ const STORE_ENGINE_SHIM_ID = '\0dsh-store-engine'
  * Generated dual-cohort store-engine shim. The join()-built specifiers stay
  * invisible to the static resolver, so the require calls are emitted
  * verbatim and answered by the loader's injected require at bundle
- * evaluation: the platform module on 0.1.2-alpha.1 hosts, the legacy
+ * evaluation: the platform module on 0.1.2-alpha.2 hosts, the legacy
  * runtime face on rc.2. Forwards exactly the value surface both engines
  * share (notifySubscribers exists only in the cohort package, so nothing
  * may re-export it).

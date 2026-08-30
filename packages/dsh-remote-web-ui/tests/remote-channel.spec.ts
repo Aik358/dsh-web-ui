@@ -45,7 +45,7 @@ describe('rewrite rules', () => {
   })
 
   it('rewrites exactly the registered WebSocket paths', () => {
-    // 0.1.2-alpha.1: the official client opens ONE stream socket (the Typert
+    // 0.1.2-alpha.2: the official client opens ONE stream socket (the Typert
     // gateway mux); the legacy /api/events.* paths no longer exist.
     expect(shouldRewriteWsPath('/api/remote.mux')).toBe(true)
     expect(shouldRewriteWsPath('/api/events.mux')).toBe(false)

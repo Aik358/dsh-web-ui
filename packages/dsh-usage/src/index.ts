@@ -1,6 +1,6 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-host-webserver'
-import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
+import type { SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import z from 'schemastery'
 import { mountOnce } from './mount-once.ts'
 import { UsageService, type UsageServiceOptions } from './host/usage-service.ts'
@@ -8,7 +8,7 @@ import { makeUsageOverviewRoute, makeUsageRefreshRoute } from './host/routes.ts'
 
 export const name = 'dsh-usage'
 export const inject = ['webServer']
-export const USAGE_SETTINGS_NAMESPACE = settingsNamespace('dsh-usage')
+export const USAGE_SETTINGS_NAMESPACE = 'dsh-usage' as SettingsNamespace
 
 export interface Config {
   enabled?: boolean
@@ -85,9 +85,11 @@ export const apply = mountOnce('@linxin666/dsh-usage', (ctx: Context, config?: C
     }
   }
 
-  installSettingsSection(ctx, USAGE_SETTINGS_NAMESPACE, Config, config ?? {}, {
-    setSource: (next) => { source = next; rearm() },
-    onChange: rearm,
+  ctx.inject(['settings'], (settingsCtx) => {
+    settingsCtx.settings.installSection(ctx, USAGE_SETTINGS_NAMESPACE, Config, config ?? {}, {
+      setSource: (next) => { source = next; rearm() },
+      onChange: rearm,
+    })
   })
 
   ctx.effect(() => {

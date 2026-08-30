@@ -1,5 +1,5 @@
 /**
- * SDK contract pins: on the 0.1.2-alpha.1 line the host /api surface carries
+ * SDK contract pins: on the 0.1.2-alpha.2 line the host /api surface carries
  * no per-method privilege table — the "configuration plane is local"
  * behavior lives in the browser (client plugins branch on
  * connection.isLoopback), and the paired remote desktop flips into host mode

@@ -98,7 +98,7 @@ pnpm --filter @linxin666/dsh-remote-web-ui test
 pnpm --filter @linxin666/dsh-remote-web-ui run typecheck
 ```
 
-The peer APIs come from the official NPM SDK: every `@deepseek-ai/*` package used here is declared in devDependencies (0.1.2-alpha.1 cohort), and TypeScript/Vitest resolve types straight from node_modules — no DSH source checkout is required. The consumer-side `prepare` build (`tsdown.prepare.config.ts`) transpiles without type checking, so git installs work without any harness checkout either.
+The peer APIs come from the official NPM SDK: every `@deepseek-ai/*` package used here is declared in devDependencies (0.1.2-alpha.2 cohort), and TypeScript/Vitest resolve types straight from node_modules — no DSH source checkout is required. The consumer-side `prepare` build (`tsdown.prepare.config.ts`) transpiles without type checking, so git installs work without any harness checkout either.
 
 ## Checks
 
@@ -110,7 +110,7 @@ pnpm run build
 
 ## Harness contract dependencies
 
-Pinned to the 0.1.2-alpha.1 line; the seams this build relies on:
+Pinned to the 0.1.2-alpha.2 line; the seams this build relies on:
 
 - **`sidebar.footer.action` foot seat** (the 0.1.2 shell composition): the sidebar declares and renders the seat the remote entry occupies.
 - **`ctx.layout.toggleSidebar()`** (packages/client/ui-layout): the whale button expands the collapsed sidebar through the official panel-action face.
@@ -136,7 +136,7 @@ The public path is the same round trip through a tunnel (see "Remote access over
 
 - **Pairing is the access control for the `/remote` channel**: while `requirePairingForLan` is on (default), every request must carry a live paired-device cookie, enforced before any bytes are forwarded. A missing or revoked session receives HTTP 403 with a JSON rejection carrying `error.code: "unpaired"`; the browser's `EventSource` API exposes only the stream failure, not that response body.
 - **The channel carries the process's own inner credential.** The harness browser-auth cookie is authority-bound (minted for the exact `host:port` a browser visited) and has no loopback exemption, so a proxied re-issue to `127.0.0.1` cannot reuse a device's cookie. The plugin therefore redeems its own launch token once — the same exchange a first browser visit performs — and attaches that cookie to re-issued requests. The credential is only ever exercised behind the pairing gate above; 停止/取消配对 immediately stop exercising it.
-- **Cohort reality: pairing does not gate direct `/api`.** On the pinned 0.1.2-alpha.1 line nothing emits the `api/gate` seam, so a direct `/api` call from a LAN origin is governed solely by the harness fence (which auto-trusts LAN literals under a `0.0.0.0` bind) plus the harness browser-auth cookie. A browser credential a device has already redeemed therefore survives 停止/取消配对 until its natural expiry (30 days) — revocation binds the `/remote` channel and the pairing cookie, not that credential. The plugin probes the `/api` posture and warns loudly; treat a LAN-exposed bind as a deliberate decision, and prefer loopback plus tunnels when the machine is shared.
+- **Cohort reality: pairing does not gate direct `/api`.** On the pinned 0.1.2-alpha.2 line nothing emits the `api/gate` seam, so a direct `/api` call from a LAN origin is governed solely by the harness fence (which auto-trusts LAN literals under a `0.0.0.0` bind) plus the harness browser-auth cookie. A browser credential a device has already redeemed therefore survives 停止/取消配对 until its natural expiry (30 days) — revocation binds the `/remote` channel and the pairing cookie, not that credential. The plugin probes the `/api` posture and warns loudly; treat a LAN-exposed bind as a deliberate decision, and prefer loopback plus tunnels when the machine is shared.
 - **A paired device is a full-control credential.** With host mode active it reaches the complete host API — chat, sessions, settings, credentials, agent presets, deliverables — mirroring the SDK's own stance that a loopback desktop is trusted. Only the four control planes (pairing, self-update, plugin install/remove, desktop launcher) stay physically local. Only pair devices you control; 停止 or per-device 取消配对 revokes immediately.
 - **Control endpoints stay loopback-only**: mint/stop/revoke, the device roster, the lan-bind status, and the update endpoints answer only to loopback. A LAN-origin browser sees the "配对面板仅限本机使用" banner.
 - **The app landing is cookieless-optional.** After pairing, the QR lands the device on `/pair-app`, served by this plugin: the official shell is delivered without passing the harness index gate, and the device credential rides a `x-dsh-remote-device` header (fetch) / `device` query (WebSocket upgrades) that the boot patch attaches from sessionStorage. The flow therefore works when the device browser blocks all cookies; the pairing cookie remains the primary credential where the browser stores it, and the harness browser-auth cookie is no longer required on the phone path at all.

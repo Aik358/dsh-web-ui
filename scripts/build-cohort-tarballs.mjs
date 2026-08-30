@@ -29,8 +29,8 @@ const WORKSPACE_FILE = join(REPO_ROOT, 'pnpm-workspace.yaml')
 
 /** The upstream source the store must be built from; never build from HEAD. */
 const HARNESS_REPO_URL = 'https://github.com/deepseek-ai/deepseek-harness.git'
-const HARNESS_TAG = 'dsh-v0.1.2-alpha.1'
-const HARNESS_COMMIT = 'cd5ef8148158c3a752a658978873241fdf8e2bbc'
+const HARNESS_TAG = 'dsh-v0.1.2-alpha.2'
+const HARNESS_COMMIT = '0a53fb55bea101816fa226bb964ae2bed71c343b'
 
 function fail(message) {
   console.error(`build-cohort-tarballs: ${message}`)

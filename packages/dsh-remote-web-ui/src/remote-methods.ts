@@ -2,7 +2,7 @@
  * Remote desktop channel constants — SDK-independent so tests and the
  * client half can pin them without importing the host SDK graph.
  *
- * Access model on the 0.1.2-alpha.1 line: the host /api surface has no
+ * Access model on the 0.1.2-alpha.2 line: the host /api surface has no
  * per-method privilege pin — the "configuration plane is local" behavior
  * lives in the browser (client plugins branch on connection.isLoopback), and
  * the paired remote desktop flips into host mode via the transport hook
@@ -20,7 +20,7 @@ export const REMOTE_API_PREFIX = `${REMOTE_PREFIX}/api`
 
 /**
  * The gated mirrors of the official client WebSocket paths. On the pinned
- * 0.1.2-alpha.1 line the client opens ONE persistent stream socket — the
+ * 0.1.2-alpha.2 line the client opens ONE persistent stream socket — the
  * Typert gateway mux at `/api/remote.mux` — and every Remote stream
  * (workspace follow, session feed, ...) rides it. If that socket is not
  * rewritten onto the gated channel the phone's streams die at the connection

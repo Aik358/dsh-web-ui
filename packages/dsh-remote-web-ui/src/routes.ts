@@ -8,7 +8,7 @@
  * the /remote channel gate and the api/gate listener. Alongside the JSON
  * family sit the phone-facing top-level pages (exact routes /pair-accept,
  * /pair-app, /pair-app.sw.js) with their own LAN-or-public fence. Note that
- * on the 0.1.2-alpha.1 cohort nothing emits api/gate — direct /api is
+ * on the 0.1.2-alpha.2 cohort nothing emits api/gate — direct /api is
  * governed by the harness fence + browser auth — while the /remote channel
  * always enforces the pairing cookie itself.
  */

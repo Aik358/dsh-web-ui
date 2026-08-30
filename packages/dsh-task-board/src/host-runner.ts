@@ -120,7 +120,7 @@ function isErrorTurnEnd(data: unknown): boolean {
 }
 
 /**
- * Wire-argument layout of the 0.1.2-alpha.1 descriptor tables; the gateway's
+ * Wire-argument layout of the 0.1.2-alpha.2 descriptor tables; the gateway's
  * assertExactArguments (@deepseek-ai/dsh-api-gateway/lib/index.js) throws
  * arguments-invalid on any extra or missing args key.
  * - agentPresets/list declares no parameters, so its args must be {}.

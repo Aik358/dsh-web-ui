@@ -9,7 +9,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-commands'
-import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
+import type { SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import z from 'schemastery'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-api-gateway'
@@ -37,7 +37,7 @@ export const TASK_BOARD_GUIDANCE = '本机已安装 dsh-task-board 插件（DSH 
  * web settings surface edits. Spelled here rather than imported: the browser
  * half spells the same value and must not depend on a Host package.
  */
-export const TASK_BOARD_SETTINGS_NAMESPACE = settingsNamespace('task-board')
+export const TASK_BOARD_SETTINGS_NAMESPACE = 'task-board' as SettingsNamespace
 
 /** Plugin config, validated by the same-named schemastery schema. */
 export interface Config {
@@ -128,7 +128,7 @@ function applyImpl(ctx: Context, config?: Config): void {
   }, 'task-board: host ledger, scheduler, and routes')
   // The live source the announcement reads: the settings section once the web
   // settings surface is served, the composition entry otherwise
-  // (installSettingsSection swaps it when the namespace registers).
+  // (installSection swaps it when the namespace registers).
   let current: () => Config = () => config ?? {}
   let disposeSection: (() => void) | undefined
 
@@ -151,12 +151,14 @@ function applyImpl(ctx: Context, config?: Config): void {
     })
   }
 
-  installSettingsSection(ctx, TASK_BOARD_SETTINGS_NAMESPACE, Config, config ?? {}, {
-    setSource: (source) => { current = source },
-    onChange: sync,
+  ctx.inject(['settings'], (settingsCtx) => {
+    settingsCtx.settings.installSection(ctx, TASK_BOARD_SETTINGS_NAMESPACE, Config, config ?? {}, {
+      setSource: (source) => { current = source },
+      onChange: sync,
+    })
   })
 
   // Initial registration from the composition entry (covers deployments with
-  // no settings service, whose installSettingsSection never fires its hooks).
+  // no settings service, whose installSection never fires its hooks).
   sync()
 }
