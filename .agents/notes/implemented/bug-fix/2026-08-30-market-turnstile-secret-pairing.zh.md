@@ -8,7 +8,7 @@ Status: implemented
 
 ## Decision
 
-根因：`scripts/deploy-market` 的 `sh()` 辅助函数在调用 `spawnSync` 时同时给了 `stdio: 'inherit'` **和** `input: <secret>`。当 stdin 不是管道时，node 会静默丢弃 `input`（本地复现：子进程收到 `""` 且无任何报错），于是 `wrangler secret put TURNSTILE_SECRET` 读到空 stdin，上传了**空绑定值**，却仍然报告 `✨ Success!`。自该步骤随 `c6076c857`（2026-08-26 的 fail-closed 改动）引入以来的每一次 CI 部署都在重新清空绑定；在 fail-closed 门禁之下，所有带 token 的写入随即全部拒绝。用 shell 手动执行的 `wrangler secret put`（真管道）能临时恢复点赞，而下一次部署又无声地把它打空——这正是修复尝试期间故障看起来"时好时坏"的原因。
+根因：`scripts/deploy-market` 的 `sh()` 辅助函数在调用 `spawnSync` 时同时给了 `stdio: 'inherit'` **和** `input: <secret>`。当 stdin 不是管道时，node 会静默丢弃 `input`（本地复现：子进程收到 `""` 且无任何报错），于是 `wrangler secret put TURNSTILE_SECRET` 读到空 stdin，上传了**空绑定值**，却仍然报告 `Success!`。自该步骤随 `c6076c857`（2026-08-26 的 fail-closed 改动）引入以来的每一次 CI 部署都在重新清空绑定；在 fail-closed 门禁之下，所有带 token 的写入随即全部拒绝。用 shell 手动执行的 `wrangler secret put`（真管道）能临时恢复点赞，而下一次部署又无声地把它打空——这正是修复尝试期间故障看起来"时好时坏"的原因。
 
 2026-08-30 的修复：
 

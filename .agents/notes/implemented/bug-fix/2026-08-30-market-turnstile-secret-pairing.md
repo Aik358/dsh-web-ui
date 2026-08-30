@@ -8,7 +8,7 @@ Every `/api/like` (and `/api/install`) write returned 403 from 2026-08-26 15:59 
 
 ## Decision
 
-Root cause: `scripts/deploy-market`'s `sh()` helper called `spawnSync` with `stdio: 'inherit'` **and** `input: <secret>`. Node silently ignores `input` when stdin is not a pipe (reproduced locally: the child receives `""` with no error), so `wrangler secret put TURNSTILE_SECRET` read an empty stdin and uploaded an **empty binding value** while reporting `✨ Success!`. Every CI deploy since the step was introduced (the `c6076c857` fail-closed change, 2026-08-26) re-emptied the binding; with the fail-closed gate in place, every tokenized write then failed closed. Manual `wrangler secret put` runs from a shell (a real pipe) restored likes temporarily, and the next deploy silently broke them again — which is why the outage looked intermittent across the repair attempts.
+Root cause: `scripts/deploy-market`'s `sh()` helper called `spawnSync` with `stdio: 'inherit'` **and** `input: <secret>`. Node silently ignores `input` when stdin is not a pipe (reproduced locally: the child receives `""` with no error), so `wrangler secret put TURNSTILE_SECRET` read an empty stdin and uploaded an **empty binding value** while reporting `Success!`. Every CI deploy since the step was introduced (the `c6076c857` fail-closed change, 2026-08-26) re-emptied the binding; with the fail-closed gate in place, every tokenized write then failed closed. Manual `wrangler secret put` runs from a shell (a real pipe) restored likes temporarily, and the next deploy silently broke them again — which is why the outage looked intermittent across the repair attempts.
 
 Repairs, applied 2026-08-30:
 
