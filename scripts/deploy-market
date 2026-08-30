@@ -39,12 +39,19 @@ function fail(msg) {
 }
 
 function sh(cmd, args, env, opts) {
+  const input = opts && opts.input
+  // When input is given, stdin must be a pipe: with stdio 'inherit' node
+  // silently drops the payload and the child reads an empty stream — which
+  // once stored an empty TURNSTILE_SECRET while wrangler reported Success.
+  const stdio = opts && opts.capture
+    ? 'pipe'
+    : input !== undefined ? ['pipe', 'inherit', 'inherit'] : 'inherit'
   const r = spawnSync(cmd, args, {
     cwd: WORKER_DIR,
     env: Object.assign({}, process.env, env || {}),
-    stdio: opts && opts.capture ? 'pipe' : 'inherit',
+    stdio,
     encoding: opts && opts.capture ? 'utf8' : undefined,
-    input: opts && opts.input !== undefined ? opts.input : undefined,
+    input,
   })
   if (r.status !== 0) fail(cmd + ' ' + args.join(' ') + ' failed (exit ' + r.status + ')')
   return r
