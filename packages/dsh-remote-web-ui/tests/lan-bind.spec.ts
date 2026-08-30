@@ -2,6 +2,7 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import process from 'node:process'
 import { afterEach, describe, expect, it } from 'vitest'
 import { LAN_BIND_BLOCK_BEGIN, LAN_BIND_BLOCK_END, lanBindState, managedBlock, managedBindOf, profilePatchFile, stripManagedBlock, writeLanBind } from '../src/lan-bind.ts'
 
@@ -92,7 +93,7 @@ describe('writeLanBind / lanBindState', () => {
     expect(after).toContain('- id: keep')
   })
 
-  it('preserves the original file permissions instead of resetting to umask', () => {
+  it.skipIf(process.platform === 'win32')('preserves the original file permissions instead of resetting to umask', () => {
     const home = tempHome()
     const patch = join(home, 'profiles', 'web', 'cordis.patch.yml')
     mkdirSync(join(home, 'profiles', 'web'), { recursive: true })
