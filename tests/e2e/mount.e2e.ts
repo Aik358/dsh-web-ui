@@ -45,6 +45,12 @@ test('family bundle boots cleanly with the excluded externals absent', async ({ 
 
   await page.goto(BASE_URL, { waitUntil: 'domcontentloaded' })
 
+  // Fast-fail on the browser-auth 401 gate: alpha.2 hosts print a tokenized
+  // root URL and fence `/` behind it, so a tokenless DSH_E2E_URL renders an
+  // auth page instead of the app. Fail fast with a targeted message rather
+  // than timing out on the frame selector below.
+  await expect(page.getByText(/dsh web authentication required/u)).toHaveCount(0, { timeout: 5_000 })
+
   // The DSH host frame mounted: `[data-dsh-frame]` is the official shell
   // frame the harness always renders, so its presence proves the aggregate
   // booted and rendered without the loader aborting.

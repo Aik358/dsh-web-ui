@@ -24,6 +24,14 @@ The test also documents that `@morlay/better-session` stays but ships inactive, 
 - Keep the better-sidebar mount assertion and re-add the plugins: rejected — that undoes the deliberate alpha.2 exclusion that exists to prevent a boot-aborting loader failure.
 - Anchor on the page title / `body`: rejected — weaker, not a DOM mount contract.
 
+## Follow-up: the anchor rewrite did not turn CI green; the token URL was the blocker
+
+The `[data-dsh-frame]` rewrite fixed the stale assertion but dev CI kept failing (eight consecutive runs, 15:34-01:36 UTC) — still a 30 s timeout, though now on the frame selector. The page snapshot from those runs showed the browser-auth 401 page (`dsh web authentication required; reopen the URL printed by dsh web.`), not the app: alpha.2 `dsh web` prints the tokenized root URL (`dsh web: http://127.0.0.1:PORT/?token=<launch-token> (LAN: ...)`), and `scripts/e2e-mount.sh` parsed it with `grep -oE 'dsh web: http://127\.0\.0\.1:[0-9]+'` — silently dropping the `?token=` operand, so Playwright hit the auth fence and the frame never mounted. Two independent causes had been collapsed into one: the assertion was stale AND the alpha.2 harness began gating the root URL behind browser auth.
+
+The Testing section below originally claimed the auth fence was a local-only confound (the alpha.1 source checkout) and that the CI global `alpha.2` CLI did not serve it. That was wrong: every CI run pinning `@deepseek-ai/dsh@0.1.2-alpha.2` (commit `8b0191fea`, from 15:47 UTC onward — including all runs after the rewrite) shows the auth page. The local reproduction was not confounded; it reproduced the same fence CI hit. The 15:34 UTC run that motivated the rewrite passed against rc.2, which prints a bare URL.
+
+Fixed in `scripts/e2e-mount.sh` by parsing up to the next token boundary (`[^ )]*`) so the full tokenized URL survives: local `bash scripts/e2e-mount.sh` now passes (the family-bundle boot test, 510 ms vs the former 30 s timeout). `tests/e2e/mount.e2e.ts` also gained a 5 s fast-fail on the auth-page text so a future token-less URL fails with a targeted message instead of a frame timeout. Lesson: when a harness upgrade changes the printed URL shape or gates the root, the boot marker and the URL parse are both part of the smoke contract, and a red dev CI after a "fix" is a signal the diagnosis was incomplete.
+
 ## Consequences
 
 - The mount smoke now proves "the aggregate boots cleanly and the excluded externals are absent" rather than "better-sidebar is present," matching the shipped behavior.

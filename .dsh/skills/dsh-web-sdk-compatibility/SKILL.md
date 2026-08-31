@@ -131,6 +131,7 @@ A repair is incomplete if it is protected only by one manual run. Add or extend 
 - profile and aggregate checks for resolvable patches, unique IDs, aggregate/direct coexistence, and mount-once behavior;
 - protocol, schema, event, persistence, cancellation, and error-shape tests for changed cross-half contracts;
 - the e2e/aggregate mount smoke, keyed to a cohort-stable official marker (the DSH host frame `[data-dsh-frame]`) rather than to any excluded external plugin's host div. When an aggregate external is excluded in the same migration, the smoke must assert it is ABSENT, or the (still-correct) npm content ships while the smoke times out waiting for a div that will never mount;
+- the same mount smoke must also carry the printed URL verbatim, token included: alpha.2 `dsh web` prints a tokenized root URL (`.../?token=launch-token`) and fences `/` behind browser auth, so a URL parse that stops at the port (`grep -oE ':port'`) hands Playwright the 401 auth page and the frame wait times out — the smoke's URL parse and boot marker are both contract, and a red dev CI after a "fix" means the diagnosis was incomplete;
 - representative workflow tests only for plugin paths exposed to the changed SDK surface.
 
 Prefer existing checks and package test patterns. Add a cross-package abstraction or script only when it enforces a stable repository invariant that cannot be expressed clearly in an owning package. Contract failures must name the missing or changed SDK capability; do not pin accidental private implementation details.

@@ -24,6 +24,14 @@ v0.3.9 发布管线跑完了 tag 触发的 `build, test, gated npm publish` job 
 - 保留 better-sidebar 挂载断言并重新加入插件：拒绝——会撤销刻意为之的 alpha.2 排除；该排除是为了避免 loader 启动中止。
 - 锚在页面标题 / `body`：拒绝——更弱，不是 DOM 挂载契约。
 
+## 后续：改锚点没有让 CI 转绿；真正的阻塞是 token URL 被截断
+
+`[data-dsh-frame]` 改写修掉了过时断言，但 dev CI 持续失败（连续八次运行，15:34-01:36 UTC）——仍是 30 秒超时，只是改等帧选择器。这些运行的页面快照显示的是浏览器认证 401 页（`dsh web authentication required; reopen the URL printed by dsh web.`），不是应用：alpha.2 的 `dsh web` 打印带 token 的根 URL（`dsh web: http://127.0.0.1:PORT/?token=<launch-token> (LAN: ...)`），而 `scripts/e2e-mount.sh` 用 `grep -oE 'dsh web: http://127\.0\.0\.1:[0-9]+'` 解析——静默丢掉了 `?token=` 段，于是 Playwright 撞上认证门，帧永不挂载。两个独立原因曾被合并成一个：断言过时 AND alpha.2 harness 开始给根 URL 加浏览器认证门。
+
+下方 Testing 段原本声称认证门只是本地干扰（alpha.1 源码检出），CI 全局 `alpha.2` CLI 不提供它。这是错的：固定 `@deepseek-ai/dsh@0.1.2-alpha.2` 的每一次 CI 运行（提交 `8b0191fea`，自 15:47 UTC 起——包括改写后的全部运行）都显示认证页。本地复现并没有被干扰；它复现的就是 CI 撞上的同一道门。促成改写的 15:34 UTC 那次运行通过，是因为当时 CLI 还 pin 在 rc.2，打印的是裸 URL。
+
+修复在 `scripts/e2e-mount.sh`：解析到下一个 token 边界（`[^ )]*`），让完整 token URL 存活——本地 `bash scripts/e2e-mount.sh` 现通过（家族启动冒烟 510 ms，此前 30 秒超时）。`tests/e2e/mount.e2e.ts` 同时增加了对认证页文本的 5 秒快速失败，未来再出现无 token URL 时会报出针对性信息而非空等帧超时。教训：harness 升级改变打印 URL 形状或给根路径加门时，启动标记与 URL 解析都属于冒烟契约；「修复」后 dev CI 仍红，说明诊断并不完整。
+
 ## Consequences
 
 - 挂载冒烟现在证明的是「聚合干净启动且被排除的外部插件缺席」，而非「better-sidebar 存在」，与已发布行为一致。
