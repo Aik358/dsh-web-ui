@@ -243,6 +243,47 @@ describe('startMobileAdapt', () => {
     expect(css).not.toContain('_body"]{gap:6px}')
   })
 
+  it('reads injected-surface labels from the wired translate seat, not the browser language', async () => {
+    vi.useFakeTimers()
+    try {
+      media.portrait = true
+      media.coarse = true
+      setWidth(390)
+      const start = await freshStart()
+      start()
+      const adapt = (window as unknown as { __dshRemoteAdapt?: { translate: ((key: string) => string) | null; evaluate: () => void } }).__dshRemoteAdapt
+      // Before the plugin apply wires the seat, the labels use the English
+      // fallback (never the navigator-language pick the layer used to make).
+      const whale = document.getElementById('dshRemoteWhale')
+      expect(whale?.title).toBe('Open sidebar')
+      // Wire the seat the way the plugin apply does once ctx.locale is bound.
+      const labels: Record<string, string> = {
+        'mobile.whale.open': 'Открыть боковую панель',
+        'mobile.composer.pickModel': 'Выбрать модель',
+        'mobile.composer.pickEffort': 'Выбрать уровень рассуждений',
+      }
+      adapt!.translate = (key) => labels[key] ?? key
+      // A composer seat so the compact picker mounts on the next tick.
+      const seat = document.createElement('div')
+      seat.className = 'app_composerSeat'
+      const tools = document.createElement('div')
+      tools.className = 'x_tools'
+      const trailing = document.createElement('div')
+      trailing.className = 'x_trailing'
+      trailing.innerHTML = '<div class="x_triggerEffort"></div>'
+      seat.appendChild(tools)
+      seat.appendChild(trailing)
+      document.body.appendChild(seat)
+      await vi.advanceTimersByTimeAsync(600)
+      expect(whale?.title).toBe(labels['mobile.whale.open'])
+      expect(whale?.getAttribute('aria-label')).toBe(labels['mobile.whale.open'])
+      expect(document.getElementById('dshRemoteModelPick')?.title).toBe(labels['mobile.composer.pickModel'])
+      expect(document.getElementById('dshRemoteEffortPick')?.title).toBe(labels['mobile.composer.pickEffort'])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('falls back to the official rail toggle when the wired face is inert', async () => {
     vi.useFakeTimers()
     try {

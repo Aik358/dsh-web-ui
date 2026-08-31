@@ -21,6 +21,8 @@
  * @module @linxin666/dsh-remote-web-ui/client/mobile-adapt
  */
 
+import type { RemoteKey } from './locales.ts'
+
 /** The window global the plugin apply() wires the layout service into. */
 export interface RemoteAdaptGlobal {
   evaluate: () => void
@@ -28,6 +30,14 @@ export interface RemoteAdaptGlobal {
   toggleSidebar: (() => void) | null
   /** Wired by the plugin apply once ctx.layout is live. */
   closeDetails: (() => void) | null
+  /**
+   * Wired by the plugin apply once the `remote` locale namespace is bound:
+   * the translate seat the injected surfaces (whale, compact picker) read
+   * their labels from. Null until then; label reads fall back to English
+   * (the SDK's universal fallback) and the 600ms sync tick re-renders the
+   * labels once the seat is wired.
+   */
+  translate: ((key: RemoteKey) => string) | null
   /** Plugin master switch: false reverts the layer, true re-evaluates. */
   setEnabled(on: boolean): void
   /** Replays a pending closeDetails once the layout face is wired (the first apply ran before the wiring). */
@@ -266,6 +276,19 @@ export function startMobileAdapt(): void {
   ;(window as unknown as { __dshRemoteAdaptInstalled?: boolean }).__dshRemoteAdaptInstalled = true
 
   const w = window as unknown as { __dshRemoteAdapt?: RemoteAdaptGlobal } & Record<string, unknown>
+  /**
+   * Label lookup for the injected surfaces: the `remote` namespace seat wired
+   * by the plugin apply, else the English fallback (the SDK's universal
+   * fallback; the sync tick re-renders the labels once the seat is live).
+   */
+  const surfaceText = (key: RemoteKey, fallback: string): string => {
+    try {
+      const out = w.__dshRemoteAdapt?.translate?.(key)
+      return typeof out === 'string' && out.length > 0 ? out : fallback
+    } catch {
+      return fallback
+    }
+  }
   let active = false
   let savedViewportContent: string | null = null
   let whaleEl: HTMLButtonElement | null = null
@@ -409,12 +432,25 @@ export function startMobileAdapt(): void {
       removeCompactPicker()
       return
     }
-    const zh = (navigator.language ?? '').toLowerCase().startsWith('zh')
     if (document.getElementById(MODEL_BTN_ID) === null) {
-      tools.appendChild(makeCompactButton(MODEL_BTN_ID, zh ? '选择模型' : 'Pick model', CUBE_ICON, /模型|Model/))
+      // The cell pattern matches the OFFICIAL picker cell text (the official
+      // client's own zh/en copy), not plugin-owned text.
+      tools.appendChild(makeCompactButton(MODEL_BTN_ID, surfaceText('mobile.composer.pickModel', 'Pick model'), CUBE_ICON, /模型|Model/)) // i18n-allow: matches official picker cell text, not plugin copy
     }
     if (document.getElementById(EFFORT_BTN_ID) === null) {
-      tools.appendChild(makeCompactButton(EFFORT_BTN_ID, zh ? '选择推理等级' : 'Pick reasoning effort', LEVELS_ICON, /推理等级|Reasoning|Effort/i))
+      tools.appendChild(makeCompactButton(EFFORT_BTN_ID, surfaceText('mobile.composer.pickEffort', 'Pick reasoning effort'), LEVELS_ICON, /推理等级|Reasoning|Effort/i)) // i18n-allow: matches official picker cell text, not plugin copy
+    }
+    // Titles re-read every tick so a locale switch (or the translate seat
+    // arriving after this layer installed) is picked up without a reload.
+    for (const [id, key, fallback] of [
+      [MODEL_BTN_ID, 'mobile.composer.pickModel', 'Pick model'],
+      [EFFORT_BTN_ID, 'mobile.composer.pickEffort', 'Pick reasoning effort'],
+    ] as const) {
+      const btn = document.getElementById(id)
+      if (btn === null) continue
+      const label = surfaceText(key, fallback)
+      btn.title = label
+      btn.setAttribute('aria-label', label)
     }
     document.body.classList.add(COMPACT_CLASS)
   }
@@ -446,9 +482,9 @@ export function startMobileAdapt(): void {
     whale.id = WHALE_ID
     whale.type = 'button'
     whale.dataset.dshPlugin = 'remote-web-ui'
-    // Outside the slots i18n system (module-scope overlay), so the label
-    // picks the browser language directly.
-    const whaleLabel = (navigator.language ?? '').toLowerCase().startsWith('zh') ? '打开侧边栏' : 'Open sidebar'
+    // The label reads the `remote` namespace (wired by the plugin apply);
+    // before wiring it falls back to English and the sync tick re-renders it.
+    const whaleLabel = surfaceText('mobile.whale.open', 'Open sidebar')
     whale.title = whaleLabel
     whale.setAttribute('aria-label', whaleLabel)
     whale.innerHTML = `<svg viewBox="0 0 23.16 17.04" fill="none" aria-hidden="true"><path d="${FISH_PATH}" fill="currentColor"/></svg>`
@@ -553,6 +589,10 @@ export function startMobileAdapt(): void {
     if (show && !whaleShown) applyWhalePos()
     whaleEl.style.display = show ? '' : 'none'
     whaleShown = show
+    // Re-read the label every tick so a locale switch is picked up live.
+    const whaleLabel = surfaceText('mobile.whale.open', 'Open sidebar')
+    if (whaleEl.title !== whaleLabel) whaleEl.title = whaleLabel
+    if (whaleEl.getAttribute('aria-label') !== whaleLabel) whaleEl.setAttribute('aria-label', whaleLabel)
     document.body.classList.toggle(RAIL_HIDDEN_CLASS, collapsed)
     disableRowDrag()
     seatHeaderActions()
@@ -898,6 +938,7 @@ export function startMobileAdapt(): void {
     evaluate,
     toggleSidebar: null,
     closeDetails: null,
+    translate: null,
     setEnabled(on: boolean): void {
       adaptEnabled = on
       if (on) evaluate()

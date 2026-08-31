@@ -166,6 +166,11 @@ export function apply(ctx: ClientContext): void {
   }
 
   const t = ctx.locale.bind(NS)
+  // Hand the `remote` translate seat to the module-scope adaptation layer:
+  // the whale/compact-picker labels were rendered with the English fallback
+  // before any dictionary existed; the wiring plus the layer's own sync tick
+  // re-render them in the active locale.
+  if (adapt !== undefined) adapt.translate = t
   const binder = ctx.get('webUiSettings') ?? ctx.settingsScope
   const settingsScope = binder.bind<RemoteSettings>({ namespace: REMOTE_WEB_UI_NS })
   const enabled = (): boolean => {
