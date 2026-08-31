@@ -83,7 +83,9 @@
   `README.i18n.yaml`（配对一致性记录）；皮肤包同样双语。规则见
   [docs/AGENTS.md](../docs/AGENTS.md) 与 [docs/i18n.md](../docs/i18n.md)。
 - 包内 UI 文案 i18n：`zh` 字典为 key 源，`en` 键集完整对照，经
-  `ctx.locale.register` 注册；错误文案与官方 DSH 词汇对照。
+  `ctx.locale.register` 注册；错误文案与官方 DSH 词汇对照。第三语言 ru 由
+  [dsh-i18n](dsh-i18n/AGENTS.md) 集中承载：各包新增/修改 zh 键后必须同步补
+  ru 并通过 `pnpm i18n:check`（缺键、占位符不一致即红），包内不自带 ru 字典。
 
 ## 安全语义
 

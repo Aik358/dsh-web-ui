@@ -2,7 +2,7 @@
 
 ## 范围
 
-本版本统一发布 `packages/` 与 `packages/skins/` 下由 `scripts/lib/family-packages.mjs` 发现的 19 个公开家族包；根 package.json 与 shared 私有包不发布。所有家族包版本为 0.3.3，皮肤中心只随包分发 blue-fantasy，其余皮肤由 Workshop 按需安装。
+本版本统一发布 `packages/` 与 `packages/skins/` 下由 `scripts/lib/family-packages.mjs` 发现的 20 个公开家族包；根 package.json 与 shared 私有包不发布。所有家族包版本为 0.3.3，皮肤中心只随包分发 blue-fantasy，其余皮肤由 Workshop 按需安装。
 
 | 目录 | npm 包 | 版本 | 发布状态 |
 | --- | --- | --- | --- |
@@ -10,6 +10,7 @@
 | packages/dsh-desktop-launcher | @linxin666/dsh-desktop-launcher | 0.3.3 | public |
 | packages/dsh-doctor | @linxin666/dsh-doctor | 0.3.3 | public |
 | packages/dsh-git-graph | @linxin666/dsh-client-ui-git-graph | 0.3.3 | public |
+| packages/dsh-i18n | @linxin666/dsh-i18n | 0.1.0 | public |
 | packages/dsh-liangshen | @linxin666/dsh-liangshen | 0.3.3 | public |
 | packages/dsh-market | @linxin666/dsh-client-ui-market | 0.3.3 | public |
 | packages/dsh-pet | @linxin666/dsh-pet | 0.3.3 | public |
