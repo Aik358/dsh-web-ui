@@ -11,7 +11,7 @@ import { makeArchiveRoutes } from './host/routes.ts'
 import type { SessionArchiveConfig } from './core/config.ts'
 
 export const name = 'dsh-session-archive'
-export const inject = ['webServer']
+export const inject = ['webServer', 'workspaceRegistry']
 export const SESSION_ARCHIVE_SETTINGS_NAMESPACE = 'dsh-session-archive' as SettingsNamespace
 
 export const Config: z<SessionArchiveConfig> = z.object({

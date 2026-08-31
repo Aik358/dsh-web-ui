@@ -115,11 +115,12 @@ export class ArchiveController {
 
   async confirmDelete(directIds: readonly string[]): Promise<void> {
     const { plan } = this.planDeleteFor(directIds)
+    const directSet = new Set(directIds)
     const strong = plan.targets.length > 50
     this.store.actions.setConfirmDelete({
       ids: [...directIds],
       total: plan.targets.length,
-      descendants: plan.targets.length - new Set(directIds).size,
+      descendants: plan.targets.filter((id) => !directSet.has(id)).length,
       skippedProtected: plan.skipped.length,
       totalBytes: plan.totalBytes,
       strong,

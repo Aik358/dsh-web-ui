@@ -44,14 +44,16 @@ function DaysInput(props: {
         max={props.max}
         onChange={(event) => { setText(event.target.value) }}
         onBlur={() => {
-          if (effective === '') return
-          const saved = valid ? parsed : undefined
-          const bounded = saved ?? (() => {
-            const rounded = Math.round(Number(effective))
-            return Number.isFinite(rounded) ? Math.min(props.max, Math.max(props.min, rounded)) : undefined
-          })()
-          if (bounded !== undefined) props.onSave(bounded)
-          setText(null)
+          // Save only valid integers; an invalid or out-of-range value stays
+          // in the field with its error message and is never saved.
+          if (effective === '') {
+            setText(null)
+            return
+          }
+          if (valid) {
+            props.onSave(parsed)
+            setText(null)
+          }
         }}
       />
       <span className={styles.muted}>{t('arch.auto.days.unit')}</span>

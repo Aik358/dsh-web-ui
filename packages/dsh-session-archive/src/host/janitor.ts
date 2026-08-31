@@ -366,7 +366,11 @@ export class ArchiveService {
       const built = await buildInventory(this.sources(), AbortSignal.timeout(30_000))
       const protectedMap = this.protectedReason(options.currentSessionId, built.rows)
       const plan = planDelete(built.rows, ids, protectedMap)
-      if (typeof options.expectedTotal === 'number' && options.expectedTotal !== plan.targets.length) {
+      // A mismatch only matters when the host would delete MORE than the user
+      // confirmed. Fewer targets mean the host protected sessions the client
+      // did not know about — those surface as skipped results, never as an
+      // error that blocks the whole batch.
+      if (typeof options.expectedTotal === 'number' && plan.targets.length > options.expectedTotal) {
         throw new PlanMismatchError(plan)
       }
       if (!unarchiveSeamAvailable(this.ctx.workspaceRegistry)) {

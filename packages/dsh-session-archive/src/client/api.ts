@@ -20,7 +20,7 @@ export class ArchiveApiError extends Error {
   readonly status: number
   readonly body: unknown
   constructor(status: number, body: unknown) {
-    super(`archive api failed: ${status}`)
+    super(`archive api failed (${status})${typeof body === 'string' ? `: ${body}` : ''}`)
     this.status = status
     this.body = body
   }
@@ -33,7 +33,12 @@ async function request<T>(path: string, init: RequestInit | undefined, timeoutMs
     signal: AbortSignal.timeout(timeoutMs),
   })
   const body: unknown = await response.json().catch(() => undefined)
-  if (!response.ok) throw new ArchiveApiError(response.status, body)
+  if (!response.ok) {
+    const detail = (typeof body === 'object' && body !== null && 'error' in body && typeof (body as { error: unknown }).error === 'string')
+      ? (body as { error: string }).error
+      : undefined
+    throw new ArchiveApiError(response.status, detail === undefined ? body : `${response.status}: ${detail}`)
+  }
   return body as T
 }
 
