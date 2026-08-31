@@ -171,6 +171,23 @@ export function writeProjcache(home: string, sessions: Record<string, { title?: 
   writeFileSync(join(home, 'storages', 'session_projcache.json'), JSON.stringify(payload))
 }
 
+/** Write one per-session projection-cache file (version 4 record shape). */
+export function writeProjcacheSessionFile(home: string, id: string, entry: { title?: string; createdAt?: number; cwd?: string }): void {
+  const dir = join(home, 'storages', 'session_projcache', 'sessions')
+  mkdirSync(dir, { recursive: true })
+  const payload = {
+    version: 4,
+    record: {
+      identity: {
+        ...(entry.createdAt !== undefined ? { createdAt: entry.createdAt } : {}),
+        ...(entry.cwd !== undefined ? { cwd: entry.cwd } : {}),
+      },
+      rows: { ...(entry.title !== undefined ? { title: { ver: 4, seq: 1, val: entry.title } } : {}) },
+    },
+  }
+  writeFileSync(join(dir, `${id}.json`), JSON.stringify(payload))
+}
+
 /** The fake host context the ArchiveService reads through ctx.get(...) and
  * direct property access (`ctx.workspaceRegistry`). Service faces are stable
  * objects, so callers can monkey-patch methods between get() calls. */

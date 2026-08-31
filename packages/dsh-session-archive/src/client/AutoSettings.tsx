@@ -69,7 +69,10 @@ export function AutoSettingsPanel(props: {
   controller: ArchiveController
   auto?: AutoStateView
 }): ReactNode {
-  const snapshot = props.settings.getSnapshot()
+  // Subscribe: the settings mirror replaces the snapshot object after each
+  // accepted write; without this subscription the controlled checkboxes never
+  // re-render and appear stuck.
+  const snapshot = useSyncExternalStore(props.settings.subscribe, props.settings.getSnapshot)
   const value: SessionArchiveConfig = snapshot.value ?? {}
   const ui = useSyncExternalStore(props.controller.store.subscribe, props.controller.store.getSnapshot)
   const autoPreview = ui.autoPreview

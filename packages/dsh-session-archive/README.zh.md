@@ -33,8 +33,8 @@ dsh plugin --profile web add link:/path/to/dsh-web/packages/dsh-session-archive
 设置区提供：
 
 - `enabled` — 整体关闭管理界面。
-- `autoArchiveEnabled` + `autoArchiveDays`（1–3650，默认 30）— 按最后活动时间的自动归档阈值。
-- `autoDeleteEnabled` + `autoDeleteDays`（1–3650，默认 90）— 归档保留期，超期后物理删除。
+- `autoArchiveEnabled` + `autoArchiveDays`（1–3650，默认 7）— 按最后活动时间的自动归档阈值。
+- `autoDeleteEnabled` + `autoDeleteDays`（1–3650，默认 7）— 归档保留期，超期后物理删除。
 - `checkIntervalMin`（15–1440，默认 60）— 自动检查的调度间隔。
 
 无效或越界的值不会被保存，表单会显示校验提示。

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { existsSync, mkdtempSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
@@ -11,8 +11,8 @@ import {
   deleteRdbSession,
   rdbDbPaths,
 } from '../src/host/session-files.ts'
-import { buildInventory } from '../src/host/inventory.ts'
-import { createFakeHost, fakeContext, writeProjcache, type FakeHost } from './fixtures.ts'
+import { buildInventory, readProjcacheFile, type ProjcacheFileEntry } from '../src/host/inventory.ts'
+import { createFakeHost, fakeContext, writeProjcache, writeProjcacheSessionFile, type FakeHost } from './fixtures.ts'
 
 describe('canonicalSessionId', () => {
   it('maps both segment spellings to the one canonical id', () => {
@@ -146,6 +146,45 @@ describe('buildInventory', () => {
     const ghost = built.rows.find((row) => row.id === 'session-ghost')
     expect(ghost?.issues).toContain('no-data')
     expect(ghost?.issues).toContain('no-archive-time')
+  })
+
+  it('enriches rows from per-session projcache files when the aggregate index misses them', async () => {
+    const host = createFakeHost({
+      archivedSessionIds: ['session-oldarchived', 'session-barefoot'],
+      dirs: ['session-oldarchived', 'session-olderver'],
+    })
+    // Index covers neither enrichable session; only the per-session files do.
+    writeProjcache(host.home, { 'session-unrelated': { title: 'index only' } })
+    writeProjcacheSessionFile(host.home, 'session-oldarchived', { title: '早安', createdAt: 1788049691263, cwd: '/Users/demo' })
+    writeProjcacheSessionFile(host.home, 'session-olderver', { title: '晚安全' })
+
+    const cache = new Map<string, ProjcacheFileEntry | null>()
+    const sources = { ...host.sources(), projcacheFiles: cache }
+    const built = await buildInventory(sources, AbortSignal.timeout(5000))
+    const old = built.rows.find((row) => row.id === 'session-oldarchived')
+    expect(old?.title).toBe('早安')
+    expect(old?.createdAt).toBe(1788049691263)
+    expect(old?.cwd).toBe('/Users/demo')
+    expect(old?.issues).toContain('unreadable')
+    const older = built.rows.find((row) => row.id === 'session-olderver')
+    expect(older?.title).toBe('晚安全')
+    // A session with neither dir, feed row, nor file stays a flagged ghost row.
+    const barefoot = built.rows.find((row) => row.id === 'session-barefoot')
+    expect(barefoot?.issues).toContain('no-data')
+    expect(barefoot?.issues).toContain('no-title')
+
+    // Cache hit: removing the files between passes keeps the facts.
+    rmSync(join(host.home, 'storages', 'session_projcache', 'sessions'), { recursive: true, force: true })
+    const again = await buildInventory(sources, AbortSignal.timeout(5000))
+    expect(again.rows.find((row) => row.id === 'session-olderver')?.title).toBe('晚安全')
+  })
+
+  it('readProjcacheFile tolerates corrupt and missing files', async () => {
+    const host = createFakeHost()
+    mkdirSync(join(host.home, 'storages', 'session_projcache', 'sessions'), { recursive: true })
+    writeFileSync(join(host.home, 'storages', 'session_projcache', 'sessions', 'session-bad.json'), '{nope')
+    expect(await readProjcacheFile(host.home, 'session-bad')).toBeUndefined()
+    expect(await readProjcacheFile(host.home, 'session-missing')).toBeUndefined()
   })
 
   it('degrades gracefully when the feed fails', async () => {

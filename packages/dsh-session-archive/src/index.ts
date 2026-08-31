@@ -17,9 +17,9 @@ export const SESSION_ARCHIVE_SETTINGS_NAMESPACE = 'dsh-session-archive' as Setti
 export const Config: z<SessionArchiveConfig> = z.object({
   enabled: z.boolean().default(true),
   autoArchiveEnabled: z.boolean().default(false),
-  autoArchiveDays: z.number().min(1).max(3650).default(30),
+  autoArchiveDays: z.number().min(1).max(3650).default(7),
   autoDeleteEnabled: z.boolean().default(false),
-  autoDeleteDays: z.number().min(1).max(3650).default(90),
+  autoDeleteDays: z.number().min(1).max(3650).default(7),
   checkIntervalMin: z.number().min(15).max(1440).default(60),
 })
 

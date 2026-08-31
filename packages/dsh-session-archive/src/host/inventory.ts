@@ -2,13 +2,16 @@
  * Inventory assembly: one pass over the authoritative session feed (host
  * SessionController — cold sessions included, agents never activated), the
  * workspace registry (membership + archive set), the projection-cache index
- * (titles, creation facts), the on-disk session directories (sizes, sessions
- * missing from the feed), and the plugin's own archive-time ledger. The
- * result is the single document the browser half renders and plans against.
+ * plus per-session projection-cache files (titles, creation facts — the
+ * index only covers recent sessions), the on-disk session directories
+ * (sizes, sessions missing from the feed), and the plugin's own archive-time
+ * ledger. The result is the single document the browser half renders and
+ * plans against.
  * @module @linxin666/dsh-session-archive/host/inventory
  */
 
 import { existsSync, readFileSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { ArchiveIssueCode, ArchiveSessionRow, WorkspaceView } from '../core/types.ts'
 import type { LedgerDocument } from './ledger.ts'
@@ -40,6 +43,19 @@ export interface InventorySources {
   registry: WorkspaceRegistryFace | undefined
   dshHome: string
   ledger: LedgerDocument
+  /**
+   * Optional per-id cache for the per-session projection-cache files the
+   * fallback reads; the service passes one so repeated inventory passes do
+   * not re-read unchanged files.
+   */
+  projcacheFiles?: Map<string, ProjcacheFileEntry | null>
+}
+
+/** Enrichment facts from one per-session projection-cache file. */
+export interface ProjcacheFileEntry {
+  title?: string
+  createdAt?: number
+  cwd?: string
 }
 
 /** Title/createdAt/cwd enrichment rows from the harness projection cache. */
@@ -64,6 +80,45 @@ export function readProjcacheIndex(dshHome: string): ProjcacheIndex {
 function titleFromProjcache(entry: NonNullable<ProjcacheIndex['sessions'][string]>): string | undefined {
   const val = entry.rows?.title?.val
   return typeof val === 'string' && val !== '' ? val : undefined
+}
+
+/** Wire shape of one per-session projection-cache record (index and file agree). */
+interface ProjcacheRecordShape {
+  identity?: { createdAt?: unknown; cwd?: unknown }
+  rows?: { title?: { val?: unknown } }
+}
+
+/**
+ * Fallback enrichment from one per-session projection-cache file
+ * (`storages/session_projcache/sessions/<id>.json`). The aggregate index
+ * only covers recent sessions, so older/archived rows fall back to these
+ * files for title/createdAt/cwd. Tolerant of version and shape drift; a
+ * missing or unreadable file yields undefined.
+ */
+export async function readProjcacheFile(dshHome: string, id: string, cache?: InventorySources['projcacheFiles']): Promise<ProjcacheFileEntry | undefined> {
+  if (cache !== undefined && cache.has(id)) {
+    return cache.get(id) ?? undefined
+  }
+  const path = join(dshHome, 'storages', 'session_projcache', 'sessions', `${id}.json`)
+  let entry: ProjcacheFileEntry | undefined
+  try {
+    const parsed = JSON.parse(await readFile(path, 'utf8')) as { record?: ProjcacheRecordShape } & ProjcacheRecordShape
+    const record: ProjcacheRecordShape = parsed.record ?? parsed
+    const title = typeof record.rows?.title?.val === 'string' && record.rows.title.val !== '' ? record.rows.title.val : undefined
+    const createdAt = typeof record.identity?.createdAt === 'number' ? record.identity.createdAt : undefined
+    const cwd = typeof record.identity?.cwd === 'string' && record.identity.cwd !== '' ? record.identity.cwd : undefined
+    if (title !== undefined || createdAt !== undefined || cwd !== undefined) {
+      entry = {
+        ...(title !== undefined ? { title } : {}),
+        ...(createdAt !== undefined ? { createdAt } : {}),
+        ...(cwd !== undefined ? { cwd } : {}),
+      }
+    }
+  } catch {
+    entry = undefined
+  }
+  if (cache !== undefined) cache.set(id, entry ?? null)
+  return entry
 }
 
 export interface BuiltInventory {
@@ -179,6 +234,19 @@ export async function buildInventory(sources: InventorySources, signal: AbortSig
   // of silently lingering as ghosts.
   for (const id of archivedSet) {
     if (!drafts.has(id)) add(id)
+  }
+
+  // Per-session projection-cache files are the fallback enrichment for rows
+  // the aggregate index does not cover (older and archived sessions). Files
+  // are read only for rows still missing facts and never conjure a row.
+  for (const draft of drafts.values()) {
+    if (draft.title !== undefined && draft.createdAt !== undefined && draft.cwd !== undefined) continue
+    if (signal.aborted) throw new Error('inventory aborted')
+    const entry = await readProjcacheFile(sources.dshHome, draft.id, sources.projcacheFiles)
+    if (entry === undefined) continue
+    if (draft.title === undefined && entry.title !== undefined) draft.title = entry.title
+    if (draft.createdAt === undefined && entry.createdAt !== undefined) draft.createdAt = entry.createdAt
+    if (draft.cwd === undefined && entry.cwd !== undefined) draft.cwd = entry.cwd
   }
 
   const childIds = new Map<string, string[]>()

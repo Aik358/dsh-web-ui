@@ -30,7 +30,7 @@ import type {
   SessionPreviewView,
   WorkspaceView,
 } from '../core/types.ts'
-import { buildInventory, readProjcacheIndex, type InventorySources } from './inventory.ts'
+import { buildInventory, readProjcacheIndex, type InventorySources, type ProjcacheFileEntry } from './inventory.ts'
 import {
   capEntries,
   deserializeAutoState,
@@ -81,6 +81,8 @@ export class ArchiveService {
   private ledger: LedgerDocument = { version: 1, entries: {} }
   private autoState: AutoStateDocument = { version: 1 }
   private config: ResolvedAutoConfig = resolveAutoConfig(undefined)
+  /** Per-session projection-cache file facts, memoized across inventory passes. */
+  private readonly projcacheFiles = new Map<string, ProjcacheFileEntry | null>()
 
   private loaded = false
   private disposed = false
@@ -175,6 +177,7 @@ export class ArchiveService {
       registry: registry as never,
       dshHome: this.dshHome,
       ledger: this.ledger,
+      projcacheFiles: this.projcacheFiles,
     }
   }
 

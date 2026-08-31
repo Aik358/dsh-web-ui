@@ -37,9 +37,9 @@ export const CHECK_INTERVAL_MIN_MAX = 1440
 export const DEFAULT_AUTO_CONFIG: ResolvedAutoConfig = {
   enabled: true,
   autoArchiveEnabled: false,
-  autoArchiveDays: 30,
+  autoArchiveDays: 7,
   autoDeleteEnabled: false,
-  autoDeleteDays: 90,
+  autoDeleteDays: 7,
   checkIntervalMin: 60,
 }
 

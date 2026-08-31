@@ -91,9 +91,9 @@ describe('config', () => {
   })
 
   it('falls back to defaults for invalid day values', () => {
-    expect(resolveAutoConfig({ autoArchiveDays: 0 }).autoArchiveDays).toBe(30)
-    expect(resolveAutoConfig({ autoArchiveDays: 99999 }).autoArchiveDays).toBe(30)
-    expect(resolveAutoConfig({ autoDeleteDays: Number.NaN }).autoDeleteDays).toBe(90)
+    expect(resolveAutoConfig({ autoArchiveDays: 0 }).autoArchiveDays).toBe(7)
+    expect(resolveAutoConfig({ autoArchiveDays: 99999 }).autoArchiveDays).toBe(7)
+    expect(resolveAutoConfig({ autoDeleteDays: Number.NaN }).autoDeleteDays).toBe(7)
     expect(resolveAutoConfig({ checkIntervalMin: 1 }).checkIntervalMin).toBe(60)
   })
 

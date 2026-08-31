@@ -33,8 +33,8 @@ Restart `dsh web`. A first-level "会话归档管理" section appears in the web
 The settings section exposes:
 
 - `enabled` — turn the whole management surface off.
-- `autoArchiveEnabled` + `autoArchiveDays` (1–3650, default 30) — auto-archive threshold by last activity.
-- `autoDeleteEnabled` + `autoDeleteDays` (1–3650, default 90) — archive retention before physical deletion.
+- `autoArchiveEnabled` + `autoArchiveDays` (1–3650, default 7) — auto-archive threshold by last activity.
+- `autoDeleteEnabled` + `autoDeleteDays` (1–3650, default 7) — archive retention before physical deletion.
 - `checkIntervalMin` (15–1440, default 60) — scheduler cadence for the automatic checks.
 
 Invalid or out-of-range values are never saved; the form shows a validation message.
