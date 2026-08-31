@@ -273,7 +273,7 @@ export function UsageSectionCard(props: UsageSectionProps): ReactNode {
             })()}
             {snapshot.providers.some((provider) => provider.error !== undefined) && (
               <span className={styles.errorLine}>
-                {snapshot.providers.filter((provider) => provider.error !== undefined).map((provider) => `${provider.displayName}: ${t('usage.provider.error', { error: provider.error ?? '' })}`).join('；')}
+                {snapshot.providers.filter((provider) => provider.error !== undefined).map((provider) => `${provider.displayName}: ${t('usage.provider.error', { error: provider.error ?? '' })}`).join(t('usage.errorListSeparator'))}
               </span>
             )}
           </div>
