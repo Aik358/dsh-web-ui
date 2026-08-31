@@ -22,6 +22,7 @@ pnpm test
 pnpm typecheck
 pnpm test:scripts
 pnpm docs:check
+pnpm i18n:check   # zh/en/ru key parity + no CJK outside comments in client copy (scripts/i18n-audit.mjs)
 pnpm aggregate:check
 pnpm market:check
 pnpm skin-center:check
@@ -30,7 +31,7 @@ node scripts/dsh-plugin-new <name>
 node scripts/dsh-skin-new
 ```
 
-Before merging, run at least `pnpm typecheck && pnpm test && pnpm docs:check`. Run the aggregate, market, and Skin Center checks when those areas change. Market site changes must also commit the regenerated `market/dist` (never rebuild in CI; `market:check` verifies consistency, `deploy-market.yml` deploys the committed artifacts).
+Before merging, run at least `pnpm typecheck && pnpm test && pnpm docs:check && pnpm i18n:check`. Run the aggregate, market, and Skin Center checks when those areas change. Market site changes must also commit the regenerated `market/dist` (never rebuild in CI; `market:check` verifies consistency, `deploy-market.yml` deploys the committed artifacts).
 
 Market build order: build `market/shell` first (`npm run build` in `market/shell`; its dist is git-ignored), then `node scripts/market-build` to refresh `market/dist` (`tryon/` copies the shell build, `tryon-assets/` is derived with Skin Center `transformSkinCss`). In a clean checkout without the shell dist, `market-build --check` verifies the committed `tryon/` against its hash manifest instead of rebuilding. Deploy with `node scripts/deploy-market`.
 

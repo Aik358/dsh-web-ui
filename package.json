@@ -26,6 +26,7 @@
     "skin-hooks:check": "node scripts/skin-hooks-registry.mjs --check",
     "community:check": "node scripts/community-index --check",
     "runtime-deps:check": "node scripts/runtime-deps-check.mjs",
+    "i18n:check": "node scripts/i18n-audit.mjs --check",
     "test:scripts": "node --test scripts/*.test.mjs",
     "test:mount": "bash scripts/e2e-mount.sh",
     "skin:new": "node scripts/dsh-skin-new",
