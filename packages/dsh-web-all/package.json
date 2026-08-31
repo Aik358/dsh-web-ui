@@ -39,6 +39,7 @@
   "devDependencies": {
     "@deepseek-ai/cordis": "^4.0.2",
     "@deepseek-ai/dsh-agent": "^0.1.2-alpha.2",
+    "@deepseek-ai/dsh-api-session-controller": "^0.1.2-alpha.2",
     "@deepseek-ai/dsh-attachment": "^0.1.2-alpha.2",
     "@deepseek-ai/dsh-host-webserver": "^0.1.2-alpha.2",
     "@deepseek-ai/dsh-invariants": "^0.1.2-alpha.2",
@@ -51,6 +52,7 @@
     "@deepseek-ai/dsh-tools": "^0.1.2-alpha.2",
     "@deepseek-ai/dsh-typert-protocol": "^0.1.2-alpha.2",
     "@deepseek-ai/dsh-util-time": "^0.1.2-alpha.2",
+    "@deepseek-ai/dsh-workspace": "^0.1.2-alpha.2",
     "jsdom": "29.1.1",
     "vitest": "^4.1.8"
   },
@@ -70,6 +72,7 @@
     "@linxin666/dsh-desktop-launcher": "workspace:*",
     "@linxin666/dsh-doctor": "workspace:*",
     "@linxin666/dsh-usage": "workspace:*",
+    "@linxin666/dsh-session-archive": "workspace:*",
     "@linxin666/dsh-client-ui-web-ui-settings": "workspace:*",
     "@linxin666/dsh-client-ui-skin-center": "workspace:*",
     "@linxin666/dsh-i18n": "workspace:*",

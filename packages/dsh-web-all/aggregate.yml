@@ -29,6 +29,7 @@ patchFrom:
   - ../dsh-desktop-launcher
   - ../dsh-doctor
   - ../dsh-usage
+  - ../dsh-session-archive
   - ../skins/skin-center
   # dsh-i18n 语言包无宿主行为、无时序依赖，放列表末尾：注册 ru 语言与全部
   # 家族插件命名空间的 ru 字典（见 packages/dsh-i18n）。
@@ -51,6 +52,7 @@ deps:
   - ../dsh-desktop-launcher
   - ../dsh-doctor
   - ../dsh-usage
+  - ../dsh-session-archive
   - ../dsh-web-settings
   - ../skins/skin-center
   - ../dsh-i18n

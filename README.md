@@ -137,13 +137,17 @@ dsh-web 是 DeepSeek Harness（DSH）Web GUI 的插件聚合生态包（DSH Web 
 
 救助模式（`dsh-doctor`）是 DSH profile 的事务式救援体系，**默认开启**：用户级 Doctor Supervisor 后台服务与透明的 Doctor Launcher 维持一份隔离救援胶囊，检测启动失败、进程崩溃、心跳丢失、Web 故障与浏览器白屏。每次修复都是一个事务：快照当前 profile，在候选环境应用确定性规则，经隔离的 dump-config 与 Web 健康门禁后原子提升，失败按字节回滚——profile 只经官方 `dsh plugin` 命令修改，不安装未验证的 latest。Web 控制台（设置 → 插件配置 → Web 插件的 Doctor 卡片）展示故障事件，提供诊断、修复与回滚动作；「发送给 Harness」把最近一次故障的摘要与错误堆栈组合成排障提示词投回当前会话，让 agent 就地诊断。Supervisor 只监听本地 socket（0600 token），Web API 仅限 loopback；安全模型与 `dsh-doctor` CLI 详见 [dsh-doctor README](packages/dsh-doctor/README.zh.md)。
 
+### 会话归档管理（Session Archive Manager）
+
+会话归档管理（`dsh-session-archive`）是内置的会话管理入口，随全家桶安装：集中查看全部会话（活跃 / 已归档 / 空白 / 子代理 / 无工作区 / 元数据缺失的历史会话），支持按状态、工作区、标题或 ID 搜索筛选与多维排序，跨完整筛选结果集的多选，以及批量归档、批量恢复与物理删除。物理删除走级联语义（父会话连同全部后代），展示直接选中数、级联数、最终总数、预计释放空间与将被跳过的受保护会话，大批量删除需额外知情确认；运行中、当前正在查看、有运行中后代的会话始终受保护。两个默认关闭的自动策略可按"最后活动时间"自动归档、按"归档时间"自动清理超期归档（归档时间未知的历史会话永不自动删除），支持启用前预览与立即执行。删除不可恢复；全部路由仅限本机回环访问。详见 [dsh-session-archive README](packages/dsh-session-archive/README.zh.md)。
+
 ### 更多插件（More Plugins）
 
 - **Skill 中心**（`dsh-client-ui-skill-explorer`）：按来源浏览已加载的 skill，支持启停、创建与删除。
 - **插件管理器**（`dsh-client-ui-plugin-manager`）：经官方 host 通道从 npm / git 安装插件，管理启停与配置。
 - **分支式会话编辑**（外部插件 [@morlay/better-session](https://github.com/morlay/better-session)，聚合包内置，默认关闭）：就地编辑历史消息并重新生成，失败回合一键重试，支持回退（rewind）与 fork 派生新会话；启用与旧会话迁移见 dsh-web-all README。
 - **桌面启动器**（`dsh-desktop-launcher`）：双击桌面图标启动 `dsh web` 并打开 Web GUI，悬浮电源按钮优雅退出宿主进程。
-- **归档管理**（外部插件 [@mlgbnb/dsh-archive-manager](https://github.com/z953218350/dsh-archive-manager)）：按项目分组、搜索筛选、预览对话、一键恢复与删除。注：alpha.2 版全家桶暂未内置——其上游构建仍 import 已移除的 `@deepseek-ai/dsh-client-runtime` 面，待上游发布 alpha.2 兼容构建后回归（better-sidebar 已回归）。
+- **外部归档管理**（外部插件 [@mlgbnb/dsh-archive-manager](https://github.com/z953218350/dsh-archive-manager)）：不使用。其上游构建仍 import 已移除的 `@deepseek-ai/dsh-client-runtime` 面，alpha.2 全家桶不内置；会话归档需求由上方内置的「会话归档管理」承担，该外部插件仅在上游发布 alpha.2 兼容构建后再评估。
 
 ### 皮肤
 

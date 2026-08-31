@@ -15,6 +15,7 @@ import { ru as pet } from './pet.ts'
 import { ru as pluginManager } from './plugin-manager.ts'
 import { ru as remoteWebUi } from './remote-web-ui.ts'
 import { ru as sessionId } from './session-id.ts'
+import { ru as sessionArchive } from './session-archive.ts'
 import { ru as skillExplorer } from './skill-explorer.ts'
 import { ru as ssh } from './ssh.ts'
 import { ru as taskBoard } from './task-board.ts'
@@ -33,6 +34,7 @@ export const ruDictionaries: Record<string, Record<string, string>> = {
   'settings.pluginManager': pluginManager,
   'remote': remoteWebUi,
   'session-id': sessionId,
+  'dsh-web-ui-session-archive': sessionArchive,
   'dsh-skill-explorer': skillExplorer,
   'dsh-ssh': ssh,
   'task-board': taskBoard,

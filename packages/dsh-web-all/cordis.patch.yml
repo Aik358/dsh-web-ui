@@ -104,6 +104,11 @@
     - id: web-ui-usage
       name: '@linxin666/dsh-usage'
 
+# from ../dsh-session-archive
+- insert:
+    - id: web-ui-session-archive
+      name: '@linxin666/dsh-session-archive'
+
 # from ../skins/skin-center
 - insert:
     - id: web-ui-skin-center
