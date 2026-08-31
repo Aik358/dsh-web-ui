@@ -62,3 +62,34 @@ Three defects surfaced in the first real-usage round of `dsh-session-archive`:
   `/tmp/qa-evidence/22..24-*.png`. Host-half changes need the user-side DSH
   restart on the live instance; the client-half toggle fix ships to browsers on
   page refresh.
+
+## Follow-up (same day): post-delete selection ghosts and the skip story
+
+**Problem.** On the live instance a 371-target batch delete left 5 archived
+rows visible and the selection bar stuck at `已选 371 项`. Diagnosis against
+the real home: the 5 sessions were never deleted — their storage dirs are
+intact and `archivedSessionIds` holds exactly those 5 — because they are still
+held open by the running harness process (live SessionStore members). The
+batch dialog did report them as skipped, but under the `running` reason
+("会话正在运行") which is wrong for idle-attached sessions, and after the
+post-delete inventory refresh the selection kept all 371 ids (366 of them no
+longer existed), so the summary line claimed 366 items outside the filter.
+
+**Decision.**
+
+1. `setInventory` prunes selection to ids still present in the incoming rows.
+   Selection across filter changes is preserved (unchanged); only ids the
+   inventory no longer knows are dropped.
+2. New stable reason code `attached` for live-store members; feed-reported
+   running rows keep `running`. Copy: zh "会话仍被 DSH 进程占用，重启服务或
+   关闭该会话后可删除" / en / ru (central pack).
+3. The finished batch dialog aggregates skipped entries by reason
+   (`跳过明细：… ×n · …`) so a 371-run's outcome reads at a glance; the
+   per-id list stays for detail.
+
+**Consequences.** The protection semantics are unchanged — sessions held open
+by the running DSH process remain undeletable until the service restarts or
+the session is closed; what changed is that the UI now says so honestly and
+the selection counter reflects reality. QA-verified: select 3 seeded sessions
+→ batch delete → dialog `成功：3 / 跳过：0`, selection counter pruned to
+`已选 0 项`. Evidence: `/tmp/qa-evidence/25..27-*.png`.

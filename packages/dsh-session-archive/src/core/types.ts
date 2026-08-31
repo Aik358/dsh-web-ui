@@ -13,6 +13,7 @@ export type OpStatus = 'ok' | 'skipped' | 'failed'
  */
 export type OpReason =
   | 'running'
+  | 'attached'
   | 'current'
   | 'in-flight'
   | 'not-found'

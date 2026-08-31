@@ -208,7 +208,9 @@ export class ArchiveService {
   /** Protection map shared by manual delete and auto cycles. */
   private protectedReason(currentSessionId: string | undefined, rows?: readonly ArchiveSessionRow[]): Map<string, string> {
     const map = new Map<string, string>()
-    for (const id of this.liveSessionIds()) map.set(id, 'running')
+    // Live-store members are held open by the running harness process even
+    // when the feed reports them idle — a distinct, honest skip reason.
+    for (const id of this.liveSessionIds()) map.set(id, 'attached')
     // Feed-reported running agents are protected even when the live store
     // lookup fails or lags.
     if (rows !== undefined) {

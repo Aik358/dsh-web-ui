@@ -147,7 +147,7 @@ describe('physical delete', () => {
     const service = await settledService(host)
     const response = await service.deleteSessions(['session-live'])
     expect(response.results[0]?.status).toBe('skipped')
-    expect(response.results[0]?.reason).toBe('running')
+    expect(response.results[0]?.reason).toBe('attached')
   })
 
   it('skips the entire family when a descendant is running (no half-deleted families)', async () => {

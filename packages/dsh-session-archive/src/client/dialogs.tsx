@@ -152,6 +152,21 @@ export function BatchDialog(props: {
           <span>{t('arch.batch.failed', { n: failed.length })}</span>
           {batch.freedBytes > 0 && <span>{t('arch.batch.freed', { size: formatBytes(batch.freedBytes) })}</span>}
         </div>
+        {!batch.running && skipped.length > 0 && (
+          <div className={styles.muted}>
+            {t('arch.batch.skipSummary', {
+              summary: Object.entries(
+                skipped.reduce<Record<string, number>>((acc, result) => {
+                  const key = result.reason ?? 'error'
+                  acc[key] = (acc[key] ?? 0) + 1
+                  return acc
+                }, {}),
+              )
+                .map(([reason, n]) => `${t(`arch.reason.${reason}`)} ×${n}`)
+                .join(' · '),
+            })}
+          </div>
+        )}
         {!batch.running && failed.length > 0 && (
           <button type="button" className={styles.button} onClick={props.onRetryFailed}>{t('arch.batch.retryFailed')}</button>
         )}

@@ -104,6 +104,15 @@ export function createArchiveStore(): EngineStoreHandle<ArchiveUiState, ArchiveU
         draft.inventory = inventory
         draft.status = 'ready'
         draft.error = null
+        // Drop selected ids whose rows no longer exist (deleted in a batch or
+        // removed elsewhere) so the counter reflects what is selectable.
+        // Selection across FILTER changes is preserved; this only prunes ids
+        // the inventory no longer knows.
+        if (draft.selection.length > 0) {
+          const alive = new Set(inventory.rows.map((row) => row.id))
+          const pruned = draft.selection.filter((id) => alive.has(id))
+          if (pruned.length !== draft.selection.length) draft.selection = pruned
+        }
       },
       setStatus: (draft, status, error) => {
         draft.status = status
