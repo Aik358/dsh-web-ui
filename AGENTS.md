@@ -65,6 +65,7 @@ Market build order: build `market/shell` first (`npm run build` in `market/shell
 ## Branches, Commits, and PRs
 
 - 本项目唯一的远程仓库是 `https://github.com/zhu1090093659/dsh-web`（`origin`）；`JAVA-LW/dsh-web-ui` 不是本项目的远程仓库，不要向其推送、创建 PR 或修改其仓库元数据（如 About 描述）。
+- `origin` 的 url / pushurl 禁止改指向任何 fork 或第三方仓库（2026-08-31 事故：PR fork 流程遗留 `remote.origin.pushurl` 指向作者 fork，下一次 `git push origin dev` 会静默打到错误仓库）。向贡献者 fork 推送只用一次性命名 remote（`git remote add <name> <fork-url>`）或直接 URL；推送前 `git remote -v` 的 fetch/push 必须都指向规范仓库。首次在新检出开发时安装推送保护钩子：`ln -sf ../../scripts/git-pre-push-guard.sh .git/hooks/pre-push`。
 - `dev` is the integration branch. Rebase on `origin/dev` before submitting a PR. `main` receives tested changes from `dev` through maintainer integration.
 - 同步远程仓库代码时，本地与远程的同步对象只能是 `dev` 分支：`git fetch origin dev`，
   需要整合时把本地 `dev` rebase 或 merge 到 `origin/dev`。禁止把 `main` / `origin/main`
