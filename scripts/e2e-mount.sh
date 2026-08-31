@@ -8,8 +8,9 @@
 #      （`dsh plugin --profile web add file:<tarball>`，与用户安装路径一致）；
 #   3. 启动真实 `dsh web`（keyless，--port 0 取 OS 分配端口）；
 #   4. 运行 tests/e2e 无头渲染 lane（Playwright Chromium）：以宿主官方帧
-#      锚定启动、断言被排除的外部插件缺席、无崩溃标记（aionui-panel 已停
-#      止支持、better-sidebar / archive-manager 已在 alpha.2 排除）。
+#      锚定启动、断言 better-sidebar 挂载、断言被排除的 archive-manager
+#      缺席、无崩溃标记（aionui-panel 已停止支持、archive-manager 仍为
+#      alpha.2 排除；better-sidebar 已以 0.18.0-alpha.0 回归）。
 #
 # 用法：
 #   bash scripts/e2e-mount.sh
@@ -160,7 +161,7 @@ allowBuilds:
   ssh2: true
 
 minimumReleaseAgeExclude:
-  - 'dsh-better-sidebar@0.13.0'
+  - 'dsh-better-sidebar@0.18.0-alpha.0'
   - '@linxin666/*'
 EOF
 
@@ -210,4 +211,4 @@ say "运行 Playwright 无头渲染 lane..."
 DSH_E2E_URL="$URL" DSH_E2E_WORKSPACE="$WORKSPACE_DIR" \
   pnpm exec playwright test
 
-say "通过：聚合包挂载到真实 DSH 后无头渲染未崩溃，被排除的外部插件缺席"
+say "通过：聚合包挂载到真实 DSH 后无头渲染未崩溃，better-sidebar 已挂载，被排除的 archive-manager 缺席"

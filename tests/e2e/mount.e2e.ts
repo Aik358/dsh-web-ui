@@ -7,17 +7,19 @@
  *     frame the shell always renders, with its `data-pane` / `data-slot`
  *     / `data-dsh-responsive-part` children — its presence proves the app
  *     booted and rendered without the loader aborting);
- *  2. no `dsh-better-sidebar` / `archive-manager` crash strips (they are
- *     excluded from the aggregate on the alpha.2 cohort, so they must NOT
- *     mount and must NOT contribute any crash markers);
- *  3. no `pageerror`, no plugin-prefixed console errors.
+ *  2. `dsh-better-sidebar` mounts (`[data-dsh-better-sidebar]` host div
+ *     appears);
+ *  3. no crash markers: no `dsh-better-sidebar:` / `archive-manager`
+ *     error strips, no `pageerror`, no plugin-prefixed console errors.
  *
- * dsh-better-sidebar and @mlgbnb/dsh-archive-manager are excluded from the
- * aggregate on the alpha.2 cohort because they import the removed
- * `@deepseek-ai/dsh-client-runtime` face (see the alpha.2 exclusion note);
- * aionui-panel was removed from the family entirely. @morlay/better-session
- * stays but ships inactive by default (no host div until opted in), so no
- * test, gate, or e2e assertion requires it to mount.
+ * dsh-better-sidebar is back in the aggregate on the alpha.2 cohort at
+ * 0.18.0-alpha.0 (peers aligned to alpha.2; the removed
+ * `@deepseek-ai/dsh-client-runtime` face is gone from its inject list).
+ * @mlgbnb/dsh-archive-manager stays excluded — its latest upstream build
+ * (1.0.7) still imports that removed face. aionui-panel was removed from the
+ * family entirely. @morlay/better-session stays but ships inactive by default
+ * (no host div until opted in), so no test, gate, or e2e assertion requires it
+ * to mount.
  *
  * The server is booted by `scripts/e2e-mount.sh`; the base URL arrives via
  * `DSH_E2E_URL`. Deterministic: every wait is on a DOM marker, and any crash
@@ -33,7 +35,7 @@ if (!BASE_URL) {
 /** Plugin crash-marker prefixes (the client renders a strip instead of crashing). */
 const CRASH_STRIP_PATTERNS = [/^dsh-better-sidebar:/, /^\[dsh-better-sidebar\]/, /^dsh-archive-manager:/, /^\[dsh-archive-manager\]/]
 
-test('family bundle boots cleanly with the excluded externals absent', async ({ page }) => {
+test('family bundle mounts better-sidebar without crash markers', async ({ page }) => {
   const pageErrors: string[] = []
   const pluginConsoleErrors: string[] = []
   page.on('pageerror', (error) => { pageErrors.push(error.message) })
@@ -56,9 +58,15 @@ test('family bundle boots cleanly with the excluded externals absent', async ({ 
   // booted and rendered without the loader aborting.
   await page.waitForSelector('[data-dsh-frame]', { state: 'attached', timeout: 30_000 })
 
-  // The excluded externals must be ABSENT from the DOM (not mounted on the
-  // alpha.2 cohort), not present-but-broken.
-  await expect(page.locator('[data-dsh-better-sidebar]')).toHaveCount(0)
+  // The shell rendered and better-sidebar mounted its host div. The panel
+  // itself is COLLAPSED by default (openByDefault is off), so the host div
+  // is attached but not visible — 'attached' is the mount contract.
+  await page.waitForSelector('[data-dsh-better-sidebar]', { state: 'attached', timeout: 30_000 })
+  await expect(page.locator('[data-dsh-better-sidebar]')).toHaveCount(1)
+
+  // The still-excluded archive-manager must be ABSENT from the DOM (its
+  // latest upstream build imports the removed client-runtime face).
+  await expect(page.locator('[data-dsh-archive-manager]')).toHaveCount(0)
 
   // No better-sidebar / archive-manager crash strips anywhere on the page.
   for (const pattern of CRASH_STRIP_PATTERNS) {

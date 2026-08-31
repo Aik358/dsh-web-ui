@@ -6,7 +6,7 @@ Status: implemented
 
 v0.3.9 发布管线跑完了 tag 触发的 `build, test, gated npm publish` job 的全部门禁，并把整个家族发布到 npm。下游 `verify-release` job 的挂载冒烟通道（`scripts/e2e-mount.sh` + `tests/e2e/mount.e2e.ts`）失败，导致 GitHub Release 没创建：冒烟在等待 `[data-dsh-better-sidebar]` 时超时。
 
-这条断言已过时。alpha.2 cohort 移除了 `dsh-better-sidebar` 与 `@mlgbnb/dsh-archive-manager` 硬依赖的 `@deepseek-ai/dsh-client-runtime` 面，两者因此从 `dsh-web-all` 聚合中排除（见 [sdk-cohort 0.1.2-alpha.2 upgrade](2026-08-30-sdk-cohort-0.1.2-alpha.2.md) 及其 "exclude alpha.2-incompatible external plugins" 提交）。`scripts/aggregate.test.mjs` 在同一个变更里已同步改为断言这两个**不得**挂载（`cordis.patch.yml` 里不得出现 `web-ui-better-sidebar` / `web-ui-archive-manager` 行），但 e2e 挂载冒烟被漏掉了：它仍要求 better-sidebar 的宿主 div 出现，与它本该冒烟验证的排除自相矛盾。npm 内容是对的，只有冒烟的「启动证明」错了。
+这条断言已过时。alpha.2 cohort 移除了 `dsh-better-sidebar` 与 `@mlgbnb/dsh-archive-manager` 硬依赖的 `@deepseek-ai/dsh-client-runtime` 面，两者因此从 `dsh-web-all` 聚合中排除（见 [sdk-cohort 0.1.2-alpha.2 upgrade](../architecture/2026-08-30-sdk-cohort-0.1.2-alpha.2-upgrade.md) 及其 "exclude alpha.2-incompatible external plugins" 提交）。`scripts/aggregate.test.mjs` 在同一个变更里已同步改为断言这两个**不得**挂载（`cordis.patch.yml` 里不得出现 `web-ui-better-sidebar` / `web-ui-archive-manager` 行），但 e2e 挂载冒烟被漏掉了：它仍要求 better-sidebar 的宿主 div 出现，与它本该冒烟验证的排除自相矛盾。npm 内容是对的，只有冒烟的「启动证明」错了。
 
 ## Decision
 
@@ -31,6 +31,8 @@ v0.3.9 发布管线跑完了 tag 触发的 `build, test, gated npm publish` job 
 下方 Testing 段原本声称认证门只是本地干扰（alpha.1 源码检出），CI 全局 `alpha.2` CLI 不提供它。这是错的：固定 `@deepseek-ai/dsh@0.1.2-alpha.2` 的每一次 CI 运行（提交 `8b0191fea`，自 15:47 UTC 起——包括改写后的全部运行）都显示认证页。本地复现并没有被干扰；它复现的就是 CI 撞上的同一道门。促成改写的 15:34 UTC 那次运行通过，是因为当时 CLI 还 pin 在 rc.2，打印的是裸 URL。
 
 修复在 `scripts/e2e-mount.sh`：解析到下一个 token 边界（`[^ )]*`），让完整 token URL 存活——本地 `bash scripts/e2e-mount.sh` 现通过（家族启动冒烟 510 ms，此前 30 秒超时）。`tests/e2e/mount.e2e.ts` 同时增加了对认证页文本的 5 秒快速失败，未来再出现无 token URL 时会报出针对性信息而非空等帧超时。教训：harness 升级改变打印 URL 形状或给根路径加门时，启动标记与 URL 解析都属于冒烟契约；「修复」后 dev CI 仍红，说明诊断并不完整。
+
+第二次后续（2026-08-31）：上游发布 `dsh-better-sidebar@0.18.0-alpha.0`（peer 均 `^0.1.2-alpha.2`，`dsh.client.inject` 已改用 `@deepseek-ai/dsh-client-modules`），聚合按其精确 pin 重新加入——见 [re-add-better-sidebar-alpha2](../architecture/2026-08-31-readd-better-sidebar-alpha2.md)——本 lane 断言随之改回：帧挂载后 `[data-dsh-better-sidebar]` 必须 attach（count 1），`[data-dsh-archive-manager]` 保持缺席（1.0.7 仍为上游最新）。崩溃条模式与认证门快速失败保留。
 
 ## Consequences
 

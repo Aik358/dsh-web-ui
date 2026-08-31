@@ -112,7 +112,7 @@ Gives text-only models vision. When a conversation mentions an image (local path
 
 ### Right Panel（右侧面板）
 
-The right panel is provided by the external plugin [dsh-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) (integrated into the aggregate bundle and enabled by default), with its built-in features and third-party plugin registration — see its [README](https://github.com/omdsh-dev/DSH-better-sidebar).> Note: as of DSH 0.1.2-alpha.2 the official `@deepseek-ai/dsh-client-runtime` face is removed, and both better-sidebar and archive-manager need upstream ports; the two are temporarily excluded from the alpha.2 family bundle until compatible builds ship.
+The right panel is provided by the external plugin [dsh-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) (integrated into the aggregate bundle and enabled by default), with its built-in features and third-party plugin registration — see its [README](https://github.com/omdsh-dev/DSH-better-sidebar). Note: as of DSH 0.1.2-alpha.2 the official `@deepseek-ai/dsh-client-runtime` face is removed; better-sidebar was temporarily excluded and is back in the aggregate at 0.18.0-alpha.0 (an alpha.2-aligned build).
 
 ![Right panel](docs/screenshots/19-right-panel.png)
 
@@ -142,7 +142,7 @@ Rescue mode (`dsh-doctor`) is a transactional rescue system for DSH profiles, **
 - **Plugin manager** (`dsh-client-ui-plugin-manager`): install plugins from npm or git through the official host channels; manage enablement and configuration.
 - **Branching session editing** (external plugin [@morlay/better-session](https://github.com/morlay/better-session), bundled in the aggregate, inactive by default): edit past messages in place and regenerate, one-click retry of failed turns, with rewind and fork support; enablement and legacy migration live in the dsh-web-all README.
 - **Desktop launcher** (`dsh-desktop-launcher`): a double-click desktop icon starts `dsh web` and opens the Web GUI; a floating power button exits the host process gracefully.
-- **Archive manager** (external plugin [@mlgbnb/dsh-archive-manager](https://github.com/z953218350/dsh-archive-manager), bundled in the aggregate): group sessions by project, search and filter, preview conversations, restore or delete in one click.> Note: temporarily excluded in the alpha.2 family bundle (same as better-sidebar, pending upstream compatibility with the dsh-client-runtime removal).
+- **Archive manager** (external plugin [@mlgbnb/dsh-archive-manager](https://github.com/z953218350/dsh-archive-manager)): group sessions by project, search and filter, preview conversations, restore or delete in one click. Note: not bundled in the alpha.2 family bundle for now — its upstream build still imports the removed `@deepseek-ai/dsh-client-runtime` face; it comes back when upstream ships an alpha.2-compatible build (better-sidebar is back).
 
 ### Skins
 

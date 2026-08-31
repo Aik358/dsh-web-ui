@@ -114,6 +114,13 @@
     - id: web-ui-i18n
       name: '@linxin666/dsh-i18n'
 
+# external bundle: dsh-better-sidebar
+
+# from external bundle dsh-better-sidebar (insert row web-ui-better-sidebar)
+- insert:
+    - id: web-ui-better-sidebar
+      name: 'dsh-better-sidebar'
+
 # external bundle: @morlay/better-session
 
 # from external bundle @morlay/better-session (insert row web-ui-session-branch)

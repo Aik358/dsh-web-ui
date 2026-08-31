@@ -59,6 +59,7 @@
     "@linxin666/dsh-client-ui-web-ui-settings": "workspace:*",
     "@linxin666/dsh-client-ui-skin-center": "workspace:*",
     "@linxin666/dsh-i18n": "workspace:*",
-    "@morlay/better-session": "0.0.11"
+    "@morlay/better-session": "0.0.11",
+    "dsh-better-sidebar": "0.18.0-alpha.0"
   }
 }
