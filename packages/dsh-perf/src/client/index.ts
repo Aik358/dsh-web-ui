@@ -20,6 +20,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
 import { zh, en, type PerfKey } from './perf-locales.ts'
 import { dictionaries as bsmDictionaries, type BetterSessionKey } from './bs-locales.ts'
+import { hudAlertReason, type PerfTranslate } from './perf-alert.ts'
 import { PerfSettingsCard, PerfSettingsCardController, type PerfSettings, type PerfSettingsCardFace } from './perf-settings-card.tsx'
 import { startIntegrityObserver } from './perf-integrity.ts'
 import { makeListSetGate, type ListSetGate, type SessionListSnapshotLike } from './perf-list-gate.ts'
@@ -88,6 +89,14 @@ export function apply(ctx: ClientContext): void {
     const binder = ctx.get('webUiSettings') ?? ctx.settingsScope
     perfScope = binder.bind<PerfSettings>({ namespace: NS })
   } catch { /* 无设置面时按默认开启 */ }
+  // HUD 文案翻译位: 每次调用读当前 locale; locale 服务缺失时退回 en 字典
+  // (与 SDK 的 en 兜底链一致)。
+  let perfTranslate: PerfTranslate
+  try {
+    perfTranslate = ctx.locale.bind(NS)
+  } catch {
+    perfTranslate = (key) => en[key]
+  }
   // 渲染降载/HUD/完整性观察开关: 统一走插件设置命名空间。
   let renderDegrade = true
   let hudOn = false
@@ -106,7 +115,7 @@ export function apply(ctx: ClientContext): void {
       hudOn = nextHudOn
       try {
         if (hudOn && hudDispose === undefined) {
-          hudDispose = boot(isEnabled)
+          hudDispose = boot(isEnabled, perfTranslate)
         } else if (!hudOn && hudDispose !== undefined) {
           hudDispose()
           hudDispose = undefined
@@ -276,7 +285,7 @@ function installPerfCss(isDegradeEnabled: () => boolean): void {
   } catch { /* noop */ }
 }
 
-function boot(isEnabled: () => boolean): () => void {
+function boot(isEnabled: () => boolean, t: PerfTranslate): () => void {
   const host = document.documentElement
   if (host === null || host === undefined) return () => {}
 
@@ -372,12 +381,8 @@ function boot(isEnabled: () => boolean): () => void {
     const batch = s.batchDelayMs ?? '?'
     const alert = typeof s.alert === 'object' && s.alert !== null ? s.alert : undefined
     if (alert) {
-      const reason = alert.kind === 'sessions'
-        ? '会话 ' + (alert.activeSessions ?? '?') + ' 个 ≥ 阈值 ' + (alert.maxSessions ?? '?')
-        : alert.kind === 'events'
-          ? '事件 ' + (alert.eventsPerSec ?? '?') + '/s ≥ 阈值 ' + (alert.maxEventsPerSec ?? '?')
-          : '会话与事件均超阈值'
-      lines.push('[!] ' + reason)
+      const reason = hudAlertReason(alert, t)
+      if (reason !== undefined) lines.push('[!] ' + reason)
     }
     lines.push('dsH PERF  mode=' + mode + '  batch=' + batch + 'ms')
     const ev = s.events ?? {}

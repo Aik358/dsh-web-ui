@@ -37,6 +37,9 @@ export const zh = {
   'settings.unsaved': '未保存',
   'settings.saveFailed': '部署未接受这些值，已保留待修正。',
   'settings.invalidNumber': '请输入数字，或留空使用默认值。',
+  'hud.alert.sessions': '会话 {count} 个 ≥ 阈值 {max}',
+  'hud.alert.events': '事件 {count}/s ≥ 阈值 {max}',
+  'hud.alert.both': '会话与事件均超阈值',
 } satisfies Record<string, string>
 
 /** Key union for this namespace. */
@@ -77,4 +80,7 @@ export const en = {
   'settings.unsaved': 'Unsaved',
   'settings.saveFailed': 'The deployment did not accept these values; they were left for you to correct.',
   'settings.invalidNumber': 'Enter a number, or leave blank to use the default.',
+  'hud.alert.sessions': 'Sessions {count} ≥ threshold {max}',
+  'hud.alert.events': 'Events {count}/s ≥ threshold {max}',
+  'hud.alert.both': 'Both sessions and events over threshold',
 } satisfies Record<PerfKey, string>
