@@ -307,8 +307,23 @@ export function dictionary(): Record<TaskBoardKey, string> {
   return lang.toLowerCase().startsWith('en') ? en : zh
 }
 
+/**
+ * SDK translate seat wired by the browser apply() once ctx.locale is bound
+ * (setRuntimeTranslate). When present it reads the ACTIVE locale at call
+ * time, so plain-DOM surfaces (sidebar row, toggles) follow a runtime
+ * language switch; the document-language pick above stays only as the
+ * unwired fallback (locale service absent, module-scope early callers).
+ */
+let runtimeT: ((key: TaskBoardKey, params?: Record<string, string>) => string) | undefined
+
+/** Wire the SDK translate seat; pass undefined to restore the document-language pick. */
+export function setRuntimeTranslate(t: ((key: TaskBoardKey, params?: Record<string, string>) => string) | undefined): void {
+  runtimeT = t
+}
+
 /** Translate a key with optional {name} template params. */
 export function t(key: TaskBoardKey, params?: Record<string, string>): string {
+  if (runtimeT !== undefined) return runtimeT(key, params)
   let text: string = dictionary()[key]
   if (params !== undefined) {
     for (const [name, value] of Object.entries(params)) {

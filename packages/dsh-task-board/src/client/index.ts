@@ -27,7 +27,7 @@ import { claimTaskboardApply, releaseTaskboardApply } from './apply-guard.ts'
 import { mountBoard } from './board-mount.tsx'
 import { mountSidebarEntry } from './sidebar-entry.ts'
 import { TaskBoardSettingsCard, TaskBoardSettingsCardController, type TaskBoardSettings } from './TaskBoardSettingsCard.tsx'
-import { en, zh, type TaskBoardKey } from './locales.ts'
+import { en, zh, setRuntimeTranslate, type TaskBoardKey } from './locales.ts'
 import { HttpTaskBoardHostTransport } from './host-api.ts'
 import { reportDailyHeartbeat } from './telemetry.ts'
 
@@ -157,6 +157,12 @@ export function apply(ctx: ClientContext): void {
     }
   }, 'task-board: dictionaries')
 
+  // Wire the SDK translate seat into the module-level t (sidebar row and
+  // other plain-DOM callers): reads the active locale at call time, so they
+  // follow the Language setting without a reload. The register effect above
+  // guarantees the dictionaries exist before the first read.
+  try { setRuntimeTranslate(ctx.locale.bind(NS)) } catch { /* locale missing: document-language fallback stays */ }
+
   // Plugin configuration card: one staged form over the `task-board` settings
   // namespace, contributed to the Web UI plugin group.
   const binder = ctx.get('webUiSettings') ?? ctx.settingsScope
@@ -246,8 +252,8 @@ export function apply(ctx: ClientContext): void {
     void pushPresetOptions()
     disposers.push(ctx.on('connection/reset', () => { void pushPresetOptions() }))
     try {
-      disposers.push(mountSidebarEntry(controller))
-      disposers.push(mountBoard(controller))
+      disposers.push(mountSidebarEntry(controller, ctx.locale))
+      disposers.push(mountBoard(controller, ctx.locale))
     } catch (error) {
       // DOM failures degrade the board, never the GUI.
       console.error('[dsh-task-board] mount failed:', error)

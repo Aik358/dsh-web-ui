@@ -25,6 +25,7 @@ import { en, zh, type SshKey } from './locales.ts'
 import { mountPanel } from './mount.tsx'
 import { PanelController } from './panel/controller.ts'
 import type { TerminalFontSource } from './panel/helpers.ts'
+import { setRuntimeTranslate } from './panel/helpers.ts'
 import { mountSidebarEntry } from './sidebar-entry.ts'
 import { reportDailyHeartbeat } from './telemetry.ts'
 
@@ -89,6 +90,11 @@ export function apply(ctx: ClientContext): void {
     }
   }, 'dsh-ssh: dictionaries')
 
+  // Wire the SDK translate seat into the module-level tt (sidebar row and
+  // other plain-DOM callers): reads the active locale at call time, so they
+  // follow the Language setting without a reload.
+  try { setRuntimeTranslate(ctx.locale.bind(NS)) } catch { /* locale missing: document-language fallback stays */ }
+
   const controller = new PanelController()
   const api = new SshApi()
   // Live terminal-font preference (issue #577): the settings namespace is
@@ -105,8 +111,8 @@ export function apply(ctx: ClientContext): void {
   }
   const disposers: Array<() => void> = []
   try {
-    disposers.push(mountSidebarEntry(controller))
-    disposers.push(mountPanel(controller, api, terminalFont))
+    disposers.push(mountSidebarEntry(controller, ctx.locale))
+    disposers.push(mountPanel(controller, api, terminalFont, ctx.locale))
   } catch (error) {
     // DOM failures degrade the panel, never the GUI.
     console.warn('[dsh-ssh] mount failed:', error)

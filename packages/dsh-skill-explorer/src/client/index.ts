@@ -18,6 +18,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 // Type-only: pulls the LocaleNamespaceMap merge table.
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
 import { SkillApi } from './api.ts'
+import { setRuntimeTranslate } from './panel-helpers.ts'
 import { en, zh, type SkillExplorerKey } from './locales.ts'
 import { mountPanel } from './panel-mount.tsx'
 import { mountSidebarEntry } from './sidebar-entry.ts'
@@ -58,11 +59,16 @@ export function apply(ctx: ClientContext): void {
     }
   }, 'skill-explorer: dictionaries')
 
+  // Wire the SDK translate seat into the module-level tt (sidebar row and
+  // other plain-DOM callers): reads the active locale at call time, so they
+  // follow the Language setting without a reload.
+  try { setRuntimeTranslate(ctx.locale.bind(NS)) } catch { /* locale missing: document-language fallback stays */ }
+
   const api = new SkillApi()
-  const panel = mountPanel(api)
+  const panel = mountPanel(api, ctx.locale)
   const disposers: Array<() => void> = []
   try {
-    disposers.push(mountSidebarEntry(() => panel.toggle()))
+    disposers.push(mountSidebarEntry(() => panel.toggle(), ctx.locale))
     disposers.push(() => panel.dispose())
   } catch (error) {
     // DOM failures degrade the panel, never the GUI.
