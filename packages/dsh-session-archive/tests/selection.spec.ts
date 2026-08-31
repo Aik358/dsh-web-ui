@@ -24,23 +24,28 @@ const rows: ArchiveSessionRow[] = [
 ]
 
 describe('filterRows', () => {
+  it('defaults to the archived view', () => {
+    expect(DEFAULT_FILTER_STATE.status).toBe('archived')
+  })
+
   it('filters by archive status', () => {
     expect(filterRows(rows, { ...DEFAULT_FILTER_STATE, status: 'active' }).map((r) => r.id).sort()).toEqual(['session-a', 'session-c'])
     expect(filterRows(rows, { ...DEFAULT_FILTER_STATE, status: 'archived' }).map((r) => r.id).sort()).toEqual(['session-b', 'session-d'])
+    expect(filterRows(rows, { ...DEFAULT_FILTER_STATE, status: 'all' }).length).toBe(4)
   })
 
   it('filters by workspace including workspace-less', () => {
-    expect(filterRows(rows, { ...DEFAULT_FILTER_STATE, workspaceId: 'ws-2' }).map((r) => r.id)).toEqual(['session-b'])
-    expect(filterRows(rows, { ...DEFAULT_FILTER_STATE, workspaceId: 'none' }).map((r) => r.id).sort()).toEqual(['session-c', 'session-d'])
+    expect(filterRows(rows, { ...DEFAULT_FILTER_STATE, status: 'all', workspaceId: 'ws-2' }).map((r) => r.id)).toEqual(['session-b'])
+    expect(filterRows(rows, { ...DEFAULT_FILTER_STATE, status: 'all', workspaceId: 'none' }).map((r) => r.id).sort()).toEqual(['session-c', 'session-d'])
   })
 
   it('searches title and id case-insensitively', () => {
-    expect(filterRows(rows, { ...DEFAULT_FILTER_STATE, query: 'alpha' }).map((r) => r.id)).toEqual(['session-a'])
-    expect(filterRows(rows, { ...DEFAULT_FILTER_STATE, query: 'SESSION-C' }).map((r) => r.id)).toEqual(['session-c'])
+    expect(filterRows(rows, { ...DEFAULT_FILTER_STATE, status: 'all', query: 'alpha' }).map((r) => r.id)).toEqual(['session-a'])
+    expect(filterRows(rows, { ...DEFAULT_FILTER_STATE, status: 'all', query: 'SESSION-C' }).map((r) => r.id)).toEqual(['session-c'])
   })
 
   it('filters issue rows', () => {
-    expect(filterRows(rows, { ...DEFAULT_FILTER_STATE, issuesOnly: true }).map((r) => r.id)).toEqual(['session-c'])
+    expect(filterRows(rows, { ...DEFAULT_FILTER_STATE, status: 'all', issuesOnly: true }).map((r) => r.id)).toEqual(['session-c'])
   })
 })
 

@@ -19,12 +19,21 @@ export interface FilterState {
   issuesOnly: boolean
 }
 
+/**
+ * The section opens on the ARCHIVED view (the management surface's primary
+ * audience) with pagination at 20 rows per page. Filtering/sorting resets to
+ * the first page; selection always spans the complete filtered set, never
+ * just the current page.
+ */
 export const DEFAULT_FILTER_STATE: FilterState = {
-  status: 'all',
+  status: 'archived',
   workspaceId: 'any',
   query: '',
   issuesOnly: false,
 }
+
+/** Rows per page. */
+export const PAGE_SIZE = 20
 
 function matchesQuery(row: ArchiveSessionRow, query: string): boolean {
   const needle = query.trim().toLowerCase()

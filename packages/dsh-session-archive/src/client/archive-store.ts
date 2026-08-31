@@ -54,8 +54,9 @@ export interface ArchiveUiState {
   filter: FilterState
   sortKey: SortKey
   sortDir: SortDir
+  /** Current page (0-based) over the filtered rows; PAGE_SIZE rows per page. */
+  page: number
   selection: string[]
-  renderLimit: number
   batch: BatchProgress | null
   preview: PreviewState | null
   confirmDelete: ConfirmDeleteState | null
@@ -68,10 +69,10 @@ export type ArchiveUiActions = {
   setStatus: (draft: ArchiveUiState, status: ArchiveUiState['status'], error: string | null) => void
   setFilter: (draft: ArchiveUiState, patch: Partial<FilterState>) => void
   setSort: (draft: ArchiveUiState, key: SortKey, dir: SortDir) => void
+  setPage: (draft: ArchiveUiState, page: number) => void
   toggleRow: (draft: ArchiveUiState, id: string, on: boolean) => void
   selectMany: (draft: ArchiveUiState, ids: readonly string[], on: boolean) => void
   clearSelection: (draft: ArchiveUiState) => void
-  bumpRenderLimit: (draft: ArchiveUiState) => void
   startBatch: (draft: ArchiveUiState, kind: BatchKind, total: number) => void
   batchChunk: (draft: ArchiveUiState, results: readonly OpResult[], freedBytes: number) => void
   finishBatch: (draft: ArchiveUiState, error: string | null, freedBytes: number) => void
@@ -90,8 +91,8 @@ export function createArchiveStore(): EngineStoreHandle<ArchiveUiState, ArchiveU
       filter: { ...DEFAULT_FILTER_STATE },
       sortKey: 'lastActivity',
       sortDir: 'desc',
+      page: 0,
       selection: [],
-      renderLimit: 200,
       batch: null,
       preview: null,
       confirmDelete: null,
@@ -110,10 +111,15 @@ export function createArchiveStore(): EngineStoreHandle<ArchiveUiState, ArchiveU
       },
       setFilter: (draft, patch) => {
         draft.filter = { ...draft.filter, ...patch }
+        draft.page = 0
       },
       setSort: (draft, key, dir) => {
         draft.sortKey = key
         draft.sortDir = dir
+        draft.page = 0
+      },
+      setPage: (draft, page) => {
+        draft.page = Math.max(0, page)
       },
       toggleRow: (draft, id, on) => {
         const has = draft.selection.includes(id)
@@ -130,9 +136,6 @@ export function createArchiveStore(): EngineStoreHandle<ArchiveUiState, ArchiveU
       },
       clearSelection: (draft) => {
         draft.selection = []
-      },
-      bumpRenderLimit: (draft) => {
-        draft.renderLimit += 200
       },
       startBatch: (draft, kind, total) => {
         draft.batch = { kind, total, processed: 0, results: [], running: true, error: null, freedBytes: 0 }

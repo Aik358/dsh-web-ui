@@ -17,7 +17,7 @@ import {
   validateDays,
 } from '../core/config.ts'
 import type { ArchiveSessionRow } from '../core/types.ts'
-import { filterRows, selectionSummary, sortRows, type SortDir, type SortKey } from '../core/selection.ts'
+import { filterRows, PAGE_SIZE, selectionSummary, sortRows, type SortDir, type SortKey } from '../core/selection.ts'
 import type { ArchiveController } from './archive-controller.ts'
 import { formatBytes, formatTime, BatchDialog, DeleteConfirmDialog, PreviewDialog } from './dialogs.tsx'
 import { AutoSettingsPanel } from './AutoSettings.tsx'
@@ -69,7 +69,11 @@ export function SessionArchiveCard(props: SessionArchiveProps): ReactNode {
   )
   const selection = useMemo(() => new Set(ui.selection), [ui.selection])
   const summary = selectionSummary(selection, filtered)
-  const shown = filtered.slice(0, ui.renderLimit)
+  // Pagination is a render window only: the filtered set (and therefore
+  // select-all) always spans the complete result, never just this page.
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const page = Math.min(ui.page, totalPages - 1)
+  const shown = filtered.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)
   const busy = ui.batch !== null && ui.batch.running
 
   const workspaceTitle = (id: string): string => workspaces.find((workspace) => workspace.id === id)?.title ?? id
@@ -192,8 +196,7 @@ export function SessionArchiveCard(props: SessionArchiveProps): ReactNode {
 
       <div className={styles.list} data-dsh-part="list">
         {filtered.length === 0 && <div className={styles.empty}>{t('arch.empty')}</div>}
-        {shown.map((row) => {
-          const chips = statusChips(row, currentId)
+        {shown.map((row) => {          const chips = statusChips(row, currentId)
           const issues = issueLabels(row)
           const selected = selection.has(row.id)
           return (
@@ -242,10 +245,25 @@ export function SessionArchiveCard(props: SessionArchiveProps): ReactNode {
             </div>
           )
         })}
-        {shown.length < filtered.length && (
-          <div className={styles.moreRow}>
-            <span className={styles.muted}>{t('arch.rendered', { shown: shown.length, total: filtered.length })}</span>
-            <button type="button" className={styles.button} onClick={() => { controller.store.actions.bumpRenderLimit() }}>{t('arch.more')}</button>
+        {filtered.length > 0 && (
+          <div className={styles.moreRow} data-dsh-part="pagination">
+            <button
+              type="button"
+              className={styles.button}
+              disabled={page === 0}
+              onClick={() => { controller.store.actions.setPage(page - 1) }}
+            >
+              {t('arch.page.prev')}
+            </button>
+            <span className={styles.muted}>{t('arch.page.info', { page: page + 1, pages: totalPages, n: filtered.length })}</span>
+            <button
+              type="button"
+              className={styles.button}
+              disabled={page >= totalPages - 1}
+              onClick={() => { controller.store.actions.setPage(page + 1) }}
+            >
+              {t('arch.page.next')}
+            </button>
           </div>
         )}
       </div>
