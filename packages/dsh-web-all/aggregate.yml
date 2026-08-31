@@ -30,6 +30,9 @@ patchFrom:
   - ../dsh-doctor
   - ../dsh-usage
   - ../skins/skin-center
+  # dsh-i18n 语言包无宿主行为、无时序依赖，放列表末尾：注册 ru 语言与全部
+  # 家族插件命名空间的 ru 字典（见 packages/dsh-i18n）。
+  - ../dsh-i18n
 self:
   - web-ui-compat
 deps:
@@ -50,6 +53,7 @@ deps:
   - ../dsh-usage
   - ../dsh-web-settings
   - ../skins/skin-center
+  - ../dsh-i18n
 # 外部 npm 插件：@morlay/better-session 提供分支式会话编辑（就地 edit / retry /
 # reroll / rewind，fork 派生新会话），经其 bundle patch 把 ctx.sessionPersistence
 # 换成 RDB（SQLite）后端并注册 ctx.sessionEditor。该包是 profile bundle（只有

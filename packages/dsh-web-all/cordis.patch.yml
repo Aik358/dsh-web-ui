@@ -109,6 +109,11 @@
     - id: web-ui-skin-center
       name: '@linxin666/dsh-client-ui-skin-center'
 
+# from ../dsh-i18n
+- insert:
+    - id: web-ui-i18n
+      name: '@linxin666/dsh-i18n'
+
 # external bundle: @morlay/better-session
 
 # from external bundle @morlay/better-session (insert row web-ui-session-branch)

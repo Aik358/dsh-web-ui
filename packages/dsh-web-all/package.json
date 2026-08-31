@@ -58,6 +58,7 @@
     "@linxin666/dsh-usage": "workspace:*",
     "@linxin666/dsh-client-ui-web-ui-settings": "workspace:*",
     "@linxin666/dsh-client-ui-skin-center": "workspace:*",
+    "@linxin666/dsh-i18n": "workspace:*",
     "@morlay/better-session": "0.0.11"
   }
 }
