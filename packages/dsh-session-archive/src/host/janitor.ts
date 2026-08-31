@@ -30,7 +30,7 @@ import type {
   SessionPreviewView,
   WorkspaceView,
 } from '../core/types.ts'
-import { buildInventory, readProjcacheIndex, type InventorySources, type ProjcacheFileEntry } from './inventory.ts'
+import { buildInventory, ledgerEntryFor, readProjcacheIndex, type InventorySources, type ProjcacheFileEntry } from './inventory.ts'
 import {
   capEntries,
   deserializeAutoState,
@@ -39,7 +39,7 @@ import {
   type AutoStateDocument,
   type LedgerDocument,
 } from './ledger.ts'
-import { deleteRdbSession, isSessionRdb, rdbDbPaths, removeSessionDir } from './session-files.ts'
+import { canonicalSessionId, deleteRdbSession, isSessionRdb, rdbDbPaths, removeSessionDir } from './session-files.ts'
 import { dshHome as resolveDshHome } from '../dsh-home.ts'
 import { archiveSession, removeFromWorkspaceRows, unarchiveSessions, unarchiveSeamAvailable } from './workspace-store.ts'
 
@@ -197,7 +197,7 @@ export class ArchiveService {
     try {
       for (const session of store.list() ?? []) {
         const id = (session as { id?: unknown })?.id
-        if (typeof id === 'string') ids.add(id)
+        if (typeof id === 'string') ids.add(canonicalSessionId(id))
       }
     } catch {
       // A failing store read degrades to feed-only protection.
@@ -218,7 +218,9 @@ export class ArchiveService {
         if (row.running && !map.has(row.id)) map.set(row.id, 'running')
       }
     }
-    if (currentSessionId !== undefined && currentSessionId !== '') map.set(currentSessionId, 'current')
+    // The client reports the current session in the harness's native spelling;
+    // rows are canonical.
+    if (currentSessionId !== undefined && currentSessionId !== '') map.set(canonicalSessionId(currentSessionId), 'current')
     for (const id of this.busy) map.set(id, 'in-flight')
     return map
   }
@@ -308,7 +310,9 @@ export class ArchiveService {
         }
         this.busy.add(id)
         try {
-          await archiveSession(this.ctx, id)
+          // The registry records the harness's native id spelling; rows and
+          // ledger keys stay canonical.
+          await archiveSession(this.ctx, built.nativeIds[id] ?? id)
           this.ledger.entries[id] = { archivedAt: now, source }
           results.push({ id, status: 'ok' })
         } catch (error) {
@@ -344,6 +348,8 @@ export class ArchiveService {
         await unarchiveSessions(this.ctx.workspaceRegistry, toUnarchive)
         for (const id of toUnarchive) {
           delete this.ledger.entries[id]
+          const native = built.nativeIds[id]
+          if (native !== undefined && native !== id) delete this.ledger.entries[native]
           results.push({ id, status: 'ok' })
         }
       } catch (error) {
@@ -431,8 +437,10 @@ export class ArchiveService {
     const deleted = new Set<string>()
     for (const id of targets) {
       try {
+        const native = built.nativeIds[id]
         for (const dbPath of rdbPaths) {
           deleteRdbSession(dbPath, id)
+          if (native !== undefined && native !== id) deleteRdbSession(dbPath, native)
         }
         const dir = built.dirIndex.byId.get(id)
         if (dir !== undefined) {
@@ -450,11 +458,15 @@ export class ArchiveService {
       }
     }
 
-    // 4. Projection cache (index entry + per-session file).
-    this.scrubProjcache(deleted)
+    // 4. Projection cache (index entry + per-session file), both spellings.
+    this.scrubProjcache(deleted, built.nativeIds)
 
-    // 5. Archive ledger.
-    for (const id of deleted) delete this.ledger.entries[id]
+    // 5. Archive ledger, both spellings.
+    for (const id of deleted) {
+      delete this.ledger.entries[id]
+      const native = built.nativeIds[id]
+      if (native !== undefined && native !== id) delete this.ledger.entries[native]
+    }
     await this.flushLedger()
 
     let freedBytes = 0
@@ -469,14 +481,18 @@ export class ArchiveService {
   }
 
   /** Best-effort projection-cache scrub; a stale cache entry is cosmetic. */
-  private scrubProjcache(ids: ReadonlySet<string>): void {
+  private scrubProjcache(ids: ReadonlySet<string>, nativeIds: Record<string, string> = {}): void {
     const indexPath = join(this.dshHome, 'storages', 'session_projcache.json')
     try {
       if (existsSync(indexPath)) {
         const parsed = JSON.parse(this.readSync(indexPath)) as { tables?: { sessions?: Record<string, unknown> } }
         const sessions = parsed.tables?.sessions
         if (sessions !== undefined) {
-          for (const id of ids) delete sessions[id]
+          for (const id of ids) {
+            delete sessions[id]
+            const native = nativeIds[id]
+            if (native !== undefined && native !== id) delete sessions[native]
+          }
           void writeJsonAtomic(indexPath, parsed)
         }
       }
@@ -486,8 +502,11 @@ export class ArchiveService {
     const perSessionDir = join(this.dshHome, 'storages', 'session_projcache', 'sessions')
     try {
       for (const id of ids) {
-        const file = join(perSessionDir, `${id}.json`)
-        if (existsSync(file)) unlinkSync(file)
+        for (const spelling of [id, nativeIds[id]]) {
+          if (spelling === undefined) continue
+          const file = join(perSessionDir, `${spelling}.json`)
+          if (existsSync(file)) unlinkSync(file)
+        }
       }
     } catch {
       // Same best-effort contract.
@@ -666,7 +685,8 @@ export class ArchiveService {
     let messageCount = 0
     if (controller !== undefined && typeof controller.inspect === 'function') {
       try {
-        const inspect = await controller.inspect(id, AbortSignal.timeout(15_000))
+        // The harness knows the session under its native id spelling.
+        const inspect = await controller.inspect(built.nativeIds[id] ?? id, AbortSignal.timeout(15_000))
         if (meta.createdAt === undefined && inspect.meta?.createdAt !== undefined) meta = { ...meta, createdAt: inspect.meta.createdAt }
         if (meta.cwd === undefined && inspect.meta?.cwd !== undefined) meta = { ...meta, cwd: inspect.meta.cwd }
         const messages = extractMessages(inspect.events ?? [])

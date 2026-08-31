@@ -12,6 +12,7 @@ import type { BatchRequestBody } from '../core/types.ts'
 import { BusyError, PlanMismatchError, type ArchiveService } from './janitor.ts'
 import { readBoundedJson, writeJson } from './http.ts'
 import { isLoopbackRequest } from './loopback.ts'
+import { canonicalSessionId } from './session-files.ts'
 
 export const ARCHIVE_API_PREFIX = '/api/dsh-session-archive'
 
@@ -37,7 +38,16 @@ async function readBody(req: IncomingMessage): Promise<unknown> {
 
 function idList(value: unknown): string[] {
   if (!Array.isArray(value)) return []
-  return value.filter((entry): entry is string => typeof entry === 'string' && entry.startsWith('session-') && entry.length <= 200)
+  const out: string[] = []
+  for (const entry of value) {
+    if (typeof entry !== 'string' || entry.length === 0 || entry.length > 200) continue
+    // Harness installs mix bare uuids with `session-<uuid>`; accept both and
+    // canonicalize. Path-unsafe strings are rejected outright — ids end up in
+    // file names for the projection-cache scrub.
+    if (entry.includes('/') || entry.includes('\\') || entry.includes('..')) continue
+    out.push(canonicalSessionId(entry))
+  }
+  return out
 }
 
 function batchBody(body: unknown): BatchRequestBody {

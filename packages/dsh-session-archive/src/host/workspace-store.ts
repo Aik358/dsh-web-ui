@@ -14,6 +14,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 // Type-only: pulls the workspaceRegistry Context merge (dsh-workspace face).
 import type {} from '@deepseek-ai/dsh-workspace'
+import { canonicalSessionId } from './session-files.ts'
 
 /** Minimal runtime shape the registry must expose for durable archive-set writes. */
 interface RegistrySeam {
@@ -61,8 +62,10 @@ export async function unarchiveSessions(registry: unknown, ids: readonly string[
     throw new Error('workspace registry state unavailable')
   }
   const current = Array.isArray(state.archivedSessionIds) ? state.archivedSessionIds : []
-  const drop = new Set(ids)
-  const next = current.filter((id) => !drop.has(id))
+  // The stored set mixes id spellings (bare uuids beside `session-<uuid>`);
+  // compare canonically and preserve every non-matching entry verbatim.
+  const drop = new Set(ids.map(canonicalSessionId))
+  const next = current.filter((id) => !drop.has(canonicalSessionId(id)))
   if (next.length === current.length) return
   await seam.setState?.({ ...state, archivedSessionIds: next })
 }
@@ -90,7 +93,8 @@ export async function archiveSession(ctx: Context, id: string): Promise<void> {
 export async function removeFromWorkspaceRows(registry: unknown, ids: readonly string[]): Promise<string[]> {
   if (ids.length === 0) return []
   const seam = registry as RegistrySeam
-  const drop = new Set(ids)
+  const drop = new Set(ids.map(canonicalSessionId))
+  const matches = (id: string): boolean => drop.has(canonicalSessionId(id))
   const touched: string[] = []
   let entities: WorkspaceEntityLike[]
   try {
@@ -100,10 +104,10 @@ export async function removeFromWorkspaceRows(registry: unknown, ids: readonly s
   }
   for (const entity of entities) {
     if (typeof entity.mutate !== 'function') continue
-    if (!entity.sessionIds.some((id) => drop.has(id))) continue
+    if (!entity.sessionIds.some(matches)) continue
     await entity.mutate((record) => ({
       ...record,
-      sessionIds: record.sessionIds.filter((id) => !drop.has(id)),
+      sessionIds: record.sessionIds.filter((id) => !matches(id)),
     }))
     touched.push(entity.id)
   }

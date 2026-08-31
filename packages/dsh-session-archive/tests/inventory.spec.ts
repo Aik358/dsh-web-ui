@@ -187,6 +187,37 @@ describe('buildInventory', () => {
     expect(await readProjcacheFile(host.home, 'session-missing')).toBeUndefined()
   })
 
+  it('canonicalizes bare harness ids and remembers their native spelling', async () => {
+    const bare = '84777561-8adb-452d-a3ac-b25c7e72d36e'
+    const bareArchived = '41030de9-301d-4ced-ba68-3c5cee113a1b'
+    const host = createFakeHost({
+      feedItems: [
+        { sessionId: bare, updatedAt: 700 },
+        { sessionId: 'child-bare', updatedAt: 600, parentSessionId: bare },
+      ],
+      archivedSessionIds: [bareArchived],
+    })
+    // Legacy ledger keys use the native (bare) spelling.
+    host.ledger.entries[bareArchived] = { archivedAt: 1234, source: 'manual' }
+    const built = await buildInventory(host.sources(), AbortSignal.timeout(5000))
+    const ids = built.rows.map((row) => row.id)
+    expect(ids).toContain(`session-${bare}`)
+    expect(built.nativeIds[`session-${bare}`]).toBe(bare)
+    expect(built.nativeIds['session-child-bare']).toBe('child-bare')
+
+    const parent = built.rows.find((row) => row.id === `session-${bare}`)
+    const child = built.rows.find((row) => row.id === 'session-child-bare')
+    expect(child?.parentId).toBe(`session-${bare}`)
+    expect(parent?.childIds).toContain('session-child-bare')
+
+    // A bare archive-set entry marks the canonical row archived, and a legacy
+    // bare ledger key still yields the archive time.
+    const arch = built.rows.find((row) => row.id === `session-${bareArchived}`)
+    expect(arch?.archived).toBe(true)
+    expect(arch?.archivedAt).toBe(1234)
+    expect(arch?.issues).not.toContain('no-archive-time')
+  })
+
   it('degrades gracefully when the feed fails', async () => {
     const host = createFakeHost({ dirs: ['session-x'] })
     host.feedItems = []

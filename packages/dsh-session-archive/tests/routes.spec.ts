@@ -107,6 +107,35 @@ describe('route fencing and contracts', () => {
     expect((response.body as { plan: { targets: string[] } }).plan.targets.sort()).toEqual(['session-c', 'session-p'])
   })
 
+  it('accepts bare-uuid ids (the harness native spelling) and canonicalizes them', async () => {
+    const bare = '84777561-8adb-452d-a3ac-b25c7e72d36e'
+    const host = createFakeHost({
+      feedItems: [{ sessionId: bare, updatedAt: 1 }],
+      persistedIds: [bare],
+      archivedSessionIds: [bare],
+      dirs: [bare],
+    })
+    host.ledger.entries[bare] = { archivedAt: 5, source: 'manual' }
+    const service = new ArchiveService(fakeContext(host) as never, { dshHome: host.home })
+    const { server, url } = await startServer(makeArchiveRoutes(service))
+    servers.push(server)
+    const response = await post(url, '/api/dsh-session-archive/delete', { ids: [bare], expectedTotal: 1 })
+    expect(response.status).toBe(200)
+    const body = response.body as { results: { id: string; status: string }[] }
+    expect(body.results[0]?.id).toBe(`session-${bare}`)
+    expect(body.results[0]?.status).toBe('ok')
+    // The archive set (native bare spelling) is cleaned.
+    expect(host.registry.state.archivedSessionIds).toEqual([])
+  })
+
+  it('rejects path-unsafe ids', async () => {
+    const service = makeService()
+    const { server, url } = await startServer(makeArchiveRoutes(service))
+    servers.push(server)
+    const response = await post(url, '/api/dsh-session-archive/delete', { ids: ['../../etc/passwd'] })
+    expect(response.status).toBe(400)
+  })
+
   it('answers 409 busy while another operation holds the lock', async () => {
     const host = createFakeHost({ feedItems: [{ sessionId: 'session-a', updatedAt: 1 }], persistedIds: ['session-a'] })
     // Gate the feed so the first archive stays mid-flight until released.

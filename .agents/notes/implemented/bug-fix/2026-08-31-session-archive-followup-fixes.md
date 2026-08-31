@@ -93,3 +93,39 @@ the session is closed; what changed is that the UI now says so honestly and
 the selection counter reflects reality. QA-verified: select 3 seeded sessions
 → batch delete → dialog `成功：3 / 跳过：0`, selection counter pruned to
 `已选 0 项`. Evidence: `/tmp/qa-evidence/25..27-*.png`.
+
+## Follow-up 2 (same day): bare-uuid harness ids broke every batch
+
+**Problem.** After the user's restart, a 213-target batch delete failed 400
+`no session ids` on every chunk. Diagnosis on the real home: this install's
+harness mixes id spellings natively — the feed, the registry archive set, and
+the session store all hold **bare uuids** for a large share of sessions (309/741
+feed rows; the archive set and the plugin ledger were 100% bare), while other
+rows carry `session-<uuid>`. The route's id validator only accepted the
+prefixed spelling, so every id was dropped and the empty-array guard answered
+400. The earlier 371-run had worked because the then-deployed build predated
+the strict validator.
+
+**Decision.** One canonical form inside the plugin, native spellings at the
+harness boundary:
+
+1. `buildInventory` canonicalizes every id it emits (feed rows, parent links,
+   workspace membership, archive-set membership, ledger lookups) to
+   `session-<uuid>` via `canonicalSessionId`, and records a canonical→native
+   map (`BuiltInventory.nativeIds`) for every non-canonical spelling seen.
+2. `routes.idList` accepts both spellings, rejects path-unsafe strings
+   (ids end up in file names), and canonicalizes before the service sees them.
+3. Harness-facing calls pass the native id: `archiveSession`, `inspect`
+   (preview), rdb deletes (dual attempt), archive-set unarchive and
+   workspace-row removal compare canonically and preserve all other stored
+   entries verbatim.
+4. The archive ledger and the projection-cache scrub write canonical keys and
+   clean both spellings (the existing 207 legacy bare ledger keys stay
+   readable through the dual lookup).
+
+**Consequences.** Mixed-spelling installs work end to end; the wire format is
+uniformly canonical; legacy bare ledger keys are read and retired naturally.
+Selection made on a pre-fix page (bare ids) is pruned by the inventory refresh
+(rows are canonical) and the user re-selects. Unit-covered: bare feed ids →
+canonical rows + parent links + archive flags; bare id through the delete
+route cleans the bare archive-set entry; path-unsafe ids still 400.

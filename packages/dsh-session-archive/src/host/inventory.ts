@@ -15,7 +15,7 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { ArchiveIssueCode, ArchiveSessionRow, WorkspaceView } from '../core/types.ts'
 import type { LedgerDocument } from './ledger.ts'
-import { indexSessionDirs, type SessionDirIndex } from './session-files.ts'
+import { canonicalSessionId, indexSessionDirs, type SessionDirIndex } from './session-files.ts'
 
 /** Minimal duck-typed face of the host SessionController feed. */
 export interface SessionFeedFace {
@@ -126,6 +126,18 @@ export interface BuiltInventory {
   workspaces: WorkspaceView[]
   archivedSessionIds: string[]
   dirIndex: SessionDirIndex
+  /**
+   * Canonical row id -> the id the harness natively uses for the session.
+   * Harness installs mix id spellings (feed, archive set, and store may hold
+   * bare uuids while other rows carry `session-<uuid>`); every id this module
+   * emits is canonical, and harness-facing calls must pass the native form.
+   */
+  nativeIds: Record<string, string>
+}
+
+/** Ledger entry for a session under either id spelling; canonical wins. */
+export function ledgerEntryFor(ledger: LedgerDocument, canonicalId: string, nativeId?: string): { archivedAt: number; source: 'manual' | 'auto' } | undefined {
+  return ledger.entries[canonicalId] ?? (nativeId !== undefined && nativeId !== canonicalId ? ledger.entries[nativeId] : undefined)
 }
 
 /**
@@ -151,6 +163,7 @@ export async function buildInventory(sources: InventorySources, signal: AbortSig
     hasDir: boolean
   }
   const drafts = new Map<string, Draft>()
+  const nativeIds: Record<string, string> = {}
   const add = (id: string): Draft => {
     let draft = drafts.get(id)
     if (draft === undefined) {
@@ -172,7 +185,11 @@ export async function buildInventory(sources: InventorySources, signal: AbortSig
       const response = await sources.feed.list({}, signal)
       for (const item of response.items ?? []) {
         if (typeof item.sessionId !== 'string' || item.sessionId === '') continue
-        const draft = add(item.sessionId)
+        // The feed mixes id spellings (bare uuids beside `session-<uuid>`);
+        // canonicalize and remember the native form for harness-facing calls.
+        const id = canonicalSessionId(item.sessionId)
+        if (id !== item.sessionId && nativeIds[id] === undefined) nativeIds[id] = item.sessionId
+        const draft = add(id)
         draft.fromFeed = true
         draft.running = item.running === true
         draft.blank = item.blank === true
@@ -181,7 +198,7 @@ export async function buildInventory(sources: InventorySources, signal: AbortSig
           draft.lastActivityReliable = true
         }
         if (typeof item.cwd === 'string' && item.cwd !== '') draft.cwd = item.cwd
-        if (typeof item.parentSessionId === 'string' && item.parentSessionId !== '') draft.parentId = item.parentSessionId
+        if (typeof item.parentSessionId === 'string' && item.parentSessionId !== '') draft.parentId = canonicalSessionId(item.parentSessionId)
         if (item.origin === 'subagent') draft.origin = 'subagent'
       }
     } catch (error) {
@@ -208,10 +225,10 @@ export async function buildInventory(sources: InventorySources, signal: AbortSig
   if (sources.registry !== undefined) {
     try {
       for (const entity of sources.registry.list()) {
-        workspaces.push({ id: entity.id, title: entity.title, path: entity.path, sessionIds: [...entity.sessionIds] })
+        workspaces.push({ id: entity.id, title: entity.title, path: entity.path, sessionIds: [...entity.sessionIds].map(canonicalSessionId) })
         for (const sessionId of entity.sessionIds) {
-          const list = workspaceOf.get(sessionId)
-          if (list === undefined) workspaceOf.set(sessionId, [entity.id])
+          const list = workspaceOf.get(canonicalSessionId(sessionId))
+          if (list === undefined) workspaceOf.set(canonicalSessionId(sessionId), [entity.id])
           else if (!list.includes(entity.id)) list.push(entity.id)
         }
       }
@@ -227,7 +244,13 @@ export async function buildInventory(sources: InventorySources, signal: AbortSig
       archivedSessionIds = []
     }
   }
-  const archivedSet = new Set(archivedSessionIds)
+  // The archive set also mixes spellings; membership checks use canonical ids
+  // while the wire keeps the raw list.
+  const archivedSet = new Set(archivedSessionIds.map((id) => {
+    const canonical = canonicalSessionId(id)
+    if (canonical !== id && nativeIds[canonical] === undefined) nativeIds[canonical] = id
+    return canonical
+  }))
   // Historical archive entries with no storage left (no feed row, no dir)
   // still surface as rows — flagged `no-data` — so the archive view stays
   // complete and the entries can be cleaned through unarchive/delete instead
@@ -262,7 +285,8 @@ export async function buildInventory(sources: InventorySources, signal: AbortSig
     const issues: ArchiveIssueCode[] = []
     if (draft.title === undefined) issues.push('no-title')
     const archived = archivedSet.has(draft.id)
-    const archivedAt = archived ? sources.ledger.entries[draft.id]?.archivedAt : undefined
+    const ledgerEntry = archived ? ledgerEntryFor(sources.ledger, draft.id, nativeIds[draft.id]) : undefined
+    const archivedAt = ledgerEntry?.archivedAt
     if (archived && archivedAt === undefined) issues.push('no-archive-time')
     if (draft.fromFeed === false) issues.push('unreadable')
     if (draft.fromFeed === false && draft.hasDir === false) issues.push('no-data')
@@ -289,7 +313,7 @@ export async function buildInventory(sources: InventorySources, signal: AbortSig
     })
   }
   rows.sort((a, b) => (b.lastActivityAt ?? 0) - (a.lastActivityAt ?? 0) || a.id.localeCompare(b.id))
-  return { rows, workspaces, archivedSessionIds, dirIndex }
+  return { rows, workspaces, archivedSessionIds, dirIndex, nativeIds }
 }
 
 export function emptyLedger(): LedgerDocument {
