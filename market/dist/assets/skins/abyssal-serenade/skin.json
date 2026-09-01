@@ -1,0 +1,56 @@
+{
+  "$schema": "https://schemas.linxin666.org/dsh-skin/v2.json",
+  "skinManifestVersion": 2,
+  "id": "abyssal-serenade",
+  "name": "深海人鱼谣",
+  "nameEn": "Abyssal Serenade",
+  "version": "0.1.0",
+  "author": "theater",
+  "tagline": "深海气泡 · 人鱼歌谣 · 海沫白与深渊青",
+  "description": "人鱼与深海主题的双面皮肤：光模式是海沫白浅滩上的浮游人鱼立绘与上浮气泡；暗模式沉入深渊青渐变与光柱，气泡自底部升起。水色青绿贯穿令牌层，支持皮肤中心原生的背景遮挡与磨砂调节。",
+  "tags": [
+    "mermaid",
+    "aquatic",
+    "pastel",
+    "abyss",
+    "bubble"
+  ],
+  "accent": "#189EB4",
+  "order": 33,
+  "license": "CC-BY-NC-SA-4.0",
+  "attribution": "角色插画由作者本人提供，内置皮肤中心运行时与背景遮挡/磨砂调节配合使用",
+  "preview": {
+    "light": "preview/light.jpg",
+    "dark": "preview/dark.jpg"
+  },
+  "requires": {
+    "contracts": [
+      {
+        "apiVersion": "x-org.linxin666.skin-center/v1alpha1",
+        "kind": "SkinHooks",
+        "optional": true
+      }
+    ]
+  },
+  "contributes": {
+    "stylesheet": "skin.css",
+    "backgroundMedia": {
+      "light": {
+        "type": "image",
+        "src": "assets/background-light.webp",
+        "scrim": "linear-gradient(rgba(244, 250, 252, 0.10) 0%, rgba(241, 249, 251, 0.18) 52%, rgba(233, 244, 247, 0.26) 100%)"
+      },
+      "dark": {
+        "type": "image",
+        "src": "assets/background-dark.webp",
+        "scrim": "linear-gradient(rgba(6, 18, 31, 0.14) 0%, rgba(6, 18, 31, 0.22) 52%, rgba(5, 16, 28, 0.3) 100%)"
+      }
+    }
+  },
+  "facets": {
+    "client": {
+      "entry": "hooks.mjs",
+      "apiVersion": "x-org.linxin666.skin-center/v1alpha1"
+    }
+  }
+}

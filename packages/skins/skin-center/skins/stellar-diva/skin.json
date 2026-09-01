@@ -1,0 +1,56 @@
+{
+  "$schema": "https://schemas.linxin666.org/dsh-skin/v2.json",
+  "skinManifestVersion": 2,
+  "id": "stellar-diva",
+  "name": "星海歌姬",
+  "nameEn": "Stellar Diva",
+  "version": "0.1.0",
+  "author": "theater",
+  "tagline": "珍珠白舞台 · 蓝宝石星尘 · 天使系偶像",
+  "description": "以纯白立绘与星尘粒子构成的浅色皮肤：光模式是珍珠白画布上的蓝宝石极光与偶像立绘，暗模式化为午夜星场与流动星屑。全量官方 UI 语义令牌随双模式重映射，支持皮肤中心原生的背景遮挡与磨砂调节。",
+  "tags": [
+    "idol",
+    "celestial",
+    "white",
+    "sapphire",
+    "sparkle"
+  ],
+  "accent": "#3D6FD6",
+  "order": 30,
+  "license": "CC-BY-NC-SA-4.0",
+  "attribution": "角色插画由作者本人提供，内置皮肤中心运行时与背景遮挡/磨砂调节配合使用",
+  "preview": {
+    "light": "preview/light.jpg",
+    "dark": "preview/dark.jpg"
+  },
+  "requires": {
+    "contracts": [
+      {
+        "apiVersion": "x-org.linxin666.skin-center/v1alpha1",
+        "kind": "SkinHooks",
+        "optional": true
+      }
+    ]
+  },
+  "contributes": {
+    "stylesheet": "skin.css",
+    "backgroundMedia": {
+      "light": {
+        "type": "image",
+        "src": "assets/background-light.webp",
+        "scrim": "linear-gradient(rgba(247, 250, 254, 0.10) 0%, rgba(244, 248, 254, 0.18) 52%, rgba(239, 244, 252, 0.26) 100%)"
+      },
+      "dark": {
+        "type": "image",
+        "src": "assets/background-dark.webp",
+        "scrim": "linear-gradient(rgba(9, 13, 30, 0.16) 0%, rgba(11, 16, 36, 0.24) 55%, rgba(10, 15, 36, 0.32) 100%)"
+      }
+    }
+  },
+  "facets": {
+    "client": {
+      "entry": "hooks.mjs",
+      "apiVersion": "x-org.linxin666.skin-center/v1alpha1"
+    }
+  }
+}

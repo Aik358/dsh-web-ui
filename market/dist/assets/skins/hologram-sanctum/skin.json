@@ -1,0 +1,56 @@
+{
+  "$schema": "https://schemas.linxin666.org/dsh-skin/v2.json",
+  "skinManifestVersion": 2,
+  "id": "hologram-sanctum",
+  "name": "虚数圣所",
+  "nameEn": "Hologram Sanctum",
+  "version": "0.1.0",
+  "author": "theater",
+  "tagline": "虚空黑圣所 · 全息青光 · 银白未来偶像",
+  "description": "赛博全息主题皮肤：暗模式以纯黑虚空为底，坐姿立绘通过 screen 混合悬浮于虚空，青色数据流光点缓漂；光模式是冷银色圣所与淡紫幕布。网格微光与全息青强调线贯穿令牌层，支持皮肤中心原生的背景遮挡与磨砂调节。",
+  "tags": [
+    "cyber",
+    "hologram",
+    "void",
+    "cyan",
+    "futuristic"
+  ],
+  "accent": "#0FA0BE",
+  "order": 32,
+  "license": "CC-BY-NC-SA-4.0",
+  "attribution": "角色插画由作者本人提供，内置皮肤中心运行时与背景遮挡/磨砂调节配合使用",
+  "preview": {
+    "light": "preview/light.jpg",
+    "dark": "preview/dark.jpg"
+  },
+  "requires": {
+    "contracts": [
+      {
+        "apiVersion": "x-org.linxin666.skin-center/v1alpha1",
+        "kind": "SkinHooks",
+        "optional": true
+      }
+    ]
+  },
+  "contributes": {
+    "stylesheet": "skin.css",
+    "backgroundMedia": {
+      "light": {
+        "type": "image",
+        "src": "assets/background-light.webp",
+        "scrim": "linear-gradient(rgba(243, 246, 251, 0.10) 0%, rgba(240, 244, 250, 0.18) 52%, rgba(234, 238, 246, 0.26) 100%)"
+      },
+      "dark": {
+        "type": "image",
+        "src": "assets/background-dark.webp",
+        "scrim": "linear-gradient(rgba(7, 8, 13, 0.12) 0%, rgba(7, 8, 13, 0.2) 52%, rgba(8, 9, 15, 0.3) 100%)"
+      }
+    }
+  },
+  "facets": {
+    "client": {
+      "entry": "hooks.mjs",
+      "apiVersion": "x-org.linxin666.skin-center/v1alpha1"
+    }
+  }
+}

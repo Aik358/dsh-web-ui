@@ -1,0 +1,212 @@
+/* 星海歌姬 · Stellar Diva — L1 token remaps + L2 semantic polish (skin-center v2) */
+
+:root {
+  --dsw-alias-bg-base: rgba(247,250,254, calc(var(--dsw-skin-scrim, 0) * .45));
+  --dsw-alias-bg-layer-1: #FFFFFF;
+  --dsw-alias-bg-layer-2: #FAFCFF;
+  --dsw-alias-bg-layer-3: #EFF4FC;
+  --dsw-alias-bg-mask-1: #0000003d;
+  --dsw-alias-bg-mask-2: #0000001f;
+  --dsw-alias-bg-mask-3: #0000007a;
+  --dsw-alias-bg-mask-photo: #000000e0;
+  --dsw-alias-bg-mask-drop: #ffffffb3;
+  --dsw-alias-bg-module-platform: #FFFFFF;
+  --dsw-alias-bg-multi-select: #FFFFFF;
+  --dsw-alias-bg-overlay: #E8EEF9;
+  --dsw-alias-bg-skeleton: #0000000a;
+  --dsw-alias-border-inverted2: transparent;
+  --dsw-alias-border-inverted: transparent;
+  --dsw-alias-border-l1: rgba(23,38,74,0.07);
+  --dsw-alias-border-l2-darkmode-thin: #0000001a;
+  --dsw-alias-border-l2: rgba(23,38,74,0.12);
+  --dsw-alias-border-l3: rgba(23,38,74,0.17);
+  --dsw-alias-border-l4: rgba(23,38,74,0.24);
+  --dsw-alias-brand-primary-invert: #FFFFFF;
+  --dsw-alias-brand-primary-new-colorprimary-new-color: #3D6FD6;
+  --dsw-alias-brand-primary-new-color: #3D6FD6;
+  --dsw-alias-brand-primary: #3D6FD6;
+  --dsw-alias-brand-text: #3D6FD6;
+  --dsw-alias-button-contrast-fill: #33456E;
+  --dsw-alias-button-elevated-fill: #FFFFFF;
+  --dsw-alias-button-floating-fill: #FFFFFF;
+  --dsw-alias-button-floating-hover: #EFF4FC;
+  --dsw-alias-button-ghost-active-border: rgba(61,111,214,0.5);
+  --dsw-alias-button-ghost-active-fill: rgba(61,111,214,0.08);
+  --dsw-alias-button-ghost-active-hover: rgba(61,111,214,0.15);
+  --dsw-alias-button-info-fill: #3D6FD6;
+  --dsw-alias-button-info-hover: #2F5EC4;
+  --dsw-alias-button-primary-dimmed: rgba(23,38,74,0.12);
+  --dsw-alias-button-primary-fill: #3D6FD6;
+  --dsw-alias-button-primary-hover: #2F5EC4;
+  --dsw-alias-button-tool-bar-fill: #EFF4FC;
+  --dsw-alias-button-tool-bar-fill-invisible: transparent;
+  --dsw-alias-button-tool-bar-hover: rgba(61,111,214,0.08);
+  --dsw-alias-interactive-bg-active: rgba(61,111,214,0.15);
+  --dsw-alias-interactive-bg-hover: rgba(61,111,214,0.08);
+  --dsw-alias-interactive-bg-hover-accent: rgba(61,111,214,0.14);
+  --dsw-alias-interactive-bg-hover-danger: rgba(204,68,84,0.14);
+  --dsw-alias-interactive-bg-hover-solid: rgba(61,111,214,0.2);
+  --dsw-alias-label-caption: #8C9CBF;
+  --dsw-alias-label-dimmed: #8C9CBF;
+  --dsw-alias-label-primary-bluish: #17264A;
+  --dsw-alias-label-primary-dimmed: #33456E;
+  --dsw-alias-label-primary-foreground: #FFFFFF;
+  --dsw-alias-label-primary-inverted: #F7FAFE;
+  --dsw-alias-label-primary: #17264A;
+  --dsw-alias-label-secondary: #33456E;
+  --dsw-alias-label-tertiary: #5F7198;
+  --dsw-alias-markdown-citation: #3D6FD6;
+  --dsw-alias-markdown-code-block: #F2F6FD;
+  --dsw-alias-markdown-code-block-banner: #E9F0FC;
+  --dsw-alias-markdown-code-segment-selected: rgba(61,111,214,0.16);
+  --dsw-alias-markdown-code-segment-unselected: rgba(23,38,74,0.07);
+  --dsw-alias-markdown-inline-code: rgba(61,111,214,0.10);
+  --dsw-alias-markdown-placeholder: #5F7198;
+  --dsw-alias-markdown-tag: #3D6FD6;
+  --dsw-alias-scrollbar-bg-l1: rgba(23,38,74,0.16);
+  --dsw-alias-scrollbar-bg-l2: rgba(23,38,74,0.16);
+  --dsw-alias-scrollbar-hover-l1: rgba(23,38,74,0.30);
+  --dsw-alias-scrollbar-hover-l2: rgba(23,38,74,0.30);
+  --dsw-alias-state-business-primary: #3D6FD6;
+  --dsw-alias-state-business-tertiary: rgba(61,111,214,0.15);
+  --dsw-alias-state-error-primary: #CC4454;
+  --dsw-alias-state-error-secondary: rgba(204,68,84,0.14);
+  --dsw-alias-state-success-primary: #1F9D66;
+  --dsw-alias-state-success-secondary: rgba(31,157,102,0.15);
+  --dsw-alias-state-success-tertiary: rgba(31,157,102,0.1);
+  --dsw-alias-state-warn-label: #C98A1B;
+  --dsw-alias-state-warn-primary: #C98A1B;
+  --dsw-alias-state-warn-secondary: rgba(201,138,27,0.16);
+  --dsw-alias-state-warn-tertiary: rgba(201,138,27,0.1);
+  --dsw-alias-toast-bg: #FFFFFF;
+  --dsw-alias-tooltip-bg: #FFFFFF;
+  --dsw-alias-tooltip-fg: #17264A;
+  --dsw-specific-sidebar-fill: rgba(250,252,255,0.66);
+  --dsw-specific-sidebar-nav-item-active: rgba(61,111,214,0.14);
+  --dsw-specific-sidebar-nav-item-hover: rgba(61,111,214,0.08);
+  --dsw-specific-sidebar-nav-item-active-accent: rgba(61,111,214,0.55);
+  --dsw-specific-bubble: rgba(255,255,255,0.78);
+  --dsw-specific-bubble-highlight: rgba(61,111,214,0.12);
+  --dsw-specific-input-major: rgba(255,255,255,0.72);
+  --dsw-specific-login-input: rgba(255,255,255,0.72);
+  --dsw-specific-menu: rgba(250,252,255,0.94);
+  --dsw-specific-selector: rgba(244,248,254,0.92);
+  --dsw-specific-tip: #F5F8FE;
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+}
+
+body[data-ds-dark-theme] {
+  --dsw-alias-bg-base: rgba(11,16,36, calc(var(--dsw-skin-scrim, 0) * .45));
+  --dsw-alias-bg-layer-1: #111832;
+  --dsw-alias-bg-layer-2: #0E142C;
+  --dsw-alias-bg-layer-3: #151C3A;
+  --dsw-alias-bg-mask-1: #00000080;
+  --dsw-alias-bg-mask-2: #0003;
+  --dsw-alias-bg-mask-3: #0000007a;
+  --dsw-alias-bg-mask-photo: #000000e0;
+  --dsw-alias-bg-mask-drop: #272730b3;
+  --dsw-alias-bg-module-platform: #131A36;
+  --dsw-alias-bg-multi-select: #131A36;
+  --dsw-alias-bg-overlay: #1A2142;
+  --dsw-alias-bg-skeleton: #ffffff14;
+  --dsw-alias-border-inverted2: #ffffff14;
+  --dsw-alias-border-inverted: #ffffff0f;
+  --dsw-alias-border-l1: rgba(157,180,255,0.10);
+  --dsw-alias-border-l2-darkmode-thin: rgba(255,255,255,0.06);
+  --dsw-alias-border-l2: rgba(157,180,255,0.16);
+  --dsw-alias-border-l3: rgba(157,180,255,0.22);
+  --dsw-alias-border-l4: rgba(157,180,255,0.30);
+  --dsw-alias-brand-primary-invert: #0B1024;
+  --dsw-alias-brand-primary-new-colorprimary-new-color: #6C9BFF;
+  --dsw-alias-brand-primary-new-color: #6C9BFF;
+  --dsw-alias-brand-primary: #6C9BFF;
+  --dsw-alias-brand-text: #6C9BFF;
+  --dsw-alias-button-contrast-fill: #E9EEFF;
+  --dsw-alias-button-elevated-fill: #111832;
+  --dsw-alias-button-floating-fill: #111832;
+  --dsw-alias-button-floating-hover: #151C3A;
+  --dsw-alias-button-ghost-active-border: rgba(108,155,255,0.5);
+  --dsw-alias-button-ghost-active-fill: rgba(108,155,255,0.12);
+  --dsw-alias-button-ghost-active-hover: rgba(108,155,255,0.20);
+  --dsw-alias-button-info-fill: #6C9BFF;
+  --dsw-alias-button-info-hover: #87ADFF;
+  --dsw-alias-button-primary-dimmed: rgba(157,180,255,0.16);
+  --dsw-alias-button-primary-fill: #6C9BFF;
+  --dsw-alias-button-primary-hover: #87ADFF;
+  --dsw-alias-button-tool-bar-fill: #151C3A;
+  --dsw-alias-button-tool-bar-fill-invisible: transparent;
+  --dsw-alias-button-tool-bar-hover: rgba(108,155,255,0.12);
+  --dsw-alias-interactive-bg-active: rgba(108,155,255,0.20);
+  --dsw-alias-interactive-bg-hover: rgba(108,155,255,0.12);
+  --dsw-alias-interactive-bg-hover-accent: rgba(108,155,255,0.14);
+  --dsw-alias-interactive-bg-hover-danger: rgba(255,107,122,0.14);
+  --dsw-alias-interactive-bg-hover-solid: rgba(108,155,255,0.2);
+  --dsw-alias-label-caption: #67739B;
+  --dsw-alias-label-dimmed: #67739B;
+  --dsw-alias-label-primary-bluish: #E9EEFF;
+  --dsw-alias-label-primary-dimmed: #B9C4E8;
+  --dsw-alias-label-primary-foreground: #0B1024;
+  --dsw-alias-label-primary-inverted: #0B1024;
+  --dsw-alias-label-primary: #E9EEFF;
+  --dsw-alias-label-secondary: #B9C4E8;
+  --dsw-alias-label-tertiary: #8B97C2;
+  --dsw-alias-markdown-citation: #6C9BFF;
+  --dsw-alias-markdown-code-block: #0F1531;
+  --dsw-alias-markdown-code-block-banner: #131A3C;
+  --dsw-alias-markdown-code-segment-selected: rgba(108,155,255,0.16);
+  --dsw-alias-markdown-code-segment-unselected: rgba(157,180,255,0.10);
+  --dsw-alias-markdown-inline-code: rgba(108,155,255,0.14);
+  --dsw-alias-markdown-placeholder: #8B97C2;
+  --dsw-alias-markdown-tag: #6C9BFF;
+  --dsw-alias-scrollbar-bg-l1: rgba(233,238,255,0.18);
+  --dsw-alias-scrollbar-bg-l2: rgba(233,238,255,0.18);
+  --dsw-alias-scrollbar-hover-l1: rgba(233,238,255,0.32);
+  --dsw-alias-scrollbar-hover-l2: rgba(233,238,255,0.32);
+  --dsw-alias-state-business-primary: #6C9BFF;
+  --dsw-alias-state-business-tertiary: rgba(108,155,255,0.15);
+  --dsw-alias-state-error-primary: #FF6B7A;
+  --dsw-alias-state-error-secondary: rgba(255,107,122,0.14);
+  --dsw-alias-state-success-primary: #34C98C;
+  --dsw-alias-state-success-secondary: rgba(52,201,140,0.15);
+  --dsw-alias-state-success-tertiary: rgba(52,201,140,0.1);
+  --dsw-alias-state-warn-label: #E0A63E;
+  --dsw-alias-state-warn-primary: #E0A63E;
+  --dsw-alias-state-warn-secondary: rgba(224,166,62,0.16);
+  --dsw-alias-state-warn-tertiary: rgba(224,166,62,0.1);
+  --dsw-alias-toast-bg: #111832;
+  --dsw-alias-tooltip-bg: #151C3A;
+  --dsw-alias-tooltip-fg: #E9EEFF;
+  --dsw-specific-sidebar-fill: rgba(15,21,44,0.60);
+  --dsw-specific-sidebar-nav-item-active: rgba(108,155,255,0.20);
+  --dsw-specific-sidebar-nav-item-hover: rgba(108,155,255,0.10);
+  --dsw-specific-sidebar-nav-item-active-accent: rgba(108,155,255,0.60);
+  --dsw-specific-bubble: rgba(19,26,52,0.72);
+  --dsw-specific-bubble-highlight: rgba(108,155,255,0.20);
+  --dsw-specific-input-major: rgba(17,24,50,0.66);
+  --dsw-specific-login-input: rgba(17,24,50,0.66);
+  --dsw-specific-menu: rgba(17,24,50,0.96);
+  --dsw-specific-selector: rgba(21,28,58,0.94);
+  --dsw-specific-tip: #10173A;
+}
+
+/* Scrollbars */
+body::-webkit-scrollbar { width: 10px; height: 10px; }
+body::-webkit-scrollbar-track { background: #EDF2FA; }
+body::-webkit-scrollbar-thumb { background: #B9C9E8; border: 2px solid #EDF2FA; border-radius: 5px; }
+body::-webkit-scrollbar-thumb:hover { background: #7E9BE0; }
+body::-webkit-scrollbar-corner { background: #EDF2FA; }
+body[data-ds-dark-theme]::-webkit-scrollbar-track, body[data-ds-dark-theme]::-webkit-scrollbar-corner { background: #0E142C; }
+body[data-ds-dark-theme]::-webkit-scrollbar-thumb { background: #2C3A66; border-color: #0E142C; }
+body[data-ds-dark-theme]::-webkit-scrollbar-thumb:hover { background: #44589A; }
+
+/* Selection & focus */
+body::selection { color: #FFFFFF; background: #3D6FD6; }
+body[data-ds-dark-theme]::selection { color: #0B1024; background: #87ADFF; }
+body[data-ds-dark-theme] :focus-visible { outline-color: var(--dsw-alias-state-business-primary); }
+
+/* Dialog frosted glass */
+[data-dsh-part="dialog"] { backdrop-filter: blur(14px) saturate(1.12); -webkit-backdrop-filter: blur(14px) saturate(1.12); }
+
+/* Composer card accent ring on focus */
+[data-dsh-surface="composer"]:focus-within, [data-dsh-part="composer-input"]:focus-visible { box-shadow: 0 0 0 3px rgba(61,111,214,0.18); }
