@@ -39,11 +39,11 @@ export interface SessionArchiveProps extends SessionArchiveFace {
 function statusChips(row: ArchiveSessionRow, currentId: string | undefined): { key: string; label: string; tone: string }[] {
   const chips: { key: string; label: string; tone: string }[] = []
   if (row.running) chips.push({ key: 'running', label: t('arch.status.running'), tone: styles.chipWarn })
-  else if (row.blank) chips.push({ key: 'blank', label: t('arch.status.blank'), tone: styles.chipMuted })
-  else chips.push({ key: 'active', label: t('arch.status.active'), tone: styles.chipOk })
-  if (row.archived) chips.push({ key: 'archived', label: t('arch.status.archived'), tone: styles.chipOk })
-  if (row.origin === 'subagent') chips.push({ key: 'subagent', label: t('arch.status.subagent'), tone: styles.chipMuted })
-  if (currentId !== undefined && row.id === currentId) chips.push({ key: 'current', label: t('arch.current.badge'), tone: styles.chipWarn })
+  else if (row.blank) chips.push({ key: 'blank', label: t('arch.status.blank'), tone: styles.chipNeutral })
+  else chips.push({ key: 'active', label: t('arch.status.active'), tone: styles.chipSuccess })
+  if (row.archived) chips.push({ key: 'archived', label: t('arch.status.archived'), tone: styles.chipBusiness })
+  if (row.origin === 'subagent') chips.push({ key: 'subagent', label: t('arch.status.subagent'), tone: styles.chipNeutral })
+  if (currentId !== undefined && row.id === currentId) chips.push({ key: 'current', label: t('arch.current.badge'), tone: styles.chipDanger })
   return chips
 }
 
@@ -213,7 +213,7 @@ export function SessionArchiveCard(props: SessionArchiveProps): ReactNode {
                   {chips.map((chip) => (
                     <span key={chip.key} className={`${styles.chip} ${chip.tone}`}>{chip.label}</span>
                   ))}
-                  {row.childCount > 0 && <span className={`${styles.chip} ${styles.chipMuted}`}>{t('arch.row.children', { n: row.childCount })}</span>}
+                  {row.childCount > 0 && <span className={`${styles.chip} ${styles.chipNeutral}`}>{t('arch.row.children', { n: row.childCount })}</span>}
                 </div>
                 <div className={styles.rowMeta}>
                   <code className={styles.rowId}>{row.id}</code>
