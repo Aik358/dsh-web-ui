@@ -1,0 +1,30 @@
+# Agent Note: Maintenance run lands four registrations and pins the clean-clone stability bar
+
+Status: implemented
+
+## Problem
+
+Nine PRs were assigned to the owner for the 2026-08-31 maintenance run: seven community-plugin index registrations, one four-skin content PR, and one parked registration with outstanding author blockers. The run needed to resolve a gate conflict the prior runs did not face — the clean-checkout `market-build --check` script test now runs on every PR merge ref, so a content PR that does not carry a regenerated `market/dist` fails CI, while the #1239-era precedent had the maintainer rebuild dist on dev after merging — and to apply a consistent stability bar across plugin PRs whose upstream repos have no CI.
+
+## Decision
+
+- Four registrations land through the normal PR flow with maintainer fork-assist, each squash-merged with required checks green and an approving review: #1245 (tokyo-night skin, d77b75d18), #1282 (dsh-prompt-enhance, 7bd7c786e), #1285 (dsh-completion-guard, be426dacb), #1309 (dsh-session-enhance, a5890951d). For each, the maintainer merged latest dev into the PR head, normalized `community.json` to the current contract (source entries carry no `rank` field — the manifest assigns ranks positionally, so PR-borne rank fields are dropped on resolution), regenerated `market/dist` with `scripts/market-build`, and pushed the resolution to the fork's PR branch over a one-time named remote. The regenerated dist lands inside the PR, which supersedes the merge-then-rebuild-on-dev shape of #1240/#1299: it is what makes the clean-checkout gate green without a bypass merge, and it leaves dev never red between two pushes.
+- The stability bar for plugin registrations is clean-clone verification, not self-reported evidence: the maintainer clones the upstream repo and runs the wired gates. #1309 lands on that evidence (41 upstream tests pass on a clean clone, tests also gate the tag-publish workflow, license file present, the storage-sweep deletion layer does exact-sessionId stripping with atomic writes and degrade-to-warning failures). #1306 (dsh-audiogen) and #1318 (dsh-git-badge) go back to their authors: typecheck and build pass on a clean clone, but neither repo wires a test runner (no test script, no CI; #1306's only test file is orphaned, #1318 has none) — for plugins that expose local HTTP/SSE routes or execute git, standing gates are required, matching the bar #1144 set. #1321 (dsh-memory) goes back for provenance: the registered repo contains a different implementation from the published npm artifact (JSON-file keyword scorer with a hardcoded `D:\\插件\\memory` default versus the npm package's `node:sqlite` FTS5 store using `dshHomePath`), and an index entry's repo link must be the source of what users install.
+- Fork PR `pull_request` workflow runs (CI, agent-notes-guard, plugin-mount) sit in `action_required` until a maintainer approves each run per head SHA; every pushed head re-enters that state and is approved before gates are read.
+- #1316 (four skins) stays with its author: the four skins pass `dsh-skin validate`, the hooks are decorative-only particles already covered by the reviewed-hooks registry, and the CC-BY-NC-SA-4.0 asset license follows the maid-atelier/orca-link precedent, but all four skin directories lack the required bilingual READMEs and the body's local-validation and evidence sections are broken (screenshots posted as comments do not satisfy the body-reading checker). #1144 (dsh-deepsea) stays parked on the 2026-08-25 CHANGES_REQUESTED; upstream has not moved.
+- Two infra reds were rerun rather than diagnosed as PR defects: plugin-mount's pinned `@deepseek-ai/dsh@0.1.2-alpha.2` install 404'd on `@deepseek-ai/dsh-session-turn-outline` before that package's 0.1.2-alpha.3 publish resolved the range, and one actionlint step lost a Docker pull; both reruns went green.
+- Known debt deliberately left out of content PRs: the committed `market/dist/tryon` tree still reflects the pre-refactor 2026-08-24 shell build (the 2026-08-27 shell refactor never propagated — the last dist regen took the no-shell-dist preserve path). A maintainer-side shell rebuild plus dist regen on dev is the follow-up, kept out of this run's content PRs to hold their diffs minimal.
+
+## Alternatives considered
+
+- Keeping the merge-then-rebuild-on-dev shape for #1245: rejected — it needs a bypass merge over a knowingly red required check and leaves dev red between pushes; pushing the regenerated dist to the fork keeps every gate honest at no extra round-trip.
+- Bundling the tryon shell refresh into #1245's dist regen: rejected — 379 files of hashed-bundle churn in a content PR; the refresh is a maintainer-side task on dev.
+- Accepting #1306 and #1318 on the strength of the maintainer's one-off clean-clone typecheck/build: rejected — one-off checks do not gate future commits, and both plugins carry security-sensitive surfaces (upstream-audio proxying and API-key handling; local git execution behind HTTP/SSE routes); standing CI is the cheaper long-term control.
+- Editing the broken evidence sections of #1316's body maintainer-side: rejected — the checkboxes are the contributor's self-test declaration; the maintainer does not certify another party's evidence.
+
+## Consequences
+
+- The ledger stands at 52 entries; all four landings are confirmed on origin/dev and dev CI is green on the tree carrying them.
+- Registrations now expect the maintainer to resolve dev conflicts and ship regenerated dist through the PR itself when forks allow maintainer edits (`maintainerCanModify`); amended pushes to fork branches use `--force-with-lease` pinned to the exact prior head.
+- #1306, #1318, #1321 and #1316 wait on their authors with concrete blockers recorded in their reviews; #1144 remains parked under its existing review.
+- The tryon/shell drift persists until a maintainer-side rebuild lands on dev; the committed dist remains internally consistent (hash manifest matches files) in the meantime, so the clean-checkout gate keeps passing.
