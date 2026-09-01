@@ -57,4 +57,4 @@ pnpm build
 node scripts/verify-version.mjs 0.3.3
 ```
 
-The CI and release smoke lanes use `@deepseek-ai/dsh@0.1.1-rc.2`, which satisfies the family declaration `dsh.engines.dsh >=0.1.1-rc.1`.
+The CI and release smoke lanes mount into `@deepseek-ai/dsh@0.1.2-alpha.3`, the same host version the family requires through `dsh.engines.dsh >=0.1.2-alpha.3`.
