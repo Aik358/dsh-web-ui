@@ -168,19 +168,107 @@
   box-shadow: var(--dsw-shadow-lv1, 0 1px 3px rgba(0, 0, 0, 0.12));
 }
 
-.select,
-.search {
+/* Dropdown select (custom listbox replacing the native <select>) */
+
+.selectWrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.select {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 128px;
   border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
   background: var(--dsw-alias-bg-layer-1, #ffffff);
   color: var(--dsw-alias-label-primary, #1f2328);
   border-radius: 8px;
   padding: 4px 10px;
+  cursor: pointer;
+  text-align: left;
   transition: border-color 140ms ease;
 }
 
-.select:hover,
-.search:hover {
+.select:hover {
   border-color: color-mix(in srgb, var(--dsw-alias-label-primary, #1f2328) 28%, transparent);
+}
+
+.selectValue {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selectChevron {
+  flex: 0 0 auto;
+  color: var(--dsw-alias-label-tertiary, #8c959f);
+  transition: transform 140ms ease;
+}
+
+.selectChevronOpen {
+  transform: rotate(180deg);
+}
+
+.popup {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 100%;
+  z-index: 30;
+  padding: 4px;
+  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  border-radius: 10px;
+  /* Glass skins keep every layer token translucent; the overlay token is the
+     near-opaque elevated surface they remap, and the strong blur absorbs the
+     rest so list content can never bleed through behind the text. */
+  background: var(--dsw-alias-bg-overlay, #ffffff);
+  backdrop-filter: blur(20px) saturate(160%);
+  box-shadow: var(--dsw-shadow-lv3, 0 16px 48px rgba(0, 0, 0, 0.22));
+  max-height: 280px;
+  overflow: auto;
+  animation: popupIn 120ms ease;
+}
+
+.groupLabel {
+  padding: 6px 10px 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-tertiary, #8c959f);
+  white-space: nowrap;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  color: var(--dsw-alias-label-primary, #1f2328);
+}
+
+.optionActive {
+  background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.05));
+}
+
+.optionCheck {
+  flex: 0 0 auto;
+  color: var(--dsw-alias-button-primary-fill, #4a6cf7);
+}
+
+@keyframes popupIn {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .search {
@@ -378,33 +466,7 @@
   padding: 10px;
 }
 
-/* Workspace quick-select bar */
-
-.workspaceBar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.workspaceChip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  border: 1px solid var(--dsw-alias-border-l1, #e1e5ea);
-  border-radius: 999px;
-  padding: 3px 6px 3px 12px;
-  font-size: 12px;
-  background: var(--dsw-alias-bg-layer-1, #ffffff);
-}
-
-.workspaceTitle {
-  font-weight: 600;
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
+/* Auto maintenance panel */
 /* Dialogs */
 
 .overlay {
@@ -479,14 +541,17 @@
 
 @media (prefers-reduced-motion: reduce) {
   .overlay,
-  .modal {
+  .modal,
+  .popup {
     animation: none;
   }
 
   .button,
   .tab,
   .linkButton,
-  .row {
+  .row,
+  .select,
+  .selectChevron {
     transition: none;
   }
 }

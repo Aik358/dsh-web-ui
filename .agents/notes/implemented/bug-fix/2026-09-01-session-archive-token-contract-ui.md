@@ -52,18 +52,32 @@ accent and title on the danger dialog, the irrecoverable warning as a callout
 box, a dashed acknowledgement row for strong deletes, kind-aware batch progress
 fill (brand for archive/unarchive, error for delete), and a wide preview modal
 with role-tinted excerpt bubbles. Dialogs animate in (fade/scale) and honor
-`prefers-reduced-motion`. No locale keys changed.
+`prefers-reduced-motion`.
+
+A same-day follow-up round, driven by real-usage feedback: the workspace
+quick-select chip bar below the list duplicated the toolbar workspace filter
+and was removed (component block, CSS, and the `arch.select.workspace` /
+`arch.select.workspaceClear` keys in zh/en and the dsh-i18n ru pack); both
+native `<select>` controls were replaced by a themed dropdown
+(`client/Select.tsx`: trigger + listbox popup, grouped headers for the sort
+menu, arrow/Home/End/Enter/Esc keyboard support, outside-pointer close,
+`listbox`/`option` roles with `aria-activedescendant`); and the popup surface
+uses `bg-overlay` plus a strong `backdrop-filter` because glass skins keep
+every layer token translucent — on whale-song the layer-1 popup was
+transparent enough for list rows to bleed through behind the option text,
+while `bg-overlay` is the near-opaque elevated surface those skins remap.
 
 ## Testing
 
 `pnpm --filter @linxin666/dsh-session-archive build/typecheck/test` (77 tests)
 plus repo `typecheck`, `test`, `docs:check`, `i18n:check`. Verified in the live
-Web GUI on the whale-wallpaper skin in light mode: the list card, tonal chips,
-red danger links and the workspace/auto panels read correctly; the delete
-confirmation renders as a solid card over a gentle skin-tinted blurred scrim
-with the warning callout and solid confirm button; the preview dialog renders
-meta and excerpt bubbles. Evidence: session screenshots of the section, the
-delete confirm, and the preview.
+Web GUI on the whale-song skin in light mode: the list card, tonal chips,
+red danger links and the auto panel read correctly; the delete confirmation
+renders as a solid card over a gentle skin-tinted blurred scrim with the
+warning callout and solid confirm button; the preview dialog renders meta and
+excerpt bubbles; the custom dropdowns render opaque grouped popups and picking
+a workspace filters the list. Evidence: session screenshots of the section, the
+delete confirm, the preview, and both dropdowns.
 
 ## Alternatives considered
 

@@ -21,6 +21,7 @@ import { filterRows, PAGE_SIZE, selectionSummary, sortRows, type SortDir, type S
 import type { ArchiveController } from './archive-controller.ts'
 import { formatBytes, formatTime, BatchDialog, DeleteConfirmDialog, PreviewDialog } from './dialogs.tsx'
 import { AutoSettingsPanel } from './AutoSettings.tsx'
+import { Select } from './Select.tsx'
 import { t } from './locales.ts'
 import styles from './archive.module.css'
 
@@ -81,10 +82,6 @@ export function SessionArchiveCard(props: SessionArchiveProps): ReactNode {
   const onSelectAll = (): void => {
     controller.store.actions.selectMany(filtered.map((row) => row.id), true)
   }
-  const onSelectWorkspace = (workspaceId: string, on: boolean): void => {
-    const ids = filtered.filter((row) => row.workspaceIds.includes(workspaceId)).map((row) => row.id)
-    controller.store.actions.selectMany(ids, on)
-  }
 
   const runBatch = (kind: 'archive' | 'unarchive'): void => {
     void controller.runBatch(kind, ui.selection)
@@ -127,18 +124,16 @@ export function SessionArchiveCard(props: SessionArchiveProps): ReactNode {
             </button>
           ))}
         </div>
-        <select
-          className={styles.select}
+        <Select
           value={ui.filter.workspaceId}
-          aria-label={t('arch.filter.workspace')}
-          onChange={(event) => { controller.store.actions.setFilter({ workspaceId: event.target.value }) }}
-        >
-          <option value="any">{t('arch.filter.workspace.any')}</option>
-          <option value="none">{t('arch.filter.workspace.none')}</option>
-          {workspaces.map((workspace) => (
-            <option key={workspace.id} value={workspace.id}>{workspace.title}</option>
-          ))}
-        </select>
+          ariaLabel={t('arch.filter.workspace')}
+          options={[
+            { value: 'any', label: t('arch.filter.workspace.any') },
+            { value: 'none', label: t('arch.filter.workspace.none') },
+            ...workspaces.map((workspace) => ({ value: workspace.id, label: workspace.title })),
+          ]}
+          onChange={(value) => { controller.store.actions.setFilter({ workspaceId: value }) }}
+        />
         <input
           type="search"
           className={styles.search}
@@ -146,22 +141,18 @@ export function SessionArchiveCard(props: SessionArchiveProps): ReactNode {
           value={ui.filter.query}
           onChange={(event) => { controller.store.actions.setFilter({ query: event.target.value }) }}
         />
-        <select
-          className={styles.select}
+        <Select
           value={`${ui.sortKey}:${ui.sortDir}`}
-          aria-label={t('arch.sort')}
-          onChange={(event) => {
-            const [key, dir] = event.target.value.split(':') as [SortKey, SortDir]
+          ariaLabel={t('arch.sort')}
+          options={(['lastActivity', 'archivedAt', 'createdAt', 'title', 'size'] as const).flatMap((key) => [
+            { value: `${key}:desc`, label: t('arch.sort.desc'), group: t(`arch.sort.${key}`) },
+            { value: `${key}:asc`, label: t('arch.sort.asc'), group: t(`arch.sort.${key}`) },
+          ])}
+          onChange={(value) => {
+            const [key, dir] = value.split(':') as [SortKey, SortDir]
             controller.store.actions.setSort(key, dir)
           }}
-        >
-          {(['lastActivity', 'archivedAt', 'createdAt', 'title', 'size'] as const).map((key) => (
-            <optgroup key={key} label={t(`arch.sort.${key}`)}>
-              <option value={`${key}:desc`}>{t('arch.sort.desc')}</option>
-              <option value={`${key}:asc`}>{t('arch.sort.asc')}</option>
-            </optgroup>
-          ))}
-        </select>
+        />
         <label className={styles.checkLabel}>
           <input
             type="checkbox"
@@ -267,18 +258,6 @@ export function SessionArchiveCard(props: SessionArchiveProps): ReactNode {
           </div>
         )}
       </div>
-
-      {workspaces.length > 0 && (
-        <div className={styles.workspaceBar} data-dsh-part="workspace-bar">
-          {workspaces.map((workspace) => (
-            <span key={workspace.id} className={styles.workspaceChip}>
-              <span className={styles.workspaceTitle}>{workspace.title}</span>
-              <button type="button" className={styles.linkButton} onClick={() => { onSelectWorkspace(workspace.id, true) }}>{t('arch.select.workspace')}</button>
-              <button type="button" className={styles.linkButton} onClick={() => { onSelectWorkspace(workspace.id, false) }}>{t('arch.select.workspaceClear')}</button>
-            </span>
-          ))}
-        </div>
-      )}
 
       <AutoSettingsPanel settings={props.settings} controller={controller} auto={ui.inventory?.auto} />
 

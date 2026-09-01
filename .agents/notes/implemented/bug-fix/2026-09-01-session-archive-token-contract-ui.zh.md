@@ -41,16 +41,28 @@ hover/press 过渡、复选框 `accent-color`、行操作改横向排布、会�
 monospace chip、危险弹窗红色顶边与红色标题、不可恢复警告改为 callout
 框、强确认复选行用虚线框、批量进度条按任务类型着色（归档品牌色、删除
 错误色）、预览弹窗加宽并带角色着色的对话气泡。弹窗入场动画（淡入/缩放）
-并遵循 `prefers-reduced-motion`。文案 key 无变化。
+并遵循 `prefers-reduced-motion`。
+
+同日追加一轮（来自真实使用反馈）：列表下方的工作区快捷选择 chip 栏与
+工具栏的工作区筛选功能重复，整体移除（组件块、CSS，以及 zh/en 的
+`arch.select.workspace` / `arch.select.workspaceClear` 键与 dsh-i18n 的
+ru 集中词条）；两个原生 `<select>` 换成主题化下拉（`client/Select.tsx`：
+触发器 + listbox 弹层，排序菜单支持分组头，方向键/Home/End/Enter/Esc
+键盘操作，点外部关闭，`listbox`/`option` 角色加
+`aria-activedescendant`）；弹层表面改用 `bg-overlay` 加强模糊——玻璃皮肤
+把所有层级 token 都做成半透明，whale-song 下原 layer-1 弹层透明到选项
+文字背后能透出行内容，而 `bg-overlay` 是这些皮肤重映射的近不透明浮层
+表面。
 
 ## Testing
 
 `pnpm --filter @linxin666/dsh-session-archive build/typecheck/test`（77 例）
 与全仓 `typecheck`、`test`、`docs:check`、`i18n:check` 全部通过。并在真实
-Web GUI（鲸鱼壁纸皮肤、浅色模式）验证：列表卡片、tonal chip、红色危险链
-接、工作区/自动维护面板均正常着色；删除确认弹窗为实卡片加皮肤色调的轻
-遮罩与模糊，警告 callout 与实心确认按钮清晰；预览弹窗 meta 与对话气泡正
-常。证据：设置区、删除确认、预览三张会话截图。
+Web GUI（whale-song 皮肤、浅色模式）验证：列表卡片、tonal chip、红色危险
+链接、自动维护面板均正常着色；删除确认弹窗为实卡片加皮肤色调的轻遮罩与
+模糊，警告 callout 与实心确认按钮清晰；预览弹窗 meta 与对话气泡正常；两
+个自定义下拉弹层不透明、分组渲染正常，选择工作区后列表正确过滤。证据：
+设置区、删除确认、预览与两个下拉的会话截图。
 
 ## Alternatives considered
 
