@@ -20,7 +20,7 @@ DSH_HOME="${DSH_HOME:-$HOME/.dsh}"
 echo "== 宿主 =="
 echo "dsh --version: $(dsh --version 2>/dev/null || echo 'dsh 不可用')"
 echo "host pkg root: $HOST_PKG_ROOT"
-[ -d "$HOST_PKG_ROOT" ] || echo "  ⚠️ 宿主包根不存在，版本对照将跳过"
+[ -d "$HOST_PKG_ROOT" ] || echo "  WARN: 宿主包根不存在，版本对照将跳过"
 
 fail=0
 warn=0
@@ -104,8 +104,8 @@ cat <<'CHECKLIST'
 CHECKLIST
 
 if [ "$fail" -gt 0 ]; then
-  echo "❌ $fail 项 FAIL——先修复再使用（trading-web 见 scripts/refresh-trading-web-profile.sh）"
+  echo "FAIL: $fail 项 FAIL——先修复再使用（trading-web 见 scripts/refresh-trading-web-profile.sh）"
   exit 1
 fi
-[ "$warn" -gt 0 ] && echo "⚠️  $warn 项 WARN（当前可用，属同类隐患，建议择机归一）"
-echo "✅ 无 FAIL"
+[ "$warn" -gt 0 ] && echo "WARN: $warn 项 WARN（当前可用，属同类隐患，建议择机归一）"
+echo "OK: 无 FAIL"
